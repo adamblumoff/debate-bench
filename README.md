@@ -19,10 +19,16 @@ echo 'OPENAI_API_KEY=sk-...' > .env
 ## CLI
 
 - `debatebench init` — create `configs/` templates and `results/` directory.
-- `debatebench run` — run debates for configured model pairs and topics, append to `results/debates.jsonl`.
+- `debatebench run` — run debates for configured model pairs and topics, append to `results/debates.jsonl` (or `results/debates_<run_tag>.jsonl` when `--run-tag` is provided).
 - `debatebench rate` — recompute Elo ratings from debate logs, write `results/ratings.json`.
 - `debatebench show-leaderboard` — print sorted ratings with precomputed per-dimension averages.
 - `debatebench inspect-debate <id>` — print a single debate transcript and judge outputs.
+- `debatebench summarize` — write CSV summaries (winners, topic win rates, per-model dimension averages, judge agreement) to `results/viz/`.
+
+## Quick visualization
+
+- Notebook: `notebooks/viz.ipynb` plots the summary CSVs. Run after `debatebench summarize`.
+- Script: `python scripts/plot_viz.py --viz-dir results/viz --out-dir results/plots` saves PNGs for winner distribution, topic win rates, per-model dimension averages, and judge agreement.
 
 ## Config files (in `configs/`)
 

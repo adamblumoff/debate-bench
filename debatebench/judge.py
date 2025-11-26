@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import json
 import random
-from typing import Dict, List, Tuple
+import re
+from typing import Dict, List, Tuple, Optional
 
 from .models import JudgeAdapter
 from .schema import AggregatedResult, JudgeResult, JudgeScores, MainConfig, Transcript
@@ -29,6 +30,24 @@ def _synthetic_scores(dim_ids: List[str], scale_min: int, scale_max: int, rng: r
     return {dim: rng.randint(scale_min, scale_max) for dim in dim_ids}
 
 
+def _extract_json_block(text: str) -> Optional[dict]:
+    """
+    Find the first JSON object in free-form text and parse it.
+    """
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    match = re.search(r"\{.*\}", text, re.S)
+    if match:
+        snippet = match.group(0)
+        try:
+            return json.loads(snippet)
+        except Exception:
+            return None
+    return None
+
+
 def _parse_or_synthesize(
     response: str,
     dim_ids: List[str],
@@ -37,20 +56,21 @@ def _parse_or_synthesize(
     rng: random.Random,
 ) -> Tuple[str, Dict[str, int], Dict[str, int]]:
     """
-    Try to parse a judge JSON response; fallback to synthetic values.
+    Try to parse a judge JSON response; fallback to extracting winner from text; then synthesize remaining fields.
     """
     winner = "tie"
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    try:
-        payload = json.loads(response)
+    payload = _extract_json_block(response)
+    if payload:
         winner = payload.get("winner", winner)
         pro_scores = payload.get("pro", {}) or payload.get("scores", {}).get("pro", {})
         con_scores = payload.get("con", {}) or payload.get("scores", {}).get("con", {})
-    except Exception:
-        # ignore parse errors and synthesize
-        pass
+    else:
+        m = re.search(r"winner\s*[:\-]\s*(pro|con|tie)", response, re.I)
+        if m:
+            winner = m.group(1).lower()
 
     # Fill missing dimensions
     for dim in dim_ids:
