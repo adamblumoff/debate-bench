@@ -605,9 +605,9 @@ def run_command(
         # Configure judge pool fallback
         if judges_from_selection:
             judge_models = debater_models
-            main_cfg.num_judges = min(max(main_cfg.num_judges, 1), len(judge_models))
-            if len(judge_models) < 1:
-                raise typer.BadParameter("No available judges after selection.")
+            main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
+            if len(judge_models) < 2:
+                raise typer.BadParameter("Need at least two judges after selection.")
         else:
             selected_judges = _interactive_select_models(judge_catalog, console, title="Select Judge Models")
             if not selected_judges:
@@ -646,11 +646,11 @@ def run_command(
                     for j, err in dropped_j:
                         console.print(f"  [red]{j.model}[/red]: {err}")
                 judge_models = usable_j
-            main_cfg.num_judges = min(max(main_cfg.num_judges, 1), len(judge_models))
-            if len(judge_models) < main_cfg.num_judges:
-                raise typer.BadParameter(
-                    f"Judge pool ({len(judge_models)}) smaller than required panel ({main_cfg.num_judges})."
-                )
+        main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
+        if len(judge_models) < main_cfg.num_judges:
+            main_cfg.num_judges = len(judge_models)
+        if main_cfg.num_judges < 2:
+            raise typer.BadParameter("Need at least two judges in the final pool.")
 
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models after selection.")
