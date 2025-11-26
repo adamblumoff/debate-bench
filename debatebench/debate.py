@@ -29,6 +29,7 @@ def run_debate(
     con_adapter: DebaterAdapter,
     config: MainConfig,
     seed: Optional[int] = None,
+    log=None,
 ) -> Transcript:
     """
     Orchestrate a debate transcript according to the configured rounds.
@@ -41,6 +42,8 @@ def run_debate(
     for idx, round_cfg in enumerate(config.rounds):
         speaker = round_cfg.speaker
         adapter = adapter_map[speaker]
+        if log:
+            log(f"  Turn {idx+1}: {speaker.upper()} ({round_cfg.stage})")
         prompt = _build_prompt(topic, round_cfg.stage, speaker, turns)
         content = adapter.generate(prompt, turns)
         turn = Turn(

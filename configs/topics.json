@@ -1,1 +1,27 @@
-[]
+[
+    {
+        "id": "t001",
+        "motion": "Governments should ban face recognition technology in public spaces.",
+        "category": "policy"
+    },
+    {
+        "id": "t002",
+        "motion": "Nuclear power is necessary to achieve global net-zero emissions.",
+        "category": "science_policy"
+    },
+    {
+        "id": "t003",
+        "motion": "Large social media platforms should be legally responsible for harmful content recommended by their algorithms.",
+        "category": "technology_policy"
+    },
+    {
+        "id": "t004",
+        "motion": "Remote work is better than in-office work for most knowledge workers.",
+        "category": "work_culture"
+    },
+    {
+        "id": "t005",
+        "motion": "AI systems should be required to disclose when users are interacting with a machine, not a human.",
+        "category": "ai_policy"
+    }
+]

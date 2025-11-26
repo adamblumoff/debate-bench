@@ -77,9 +77,84 @@ def _load_yaml(path: Path):
     return data
 
 
+def _parse_main_config(data: dict) -> MainConfig:
+    """
+    Accept both the legacy flat schema and the richer nested schema the user provided.
+    """
+    if not data:
+        return default_main_config()
+
+    # New nested style with benchmark/debate/scoring/elo keys
+    if "benchmark" in data or "debate" in data or "scoring" in data:
+        benchmark = data.get("benchmark", {})
+        debate = data.get("debate", {})
+        scoring = data.get("scoring", {})
+        elo = data.get("elo", {})
+
+        benchmark_version = benchmark.get("version", "v0")
+        rubric_version = benchmark.get("rubric_version", benchmark_version)
+        language = debate.get("language", "en")
+
+        rounds_raw = debate.get("rounds", [])
+        rounds: List[RoundConfig] = []
+        for r in rounds_raw:
+            rounds.append(
+                RoundConfig(
+                    speaker=r.get("role") or r.get("speaker"),
+                    stage=r.get("stage", "turn"),
+                    token_limit=r.get("max_tokens") or r.get("token_limit") or 4096,
+                    language=r.get("language", language),
+                )
+            )
+
+        dimensions_raw = scoring.get("dimensions", {})
+        dimensions: List[DimensionConfig] = []
+        scale_min = None
+        scale_max = None
+        if isinstance(dimensions_raw, dict):
+            for dim_id, dim_cfg in dimensions_raw.items():
+                dimensions.append(DimensionConfig(id=dim_id, name=dim_id))
+                if isinstance(dim_cfg, dict):
+                    dmin = dim_cfg.get("min")
+                    dmax = dim_cfg.get("max")
+                    if dmin is not None:
+                        scale_min = dmin if scale_min is None else min(scale_min, dmin)
+                    if dmax is not None:
+                        scale_max = dmax if scale_max is None else max(scale_max, dmax)
+        else:
+            # fallback to list
+            dimensions = [DimensionConfig(**d) for d in dimensions_raw]
+
+        scoring_cfg = ScoringConfig(
+            dimensions=dimensions,
+            scale_min=scale_min if scale_min is not None else 1,
+            scale_max=scale_max if scale_max is not None else 10,
+        )
+
+        num_judges = scoring.get("judges_per_debate") or scoring.get("num_judges") or 3
+
+        elo_cfg = EloConfig(
+            initial_rating=elo.get("initial_rating", 400.0),
+            k_factor=elo.get("k_factor", 32.0),
+        )
+
+        return MainConfig(
+            benchmark_version=benchmark_version,
+            rubric_version=rubric_version,
+            rounds=rounds if rounds else default_main_config().rounds,
+            scoring=scoring_cfg,
+            num_judges=num_judges,
+            elo=elo_cfg,
+            language=language,
+        )
+
+    # Legacy flat schema
+    return MainConfig(**data)
+
+
 def load_main_config(path: Path) -> MainConfig:
     data = _load_yaml(path) or {}
-    return MainConfig(**data)
+    return _parse_main_config(data)
 
 
 def load_topics(path: Path) -> List[Topic]:

@@ -16,7 +16,9 @@ dependencies = [
   "typer>=0.9,<1.0",
   "rich>=13.7,<14.0",
   "pydantic>=1.10,<2.0",
-  "PyYAML>=6.0"
+  "PyYAML>=6.0",
+  "requests>=2.31,<3.0",
+  "python-dotenv>=1.0,<2.0",
 ]
 
 [project.scripts]

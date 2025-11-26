@@ -10,6 +10,12 @@ pip install -e .
 
 Requires Python 3.9+.
 
+Set credentials (for OpenAI provider):
+
+```bash
+echo 'OPENAI_API_KEY=sk-...' > .env
+```
+
 ## CLI
 
 - `debatebench init` — create `configs/` templates and `results/` directory.
@@ -24,6 +30,9 @@ Requires Python 3.9+.
 - `topics.json` — list of topics `{id, motion, category}`; empty by default.
 - `models.yaml` — debater model entries `{id, provider, model, token_limit, endpoint, parameters}`; empty template.
 - `judges.yaml` — judge model entries `{id, provider, model, endpoint, prompt_style, parameters}`; empty template.
+
+Environment:
+- `.env` (optional) — loaded automatically; set `OPENAI_API_KEY` (and optionally `HTTP_BEARER_TOKEN` for generic HTTP providers).
 
 ## Data files (in `results/`)
 

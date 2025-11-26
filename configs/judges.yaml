@@ -1,1 +1,30 @@
-[]
+judges:
+  - id: gpt_4o_judge
+    role: judge
+    provider: openai
+    model: gpt-4o
+    endpoint: "https://api.openai.com/v1/chat/completions"
+    token_limit: 4096
+    prompt_style: default
+    parameters:
+      temperature: 0.0
+
+  - id: gpt_4o_mini_judge
+    role: judge
+    provider: openai
+    model: gpt-4o-mini
+    endpoint: "https://api.openai.com/v1/chat/completions"
+    token_limit: 4096
+    prompt_style: default
+    parameters:
+      temperature: 0.0
+
+  - id: llama3_70b_judge
+    role: judge
+    provider: http
+    model: "llama-3-70b-instruct"
+    endpoint: "http://localhost:8000/v1/chat/completions"
+    token_limit: 4096
+    prompt_style: default
+    parameters:
+      temperature: 0.0

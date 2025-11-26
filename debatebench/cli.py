@@ -20,6 +20,7 @@ from .models import build_debater_adapter, build_judge_adapter, sample_judges
 from .rating import recompute_ratings
 from .schema import DebateRecord
 from .storage import append_debate_record, load_debate_records, read_ratings, write_ratings
+from .settings import load_settings
 
 app = typer.Typer(help="DebateBench CLI")
 console = Console()
@@ -98,6 +99,7 @@ def run_command(
         )
 
     rng = random.Random(seed)
+    settings = load_settings()
 
     topics_selected = topics
     if sample_topics is not None:
@@ -106,8 +108,8 @@ def run_command(
         topics_selected = rng.sample(topics, k=min(sample_topics, len(topics)))
 
     # Build adapters
-    debater_adapters = {m.id: build_debater_adapter(m) for m in debater_models}
-    judge_adapters = {j.id: build_judge_adapter(j) for j in judge_models}
+    debater_adapters = {m.id: build_debater_adapter(m, settings) for m in debater_models}
+    judge_adapters = {j.id: build_judge_adapter(j, settings) for j in judge_models}
 
     # Generate schedule of model pairs
     pairs = list(itertools.combinations(debater_models, 2))
@@ -127,18 +129,28 @@ def run_command(
                 pro_adapter = debater_adapters[pro_model.id]
                 con_adapter = debater_adapters[con_model.id]
 
+                console.print(
+                    f"[yellow]Debate {run_index}/{total_runs}[/yellow] "
+                    f"Topic '{topic.id}' | PRO={pro_model.id} vs CON={con_model.id}"
+                )
+                log = console.print
+
                 transcript = run_debate(
                     topic=topic,
                     pro_adapter=pro_adapter,
                     con_adapter=con_adapter,
                     config=main_cfg,
                     seed=seed,
+                    log=log,
                 )
 
                 judge_pool = sample_judges(
                     list(judge_models), main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
                 )
                 judge_adapter_objs = [judge_adapters[j.id] for j in judge_pool]
+                console.print(
+                    f"  Judging with panel: {', '.join(j.id for j in judge_pool)}"
+                )
                 judge_results, aggregate = run_judge_panel(
                     judge_adapter_objs, transcript, main_cfg, seed=rng.randint(0, 1_000_000)
                 )
