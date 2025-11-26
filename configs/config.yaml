@@ -1,0 +1,25 @@
+benchmark_version: v0
+rubric_version: v0
+language: en
+rounds:
+  - speaker: pro
+    stage: opening
+    token_limit: 4096
+    language: en
+  - speaker: con
+    stage: opening
+    token_limit: 4096
+    language: en
+scoring:
+  scale_min: 1
+  scale_max: 10
+  dimensions:
+    - id: persuasion
+    - id: reasoning
+    - id: factuality
+    - id: clarity
+    - id: safety
+num_judges: 3
+elo:
+  initial_rating: 400.0
+  k_factor: 32.0
