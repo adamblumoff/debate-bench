@@ -91,6 +91,11 @@ def run_command(
         )
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models.")
+    overlap = {m.id for m in debater_models}.intersection({j.id for j in judge_models})
+    if overlap:
+        raise typer.BadParameter(
+            f"Judge pool must not include evaluated debater ids; overlap: {', '.join(sorted(overlap))}"
+        )
 
     rng = random.Random(seed)
 
@@ -105,7 +110,7 @@ def run_command(
     judge_adapters = {j.id: build_judge_adapter(j) for j in judge_models}
 
     # Generate schedule of model pairs
-    pairs = list(itertools.permutations(debater_models, 2))
+    pairs = list(itertools.combinations(debater_models, 2))
     total_runs = len(pairs) * len(topics_selected) * debates_per_pair
     console.print(f"Scheduled {total_runs} debates.")
 
