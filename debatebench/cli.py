@@ -87,7 +87,7 @@ def run_command(
         False, help="Randomly swap Pro/Con assignment per debate (ignored if --balanced-sides)."
     ),
     balanced_sides: bool = typer.Option(
-        True, help="Ensure each model pair plays both sides."
+        True, help="Ensure each model pair plays both sides (permutations). Disable for combinations."
     ),
 ):
     """
