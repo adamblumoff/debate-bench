@@ -10,7 +10,7 @@
 ## Build, Test, and Development Commands
 - Install editable: `pip install -e .`
 - Bootstrap configs/results: `debatebench init`
-- Run debates: `debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo` (topic picker first; OpenRouter picker defaults all models OFF; shows text-in/text-out models only; sorted alphabetically; arrow keys move, Enter/Space toggles on/off, c continues; judges default to the selected models, or use `--no-judges-from-selection` for a separate judge picker; debater/judge max tokens default 512/256 with automatic downshift on 402 errors; at least two judges required; writes `results/debates_demo.jsonl`, then summarizes and plots).
+- Run debates: `debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo` (topic picker first; OpenRouter picker defaults all models OFF; shows text-in/text-out models only; sorted alphabetically; arrow keys move, Enter/Space toggles on/off, c continues; judges default to the selected models, or use `--no-judges-from-selection` for a separate judge picker; debater/judge max tokens default 512/256 with automatic downshift on 402 errors; at least two judges required and clamped to the pool; writes `results/debates_demo.jsonl`, then summarizes and plots).
 - Recompute ratings: `debatebench rate --debates-path results/debates.jsonl`
 - Inspect artifacts: `debatebench show-leaderboard --top 10`; `debatebench inspect-debate <uuid>`
 - Re-run summaries/plots: `debatebench summarize --debates-path results/debates_demo.jsonl --out-dir results/viz_demo`; `debatebench plot --viz-dir results/viz_demo --out-dir results/plots_demo`

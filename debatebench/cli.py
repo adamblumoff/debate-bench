@@ -37,6 +37,10 @@ def _path_option(default: str, help_text: str):
     return typer.Option(default, help=help_text, dir_okay=True, file_okay=True, readable=True, writable=True)
 
 
+class SelectionCancelled(Exception):
+    """Raised when the user cancels the selection wizard."""
+
+
 def _interactive_select_models(catalog, console: Console, title: str = "OpenRouter Models (alphabetical)"):
     """
     Curses-based selector: arrow keys to move, Enter/Space to toggle, c to continue, q to cancel.
@@ -128,9 +132,11 @@ def _interactive_select_topics(topics, console: Console):
     except Exception:
         return _fallback_select_topics(topics, console)
 
+    topics_sorted = sorted(topics, key=lambda t: (t.category or "", t.motion))
+
     def menu(stdscr):
         curses.curs_set(0)
-        selected = [False] * len(topics)
+        selected = [False] * len(topics_sorted)
         idx = 0
 
         def draw():
@@ -143,13 +149,14 @@ def _interactive_select_topics(topics, console: Console):
             )
             max_rows = curses.LINES - 2
             start = max(0, idx - max_rows + 1)
-            visible = topics[start : start + max_rows]
+            visible = topics_sorted[start : start + max_rows]
             for offset, entry in enumerate(visible):
                 real_idx = start + offset
                 cursor = ">" if real_idx == idx else " "
                 mark = "[x]" if selected[real_idx] else "[ ]"
-                motion = entry.motion if len(entry.motion) < curses.COLS - 15 else entry.motion[: curses.COLS - 18] + "..."
-                line = f"{cursor} {mark} {entry.id}: {motion}"
+                motion = entry.motion if len(entry.motion) < curses.COLS - 20 else entry.motion[: curses.COLS - 23] + "..."
+                cat = entry.category or "-"
+                line = f"{cursor} {mark} {cat}: {motion}"
                 stdscr.addstr(offset + 1, 0, line[: curses.COLS - 1])
             stdscr.refresh()
 
@@ -163,7 +170,7 @@ def _interactive_select_topics(topics, console: Console):
             elif ch in (10, 13, ord(" "), ord("\n")):  # Enter or space toggles
                 selected[idx] = not selected[idx]
             elif ch in (ord("c"), ord("C")):  # continue
-                return [t for i, t in enumerate(topics) if selected[i]]
+                return [t for i, t in enumerate(topics_sorted) if selected[i]]
             elif ch in (ord("q"), ord("Q")):
                 return []
             draw()
@@ -177,11 +184,12 @@ def _interactive_select_topics(topics, console: Console):
 def _fallback_select_topics(topics, console: Console):
     table = Table(title="Topics")
     table.add_column("#", justify="right")
-    table.add_column("ID")
+    table.add_column("Category")
     table.add_column("Motion")
     table.add_column("Category")
-    for idx, t in enumerate(topics, start=1):
-        table.add_row(str(idx), t.id, t.motion, t.category or "-")
+    topics_sorted = sorted(topics, key=lambda t: (t.category or "", t.motion))
+    for idx, t in enumerate(topics_sorted, start=1):
+        table.add_row(str(idx), t.category or "-", t.motion, t.category or "-")
     console.print(table)
     prompt_text = "Enter comma-separated indexes to ENABLE (blank enables none): "
     raw = typer.prompt(prompt_text, default="")
@@ -195,10 +203,10 @@ def _fallback_select_topics(topics, console: Console):
                 val = int(p)
             except ValueError:
                 raise typer.BadParameter(f"Invalid index: {p}")
-            if val < 1 or val > len(topics):
+            if val < 1 or val > len(topics_sorted):
                 raise typer.BadParameter(f"Index out of range: {val}")
             enabled.add(val)
-    return [t for idx, t in enumerate(topics, start=1) if idx in enabled]
+    return [t for idx, t in enumerate(topics_sorted, start=1) if idx in enabled]
 
 
 def selection_wizard(
@@ -220,11 +228,12 @@ def selection_wizard(
 
     steps = []
     if enable_topics and topics:
+        topics_sorted = sorted(topics, key=lambda t: (t.category or "", t.motion))
         steps.append(
             {
                 "name": "Topics",
-                "items": topics,
-                "selected": [False] * len(topics),
+                "items": topics_sorted,
+                "selected": [False] * len(topics_sorted),
                 "type": "topic",
             }
         )
@@ -290,7 +299,9 @@ def selection_wizard(
                 cursor = ">" if real_idx == cursor_idx else " "
                 mark = "[x]" if selected[real_idx] else "[ ]"
                 if step["type"] == "topic":
-                    desc = f"{entry.id}: {entry.motion}"
+                    cat = entry.category or "-"
+                    motion = entry.motion
+                    desc = f"{cat}: {motion}"
                 else:
                     created = entry.get("created")
                     cstr = created.strftime("%Y-%m-%d") if created else ""
@@ -320,7 +331,7 @@ def selection_wizard(
                     step_idx -= 1
                     clamp_cursor()
             elif ch in (ord("q"), ord("Q")):
-                return None
+                raise SelectionCancelled()
             draw()
 
         # Gather selections
@@ -488,14 +499,18 @@ def run_command(
     # Wizard (topics -> debaters -> judges) if enabled and curses is available
     used_wizard = False
     if tui_wizard:
-        wizard_result = selection_wizard(
-            topics=topics if topic_select else [],
-            model_catalog=debater_catalog if openrouter_select else [],
-            judge_catalog=judge_catalog if (not judges_from_selection) else [],
-            enable_topics=topic_select,
-            enable_models=openrouter_select,
-            enable_judges=not judges_from_selection,
-        )
+        try:
+            wizard_result = selection_wizard(
+                topics=topics if topic_select else [],
+                model_catalog=debater_catalog if openrouter_select else [],
+                judge_catalog=judge_catalog if (not judges_from_selection) else [],
+                enable_topics=topic_select,
+                enable_models=openrouter_select,
+                enable_judges=not judges_from_selection,
+            )
+        except SelectionCancelled:
+            console.print("[yellow]Selection cancelled.[/yellow]")
+            raise typer.Exit(code=1)
         if wizard_result is not None:
             used_wizard = True
             topics_selected, debater_entries, judge_entries = wizard_result
@@ -651,6 +666,13 @@ def run_command(
             main_cfg.num_judges = len(judge_models)
         if main_cfg.num_judges < 2:
             raise typer.BadParameter("Need at least two judges in the final pool.")
+
+    # Final clamp for both wizard and fallback paths
+    main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
+    if len(judge_models) < main_cfg.num_judges:
+        main_cfg.num_judges = len(judge_models)
+    if main_cfg.num_judges < 2:
+        raise typer.BadParameter("Need at least two judges in the final pool.")
 
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models after selection.")
