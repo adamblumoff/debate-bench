@@ -1,60 +1,50 @@
 # DebateBench
 
-CLI tool to run debate-style evaluations between LLM models, collect per-side judge scores, and maintain Elo-style ratings.
+CLI tool for running debate-style evaluations between LLM models, collecting judge scores, and computing Elo-style ratings. Adapters for real models are supported (OpenAI and generic HTTP), but the defaults are **stubbed**; without configured endpoints you'll get synthetic debates and scores -- useful for flow testing, not benchmarking.
+
+## Requirements
+- Python 3.9+
+- Optional: `.env` with `OPENAI_API_KEY` (for OpenAI provider) and/or `HTTP_BEARER_TOKEN` (for generic HTTP).
+- Plotting depends on pandas + seaborn + matplotlib (installed via project deps).
 
 ## Install
-
 ```bash
 pip install -e .
 ```
 
-Requires Python 3.9+.
-
-Set credentials (for OpenAI provider):
-
+## Quickstart
 ```bash
-echo 'OPENAI_API_KEY=sk-...' > .env
+debatebench init                        # writes configs/ and results/
+# edit configs/topics.json, configs/models.yaml, configs/judges.yaml
+debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo
+# run writes results/debates_demo.jsonl and auto-summarizes/plots to results/viz_demo and results/plots_demo
+debatebench show-leaderboard --top 10
+debatebench inspect-debate <debate_uuid>
 ```
 
-## CLI
+## CLI Commands
+- `debatebench init` -- generate default config templates and create `results/`.
+- `debatebench run` -- execute debates for all model pairs and topics; accepts `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`.
+- `debatebench rate` -- recompute Elo ratings from a debates file.
+- `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
+- `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
+- `debatebench summarize` -- emit CSV summaries from a debates file.
+- `debatebench plot` -- render PNGs from summary CSVs.
 
-- `debatebench init` — create `configs/` templates and `results/` directory.
-- `debatebench run` — run debates for configured model pairs and topics; each invocation writes to a timestamped `results/debates_<run_tag>.jsonl` (default tag like `run-YYYYMMDD-HHMMSS`, or custom via `--run-tag`), then automatically runs `summarize` and `plot` into matching `results/viz_<run_tag>/` and `results/plots_<run_tag>/`.
-- `debatebench rate` — recompute Elo ratings from debate logs, write `results/ratings.json`.
-- `debatebench show-leaderboard` — print sorted ratings with precomputed per-dimension averages.
-- `debatebench inspect-debate <id>` — print a single debate transcript and judge outputs.
-- `debatebench summarize` — write CSV summaries (winners, topic win rates, per-model dimension averages, judge agreement, judge alignment, model side winrates, score gaps, timings, token usage) to `results/viz/`.
-- `debatebench plot` — render PNG plots from `results/viz/` into `results/plots/` (uses pandas+seaborn+matplotlib).
+## Configuration Layout (`configs/`)
+- `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings.
+- `topics.json` -- list of `{id, motion, category}`.
+- `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`.
+- `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`.
+Note: Judge IDs must not overlap with debater IDs.
 
-## Quick visualization
+## Outputs (`results/`)
+- `debates_<tag>.jsonl` -- one `DebateRecord` per line (transcript, judges, aggregate scores, timings, token usage).
+- `ratings.json` -- current Elo ratings and per-dimension averages.
+- `viz_<tag>/` -- CSV summaries (winner counts, topic win rates, dimension averages, judge agreement, token usage, etc.).
+- `plots_<tag>/` -- PNGs generated from the CSVs.
 
-- Use `debatebench plot` after `debatebench summarize` to write PNGs into `results/plots/`.
-
-## Config files (in `configs/`)
-
-- `config.yaml` — benchmark/rubric versions, **rounds (authoritative debate format; default is a minimal starter with two opening turns: Pro then Con, 4096 token limit)**, scoring dimensions (1–10 integers, per side), judge count (default 3), Elo settings (initial 400, K=32).
-- `topics.json` — list of topics `{id, motion, category}`; empty by default.
-- `models.yaml` — debater model entries `{id, provider, model, token_limit, endpoint, parameters}`; empty template.
-- `judges.yaml` — judge model entries `{id, provider, model, endpoint, prompt_style, parameters}`; empty template.
-
-Environment:
-- `.env` (optional) — loaded automatically; set `OPENAI_API_KEY` (and optionally `HTTP_BEARER_TOKEN` for generic HTTP providers).
-
-## Data files (in `results/`)
-
-- `debates.jsonl` — one stored debate per line, including `benchmark_version`/`rubric_version`, full transcript with seed, raw judge outputs, and aggregated results. Each judge returns integer scores **per dimension per side (Pro and Con) plus a winner label**. A 3-judge panel is sampled from `judges.yaml`; winner is by majority vote (ties remain `tie`), per-dimension scores are averaged across judges per side.
-- `ratings.json` — includes `benchmark_version`, `rubric_version`, Elo settings, and per-model entries: `rating`, `games_played`, and `dimension_avgs[dimension]` averaged over all debates the model participated in (using that model’s side-specific scores).
-
-## Defaults and assumptions
-
-- Minimal starter format: two opening turns (Pro then Con). **`rounds` is the source of truth—extend with rebuttals/closings as you evolve the format.**
-- Scores are integers 1–10 per side per dimension.
-- Panel of 3 judges sampled from the pool; majority vote for winner, mean scores per side.
-- Elo start rating 400 (intentional placeholder; only differences matter), K-factor 32, chess-style expected score.
-- Full prompts/responses and the random seed are logged per debate; model and judge calls are stubbed placeholders until real adapters are added.
-
-## Next steps
-
-1. Add real provider adapters for debaters and judges.
-2. Populate `topics.json`, `models.yaml`, and `judges.yaml`.
-3. Tune debate format, token limits, and Elo settings as desired.
+## Current Status / Limitations
+- Default adapters return stub text and synthetic scores; configure real endpoints for meaningful results.
+- No automated tests yet; prefer `pytest` with seeded RNGs when adding coverage.
+- Results files can grow quickly; avoid committing large `results/` artifacts or `.env`.
