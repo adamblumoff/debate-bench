@@ -32,6 +32,6 @@
 - PRs: include a brief summary, commands/tests run, and links to key plots/CSVs. Call out config/schema changes so reviewers can regenerate templates.
 
 ## Security & Configuration Notes
-- Secrets live in `.env` (`OPENAI_API_KEY`, optional `HTTP_BEARER_TOKEN`). Never commit `.env` or embed keys in configs/notebooks.
-- OpenRouter: set `OPENROUTER_API_KEY` (plus optional `OPENROUTER_SITE_URL`/`OPENROUTER_SITE_NAME` for referral headers). Use `provider: openrouter` in `models.yaml`; endpoint defaults to `https://openrouter.ai/api/v1/chat/completions` unless overridden.
+- Secrets live in `.env` (`OPENROUTER_API_KEY`, optional `OPENROUTER_SITE_URL`/`OPENROUTER_SITE_NAME`). Never commit `.env` or embed keys in configs/notebooks.
+- Use `provider: openrouter` in `models.yaml`/`judges.yaml`; endpoint defaults to `https://openrouter.ai/api/v1/chat/completions` unless overridden.
 - Endpoints come from `models.yaml`; prefer HTTPS, set reasonable timeouts, and avoid logging full prompts/responses if they may contain sensitive data.

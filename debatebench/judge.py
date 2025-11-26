@@ -83,6 +83,16 @@ def _parse_or_synthesize(
     if winner not in {"pro", "con", "tie"}:
         winner = "tie"
 
+    # Override winner based on average dimension scores (simple mean)
+    pro_avg = sum(pro_scores.values()) / len(pro_scores) if pro_scores else 0
+    con_avg = sum(con_scores.values()) / len(con_scores) if con_scores else 0
+    if pro_avg > con_avg:
+        winner = "pro"
+    elif con_avg > pro_avg:
+        winner = "con"
+    else:
+        winner = "tie"
+
     return winner, pro_scores, con_scores
 
 

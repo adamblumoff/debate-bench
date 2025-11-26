@@ -441,6 +441,10 @@ def run_command(
         "--tui-wizard/--no-tui-wizard",
         help="Use a single curses wizard for topic/model/judge selection when available (default on).",
     ),
+    apply_stage_token_limits: bool = typer.Option(
+        True,
+        help="Apply default per-stage token limits (opening=900, rebuttal=600, closing=400) to rounds before running.",
+    ),
 ):
     """
     Run a batch of debates and append results.
@@ -448,6 +452,15 @@ def run_command(
     main_cfg, topics, debater_models, judge_models = cfg.load_all_configs(
         config_path, topics_path, models_path, judges_path
     )
+
+    # Apply default per-stage token limits if enabled
+    if apply_stage_token_limits:
+        stage_limits = {"opening": 900, "rebuttal": 600, "closing": 400}
+        new_rounds = []
+        for r in main_cfg.rounds:
+            lim = stage_limits.get(r.stage, r.token_limit)
+            new_rounds.append(r.copy(update={"token_limit": lim}))
+        main_cfg.rounds = new_rounds
 
     # derive run tag and output paths
     if not run_tag:

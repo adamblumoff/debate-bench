@@ -46,9 +46,24 @@ def run_debate(
         if log:
             log(f"  Turn {idx+1}: {speaker.upper()} ({round_cfg.stage})")
         prompt = _build_prompt(topic, round_cfg.stage, speaker, turns)
-        t0 = time.perf_counter()
-        content, usage = adapter.generate(prompt, turns)
-        duration_ms = (time.perf_counter() - t0) * 1000
+
+        # Retry a couple times if the model returns empty content.
+        content = ""
+        usage = {}
+        attempts = 0
+        while attempts < 2:
+            attempts += 1
+            t0 = time.perf_counter()
+            content, usage = adapter.generate(prompt, turns, max_tokens=round_cfg.token_limit)
+            duration_ms = (time.perf_counter() - t0) * 1000
+            if content and content.strip():
+                break
+            if log:
+                log(f"    Empty response from {speaker}; retrying ({attempts}/2)...")
+            time.sleep(0.1)
+        if not content or not content.strip():
+            raise RuntimeError(f"{speaker} returned empty content after retries.")
+
         turn = Turn(
             index=idx,
             speaker=speaker,
