@@ -20,7 +20,7 @@ from .judge import run_judge_panel
 from .models import build_debater_adapter, build_judge_adapter, sample_judges
 from .openrouter import fetch_recent_openrouter_models, probe_model
 from .rating import recompute_ratings
-from .schema import DebateRecord, DebaterModelConfig
+from .schema import DebateRecord, DebaterModelConfig, JudgeModelConfig
 from .storage import append_debate_record, load_debate_records, read_ratings, write_ratings
 from .settings import load_settings
 from collections import defaultdict
@@ -37,7 +37,7 @@ def _path_option(default: str, help_text: str):
     return typer.Option(default, help=help_text, dir_okay=True, file_okay=True, readable=True, writable=True)
 
 
-def _interactive_select_models(catalog, console: Console):
+def _interactive_select_models(catalog, console: Console, title: str = "OpenRouter Models (alphabetical)"):
     """
     Curses-based selector: arrow keys to move, Enter/Space to toggle, c to continue, q to cancel.
     Falls back to simple enable prompt if curses is unavailable.
@@ -54,12 +54,8 @@ def _interactive_select_models(catalog, console: Console):
 
         def draw():
             stdscr.clear()
-            stdscr.addstr(
-                0,
-                0,
-                "OpenRouter Models (Enter/Space toggle ON/OFF, ↑/↓ move, c=continue, q=cancel; default is OFF)",
-                curses.A_BOLD,
-            )
+            header = f"{title} (Enter/Space toggle ON/OFF, ↑/↓ move, c=continue, q=cancel; default is OFF)"
+            stdscr.addstr(0, 0, header, curses.A_BOLD)
             max_rows = curses.LINES - 2
             start = max(0, idx - max_rows + 1)
             visible = catalog[start : start + max_rows]
@@ -92,11 +88,11 @@ def _interactive_select_models(catalog, console: Console):
         return _fallback_select_models(catalog, console)
 
 
-def _fallback_select_models(catalog, console: Console):
+def _fallback_select_models(catalog, console: Console, title: str = "OpenRouter Models (alphabetical)"):
     """
     Simpler prompt fallback: show table, accept comma-separated indexes to enable.
     """
-    table = Table(title="OpenRouter Models (alphabetical)")
+    table = Table(title=title)
     table.add_column("#", justify="right")
     table.add_column("Model ID")
     table.add_column("Created (UTC)")
@@ -190,6 +186,14 @@ def run_command(
     openrouter_probe: bool = typer.Option(
         True, help="Probe each selected OpenRouter model before running; drop any that fail."
     ),
+    judges_from_selection: bool = typer.Option(
+        True,
+        help="Use the selected debater models as the judge pool and sample a panel per debate.",
+    ),
+    openrouter_judge_months: Optional[int] = typer.Option(
+        None,
+        help="Lookback window in months for OpenRouter judge selection (defaults to openrouter-months).",
+    ),
 ):
     """
     Run a batch of debates and append results.
@@ -207,15 +211,6 @@ def run_command(
 
     if not topics:
         raise typer.BadParameter("Topics list is empty.")
-    if len(judge_models) < main_cfg.num_judges:
-        raise typer.BadParameter(
-            f"Judge pool ({len(judge_models)}) smaller than required panel ({main_cfg.num_judges})."
-        )
-    overlap = {m.id for m in debater_models}.intersection({j.id for j in judge_models})
-    if overlap:
-        raise typer.BadParameter(
-            f"Judge pool must not include evaluated debater ids; overlap: {', '.join(sorted(overlap))}"
-        )
 
     rng = random.Random(seed)
     settings = load_settings()
@@ -242,7 +237,7 @@ def run_command(
         if not catalog:
             raise typer.BadParameter(f"No text-based OpenRouter models found in the last {openrouter_months} month(s).")
 
-        selected_entries = _interactive_select_models(catalog, console)
+        selected_entries = _interactive_select_models(catalog, console, title="Select Debater Models")
         if not selected_entries:
             raise typer.BadParameter("All models were disabled; nothing to run.")
 
@@ -287,6 +282,69 @@ def run_command(
         debater_models = usable
         if len(debater_models) < 2:
             raise typer.BadParameter("Fewer than two usable models after probe; aborting.")
+
+    # Configure judge pool
+    if judges_from_selection:
+        judge_models = debater_models
+        main_cfg.num_judges = min(max(main_cfg.num_judges, 1), len(judge_models))
+        if len(judge_models) < 1:
+            raise typer.BadParameter("No available judges after selection.")
+    else:
+        # Interactive selection for judges (OpenRouter)
+        months_j = openrouter_judge_months or openrouter_months
+        console.print(
+            f"[cyan]Fetching OpenRouter judge candidates from the last {months_j} month(s)...[/cyan]"
+        )
+        catalog = fetch_recent_openrouter_models(
+            months=months_j,
+            api_key=settings.openrouter_api_key,
+            site_url=settings.openrouter_site_url,
+            site_name=settings.openrouter_site_name,
+        )
+        if not catalog:
+            raise typer.BadParameter(f"No text-based OpenRouter models found in the last {months_j} month(s) for judges.")
+        selected_judges = _interactive_select_models(catalog, console, title="Select Judge Models")
+        if not selected_judges:
+            raise typer.BadParameter("All judge models were disabled; nothing to run.")
+        judge_models = []
+        for entry in selected_judges:
+            model_id = entry["id"]
+            judge_models.append(
+                JudgeModelConfig(
+                    id=model_id.replace("/", "-"),
+                    provider="openrouter",
+                    model=model_id,
+                    token_limit=None,
+                    endpoint=None,
+                    prompt_style=None,
+                    parameters={"temperature": openrouter_temperature},
+                )
+            )
+        if openrouter_probe and judge_models:
+            console.print("[cyan]Probing selected judge models with 1-token requests...[/cyan]")
+            usable_j = []
+            dropped_j = []
+            for j in judge_models:
+                err = probe_model(
+                    model_id=j.model,
+                    api_key=settings.openrouter_api_key,
+                    site_url=settings.openrouter_site_url,
+                    site_name=settings.openrouter_site_name,
+                )
+                if err is None:
+                    usable_j.append(j)
+                else:
+                    dropped_j.append((j, err))
+            if dropped_j:
+                console.print("[yellow]Dropping judges that failed probe:[/yellow]")
+                for j, err in dropped_j:
+                    console.print(f"  [red]{j.model}[/red]: {err}")
+            judge_models = usable_j
+        main_cfg.num_judges = min(max(main_cfg.num_judges, 1), len(judge_models))
+        if len(judge_models) < main_cfg.num_judges:
+            raise typer.BadParameter(
+                f"Judge pool ({len(judge_models)}) smaller than required panel ({main_cfg.num_judges})."
+            )
 
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models after selection.")

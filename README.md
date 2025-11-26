@@ -24,7 +24,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs and topics; defaults to an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--openrouter-months`, `--no-openrouter-select` to bypass.
+- `debatebench run` -- execute debates for all model pairs and topics; defaults to an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Judges default to the same selected models (sampled per debate); add `--no-judges-from-selection` to open a separate judge picker. Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--openrouter-months`, `--openrouter-judge-months`, `--no-openrouter-select`, `--no-judges-from-selection`.
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
