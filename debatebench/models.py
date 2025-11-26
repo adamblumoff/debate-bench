@@ -21,14 +21,16 @@ class ModelAdapter:
 
 
 class DebaterAdapter(ModelAdapter):
-    def generate(self, prompt: str, turns: List[Turn]) -> str:  # pragma: no cover - placeholder
+    def generate(self, prompt: str, turns: List[Turn]):
+        """Return (content, usage_dict)."""
         history_snippet = " ".join(t.speaker for t in turns[-4:]) if turns else ""
-        return f"[stub:{self.config.id}] Responding as {history_snippet or 'start'}: {prompt}"
+        return f"[stub:{self.config.id}] Responding as {history_snippet or 'start'}: {prompt}", {}
 
 
 class JudgeAdapter(ModelAdapter):
-    def judge(self, prompt: str) -> str:  # pragma: no cover - placeholder
-        return f'{{"winner": "tie", "pro": {{}}, "con": {{}}, "notes": "stub from {self.config.id}"}}'
+    def judge(self, prompt: str):
+        """Return (content, usage_dict)."""
+        return f'{{"winner": "tie", "pro": {{}}, "con": {{}}, "notes": "stub from {self.config.id}"}}', {}
 
 
 class OpenAIChatAdapter(ModelAdapter):
@@ -48,7 +50,7 @@ class OpenAIChatAdapter(ModelAdapter):
             "Content-Type": "application/json",
         }
 
-    def _request(self, messages: List[Dict[str, str]], temperature: float | None = 0.7) -> str:
+    def _request(self, messages: List[Dict[str, str]], temperature: float | None = 0.7):
         payload = {
             "model": self.config.model,
             "messages": messages,
@@ -82,7 +84,12 @@ class OpenAIChatAdapter(ModelAdapter):
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                return data["choices"][0]["message"]["content"]
+                usage = data.get("usage", {})
+                return data["choices"][0]["message"]["content"], {
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "total_tokens": usage.get("total_tokens"),
+                }
             except (req_exc.Timeout, req_exc.ConnectionError) as e:
                 last_err = e
                 if attempt == self.retries:
@@ -108,7 +115,7 @@ class OpenAIDebaterAdapter(OpenAIChatAdapter, DebaterAdapter):
 
 
 class OpenAIJudgeAdapter(OpenAIChatAdapter, JudgeAdapter):
-    def judge(self, prompt: str) -> str:
+    def judge(self, prompt: str):
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
         messages = [{"role": "user", "content": prompt}]
@@ -135,7 +142,7 @@ class HTTPJSONAdapter(ModelAdapter):
             headers["Authorization"] = f"Bearer {self.bearer_token}"
         return headers
 
-    def _request(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> str:
+    def _request(self, messages: List[Dict[str, str]], temperature: float = 0.7):
         payload = {
             "model": self.config.model,
             "messages": messages,
@@ -152,7 +159,12 @@ class HTTPJSONAdapter(ModelAdapter):
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                return data["choices"][0]["message"]["content"]
+                usage = data.get("usage", {})
+                return data["choices"][0]["message"]["content"], {
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "total_tokens": usage.get("total_tokens"),
+                }
             except (req_exc.Timeout, req_exc.ConnectionError) as e:
                 last_err = e
                 if attempt == self.retries:

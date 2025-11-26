@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import time
 from typing import Dict, List, Tuple, Optional
 
 from .models import JudgeAdapter
@@ -92,7 +93,9 @@ def run_single_judge(
     rng: random.Random,
 ) -> JudgeResult:
     prompt = _build_judge_prompt(transcript, config)
-    raw = adapter.judge(prompt)
+    t0 = time.perf_counter()
+    raw, usage = adapter.judge(prompt)
+    latency_ms = (time.perf_counter() - t0) * 1000
     dim_ids = [d.id for d in config.scoring.dimensions]
     winner, pro_scores, con_scores = _parse_or_synthesize(
         raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max, rng
@@ -103,6 +106,10 @@ def run_single_judge(
         con=JudgeScores(scores=con_scores),
         winner=winner,
         raw_response=raw,
+        latency_ms=latency_ms,
+        prompt_tokens=usage.get("prompt_tokens") if usage else None,
+        completion_tokens=usage.get("completion_tokens") if usage else None,
+        total_tokens=usage.get("total_tokens") if usage else None,
     )
 
 

@@ -23,6 +23,9 @@ from .storage import append_debate_record, load_debate_records, read_ratings, wr
 from .settings import load_settings
 from collections import defaultdict
 import csv
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 app = typer.Typer(help="DebateBench CLI")
 console = Console()
@@ -64,7 +67,7 @@ def run_command(
         Path("configs/judges.yaml"), help="Path to judge models."
     ),
     debates_path: Path = typer.Option(
-        Path("results/debates.jsonl"), help="Output debates file (overridden by --run-tag)."
+        Path("results/debates.jsonl"), help="Base output debates file (overridden/auto-suffixed by run tag)."
     ),
     run_tag: Optional[str] = typer.Option(
         None,
@@ -80,7 +83,10 @@ def run_command(
         None, help="Random seed for reproducibility."
     ),
     swap_sides: bool = typer.Option(
-        True, help="Randomly swap Pro/Con assignment per debate."
+        False, help="Randomly swap Pro/Con assignment per debate (ignored if --balanced-sides)."
+    ),
+    balanced_sides: bool = typer.Option(
+        True, help="Ensure each model pair plays both sides."
     ),
 ):
     """
@@ -90,8 +96,12 @@ def run_command(
         config_path, topics_path, models_path, judges_path
     )
 
-    if run_tag:
-        debates_path = debates_path.parent / f"debates_{run_tag}.jsonl"
+    # derive run tag and output paths
+    if not run_tag:
+        run_tag = datetime.now(timezone.utc).strftime("run-%Y%m%d-%H%M%S")
+    debates_path = debates_path.parent / f"debates_{run_tag}.jsonl"
+    viz_dir = Path("results") / f"viz_{run_tag}"
+    plots_dir = Path("results") / f"plots_{run_tag}"
 
     if not topics:
         raise typer.BadParameter("Topics list is empty.")
@@ -121,7 +131,10 @@ def run_command(
     judge_adapters = {j.id: build_judge_adapter(j, settings) for j in judge_models}
 
     # Generate schedule of model pairs
-    pairs = list(itertools.combinations(debater_models, 2))
+    if balanced_sides:
+        pairs = list(itertools.permutations(debater_models, 2))
+    else:
+        pairs = list(itertools.combinations(debater_models, 2))
     total_runs = len(pairs) * len(topics_selected) * debates_per_pair
     console.print(f"Scheduled {total_runs} debates.")
 
@@ -132,7 +145,7 @@ def run_command(
                 run_index += 1
                 pro_model = model_a
                 con_model = model_b
-                if swap_sides and rng.random() < 0.5:
+                if (not balanced_sides) and swap_sides and rng.random() < 0.5:
                     pro_model, con_model = con_model, pro_model
 
                 pro_adapter = debater_adapters[pro_model.id]
@@ -144,38 +157,48 @@ def run_command(
                 )
                 log = console.print
 
-                transcript = run_debate(
-                    topic=topic,
-                    pro_adapter=pro_adapter,
-                    con_adapter=con_adapter,
-                    config=main_cfg,
-                    seed=seed,
-                    log=log,
-                )
+                try:
+                    t0 = time.perf_counter()
+                    transcript = run_debate(
+                        topic=topic,
+                        pro_adapter=pro_adapter,
+                        con_adapter=con_adapter,
+                        config=main_cfg,
+                        seed=seed,
+                        log=log,
+                    )
 
-                judge_pool = sample_judges(
-                    list(judge_models), main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
-                )
-                judge_adapter_objs = [judge_adapters[j.id] for j in judge_pool]
-                console.print(
-                    f"  Judging with panel: {', '.join(j.id for j in judge_pool)}"
-                )
-                judge_results, aggregate = run_judge_panel(
-                    judge_adapter_objs, transcript, main_cfg, seed=rng.randint(0, 1_000_000)
-                )
+                    judge_pool = sample_judges(
+                        list(judge_models), main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
+                    )
+                    judge_adapter_objs = [judge_adapters[j.id] for j in judge_pool]
+                    console.print(
+                        f"  Judging with panel: {', '.join(j.id for j in judge_pool)}"
+                    )
+                    judge_results, aggregate = run_judge_panel(
+                        judge_adapter_objs, transcript, main_cfg, seed=rng.randint(0, 1_000_000)
+                    )
 
-                record = DebateRecord(
-                    transcript=transcript,
-                    judges=judge_results,
-                    aggregate=aggregate,
-                    created_at=datetime.now(timezone.utc),
-                )
-                append_debate_record(debates_path, record)
+                    record = DebateRecord(
+                        transcript=transcript,
+                        judges=judge_results,
+                        aggregate=aggregate,
+                        created_at=datetime.now(timezone.utc),
+                    )
+                    append_debate_record(debates_path, record)
+                    elapsed = (time.perf_counter() - t0) * 1000
 
-                console.print(
-                    f"[cyan]{run_index}/{total_runs}[/cyan] "
-                    f"Topic '{topic.id}' {pro_model.id} (Pro) vs {con_model.id} (Con) -> winner: {aggregate.winner}"
-                )
+                    console.print(
+                        f"[cyan]{run_index}/{total_runs}[/cyan] "
+                        f"Topic '{topic.id}' {pro_model.id} (Pro) vs {con_model.id} (Con) "
+                        f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
+                    )
+                except Exception as e:
+                    console.print(f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
+
+    console.print(f"[green]Run complete. Writing summaries to {viz_dir} and plots to {plots_dir}")
+    summarize(debates_path=debates_path, out_dir=viz_dir)
+    plot_command(viz_dir=viz_dir, out_dir=plots_dir)
 
 
 @app.command("rate")
@@ -291,6 +314,9 @@ def summarize(
     - model_winrate_by_side.csv (wins/losses/ties when model is PRO vs CON)
     - judge_majority_alignment.csv (% of debates where judge matches panel)
     - dimension_score_gaps.csv (mean_pro - mean_con per dimension per debate)
+    - judge_latency.csv (mean latency per judge)
+    - turn_timings.csv (mean turn duration per model side)
+    - token_usage.csv (mean prompt/completion tokens per model side)
     """
     debates = load_debate_records(debates_path)
     if not debates:
@@ -328,6 +354,8 @@ def summarize(
     # We attribute mean_pro scores to pro_model_id, mean_con to con_model_id.
     dim_sums = defaultdict(lambda: defaultdict(float))
     dim_counts = defaultdict(lambda: defaultdict(int))
+    turn_duration = defaultdict(lambda: {"pro": [], "con": []})
+    token_usage = defaultdict(lambda: {"pro_prompt": [], "pro_completion": [], "con_prompt": [], "con_completion": []})
     for d in debates:
         pro_id = d.transcript.pro_model_id
         con_id = d.transcript.con_model_id
@@ -337,6 +365,18 @@ def summarize(
         for dim, score in d.aggregate.mean_con.items():
             dim_sums[con_id][dim] += score
             dim_counts[con_id][dim] += 1
+        # accumulate timing and token usage
+        for t in d.transcript.turns:
+            side = "pro" if t.speaker == "pro" else "con"
+            model_id = pro_id if side == "pro" else con_id
+            if t.duration_ms is not None:
+                turn_duration[model_id][side].append(t.duration_ms)
+            if t.prompt_tokens is not None:
+                key = f"{side}_prompt"
+                token_usage[model_id][key].append(t.prompt_tokens)
+            if t.completion_tokens is not None:
+                key = f"{side}_completion"
+                token_usage[model_id][key].append(t.completion_tokens)
     with (out_dir / "model_dimension_avg.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["model_id", "dimension", "mean_score", "samples"])
@@ -345,6 +385,31 @@ def summarize(
                 cnt = dim_counts[model_id][dim]
                 mean = total / cnt if cnt else 0.0
                 writer.writerow([model_id, dim, f"{mean:.4f}", cnt])
+
+    # Turn timing per model side
+    with (out_dir / "turn_timings.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["model_id", "side", "mean_ms", "samples"])
+        for model_id, buckets in sorted(turn_duration.items()):
+            for side in ("pro", "con"):
+                arr = buckets[side]
+                mean = sum(arr) / len(arr) if arr else 0.0
+                writer.writerow([model_id, side, f"{mean:.2f}", len(arr)])
+
+    # Token usage per model side
+    with (out_dir / "token_usage.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["model_id", "side", "mean_prompt_tokens", "mean_completion_tokens", "samples"])
+        for model_id, buckets in sorted(token_usage.items()):
+            for side in ("pro", "con"):
+                pkey = f"{side}_prompt"
+                ckey = f"{side}_completion"
+                pvals = buckets[pkey]
+                cvals = buckets[ckey]
+                cnt = max(len(pvals), len(cvals), 0)
+                mp = sum(pvals) / len(pvals) if pvals else 0.0
+                mc = sum(cvals) / len(cvals) if cvals else 0.0
+                writer.writerow([model_id, side, f"{mp:.2f}", f"{mc:.2f}", cnt])
 
     # Judge agreement matrix (winner label agreement)
     pair_agree = defaultdict(int)
@@ -413,6 +478,103 @@ def summarize(
                 writer.writerow([d.transcript.debate_id, dim, pro_score - con_score])
 
     console.print(f"[green]Wrote summaries to {out_dir}")
+
+
+@app.command("plot")
+def plot_command(
+    viz_dir: Path = typer.Option(Path("results/viz"), help="Directory with summary CSVs (from summarize)."),
+    out_dir: Path = typer.Option(Path("results/plots"), help="Directory to write PNG plots."),
+):
+    """
+    Generate PNG plots from summary CSVs (requires pandas, seaborn, matplotlib).
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sns.set_theme(style="whitegrid")
+
+    def save(fig, name):
+        fig.tight_layout()
+        fig.savefig(out_dir / name, bbox_inches="tight")
+        plt.close(fig)
+
+    # Winner counts
+    df = pd.read_csv(viz_dir / "winner_counts.csv")
+    fig, ax = plt.subplots()
+    sns.barplot(x="winner", y="count", data=df, palette="muted", ax=ax)
+    ax.set_title("Winner Distribution")
+    save(fig, "winner_counts.png")
+
+    # Topic win rates
+    df = pd.read_csv(viz_dir / "topic_winrate.csv").set_index("topic_id")[["pro_wins", "con_wins", "ties"]]
+    fig, ax = plt.subplots(figsize=(8, 4))
+    df.plot(kind="bar", stacked=True, ax=ax, color=["#4c72b0", "#c44e52", "#55a868"])
+    ax.set_ylabel("Count")
+    ax.set_title("Wins by Topic")
+    save(fig, "topic_winrate.png")
+
+    # Model dimension heatmap
+    df = pd.read_csv(viz_dir / "model_dimension_avg.csv")
+    pivot = df.pivot(index="model_id", columns="dimension", values="mean_score")
+    fig, ax = plt.subplots(figsize=(6, 3 + 0.4 * len(pivot)))
+    sns.heatmap(pivot, annot=True, fmt=".2f", cmap="YlGnBu", ax=ax)
+    ax.set_title("Per-Model Dimension Averages")
+    save(fig, "model_dimension_heatmap.png")
+
+    # Judge agreement
+    df = pd.read_csv(viz_dir / "judge_agreement.csv")
+    judges = sorted(set(df.judge_a).union(df.judge_b))
+    mat = pd.DataFrame(1.0, index=judges, columns=judges)
+    for _, row in df.iterrows():
+        mat.loc[row.judge_a, row.judge_b] = row.agreement_rate
+        mat.loc[row.judge_b, row.judge_a] = row.agreement_rate
+    fig, ax = plt.subplots(figsize=(4 + 0.4 * len(judges), 4 + 0.4 * len(judges)))
+    sns.heatmap(mat, annot=True, fmt=".2f", cmap="Blues", vmin=0, vmax=1, ax=ax)
+    ax.set_title("Judge Winner Agreement")
+    save(fig, "judge_agreement.png")
+
+    # Judge majority alignment
+    df = pd.read_csv(viz_dir / "judge_majority_alignment.csv")
+    fig, ax = plt.subplots()
+    sns.barplot(x="judge_id", y="alignment_rate", data=df, palette="crest", ax=ax)
+    ax.set_title("Judge vs Panel Majority")
+    ax.set_ylim(0, 1)
+    save(fig, "judge_majority_alignment.png")
+
+    # Model winrate by side
+    df = pd.read_csv(viz_dir / "model_winrate_by_side.csv")
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({"model_id": r.model_id, "side": "pro", "wins": r.pro_w})
+        rows.append({"model_id": r.model_id, "side": "con", "wins": r.con_w})
+    melt = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=(8, 4 + 0.3 * len(df)))
+    sns.barplot(x="wins", y="model_id", hue="side", data=melt, orient="h", ax=ax)
+    ax.set_title("Wins by Side per Model")
+    save(fig, "model_winrate_by_side.png")
+
+    # Dimension score gaps
+    df = pd.read_csv(viz_dir / "dimension_score_gaps.csv")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.boxplot(x="dimension", y="gap", data=df, palette="vlag", ax=ax)
+    ax.axhline(0, color="black", linewidth=1)
+    ax.set_title("Score Gap (PRO minus CON) per Dimension")
+    save(fig, "dimension_score_gaps.png")
+
+    # Turn timings
+    df = pd.read_csv(viz_dir / "turn_timings.csv")
+    fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
+    sns.barplot(x="mean_ms", y="model_id", hue="side", data=df, orient="h", ax=ax)
+    ax.set_title("Mean Turn Duration (ms) by Model and Side")
+    save(fig, "turn_timings.png")
+
+    # Token usage
+    df = pd.read_csv(viz_dir / "token_usage.csv")
+    melt = df.melt(id_vars=["model_id", "side"], value_vars=["mean_prompt_tokens", "mean_completion_tokens"], var_name="kind", value_name="tokens")
+    fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
+    sns.barplot(x="tokens", y="model_id", hue="kind", data=melt, orient="h", ax=ax)
+    ax.set_title("Mean Token Usage by Model and Side")
+    save(fig, "token_usage.png")
+
+    console.print(f"[green]Wrote plots to {out_dir}")
 
 
 def main():

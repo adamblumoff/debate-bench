@@ -19,6 +19,9 @@ dependencies = [
   "PyYAML>=6.0",
   "requests>=2.31,<3.0",
   "python-dotenv>=1.0,<2.0",
+  "matplotlib>=3.8,<3.9",
+  "seaborn>=0.13,<0.14",
+  "pandas>=2.1,<2.2"
 ]
 
 [project.scripts]

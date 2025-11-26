@@ -6,6 +6,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
+import time
 
 from .models import DebaterAdapter
 from .schema import MainConfig, Topic, Transcript, Turn
@@ -45,13 +46,19 @@ def run_debate(
         if log:
             log(f"  Turn {idx+1}: {speaker.upper()} ({round_cfg.stage})")
         prompt = _build_prompt(topic, round_cfg.stage, speaker, turns)
-        content = adapter.generate(prompt, turns)
+        t0 = time.perf_counter()
+        content, usage = adapter.generate(prompt, turns)
+        duration_ms = (time.perf_counter() - t0) * 1000
         turn = Turn(
             index=idx,
             speaker=speaker,
             stage=round_cfg.stage,
             content=content,
             created_at=datetime.now(timezone.utc),
+            duration_ms=duration_ms,
+            prompt_tokens=usage.get("prompt_tokens") if usage else None,
+            completion_tokens=usage.get("completion_tokens") if usage else None,
+            total_tokens=usage.get("total_tokens") if usage else None,
         )
         turns.append(turn)
 

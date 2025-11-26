@@ -72,6 +72,10 @@ class Turn(BaseModel):
     stage: str
     content: str
     created_at: datetime
+    duration_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class Transcript(BaseModel):
@@ -95,6 +99,10 @@ class JudgeResult(BaseModel):
     con: JudgeScores
     winner: Literal["pro", "con", "tie"]
     raw_response: Optional[str] = None
+    latency_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class AggregatedResult(BaseModel):
