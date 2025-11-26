@@ -196,12 +196,57 @@ class HTTPJudgeAdapter(HTTPJSONAdapter, JudgeAdapter):
         return self._request(messages, temperature=temperature)
 
 
+class OpenRouterAdapter(HTTPJSONAdapter):
+    """
+    OpenRouter chat completions adapter.
+    Adds required Authorization plus optional referral headers.
+    """
+
+    DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+
+    def __init__(self, config, api_key: str, site_url: Optional[str], site_name: Optional[str]):
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY is required for OpenRouter provider.")
+        # ensure endpoint is set (allow override via config.endpoint)
+        if not getattr(config, "endpoint", None):
+            config.endpoint = self.DEFAULT_ENDPOINT
+        super().__init__(config, bearer_token=api_key)
+        self.site_url = site_url
+        self.site_name = site_name
+
+    def _headers(self) -> Dict[str, str]:
+        headers = super()._headers()
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
+        headers.setdefault("Accept", "application/json")
+        return headers
+
+
+class OpenRouterDebaterAdapter(OpenRouterAdapter, HTTPDebaterAdapter):
+    def generate(self, prompt: str, turns: List[Turn]):
+        return HTTPDebaterAdapter.generate(self, prompt, turns)
+
+
+class OpenRouterJudgeAdapter(OpenRouterAdapter, HTTPJudgeAdapter):
+    def judge(self, prompt: str):
+        return HTTPJudgeAdapter.judge(self, prompt)
+
+
 def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> DebaterAdapter:
     provider = config.provider.lower()
     if provider == "openai":
         return OpenAIDebaterAdapter(config, api_key=settings.openai_api_key)
     if provider == "http":
         return HTTPDebaterAdapter(config, bearer_token=settings.http_bearer_token)
+    if provider == "openrouter":
+        return OpenRouterDebaterAdapter(
+            config,
+            api_key=settings.openrouter_api_key,
+            site_url=settings.openrouter_site_url,
+            site_name=settings.openrouter_site_name,
+        )
     return DebaterAdapter(config)
 
 
@@ -211,6 +256,13 @@ def build_judge_adapter(config: JudgeModelConfig, settings: Settings) -> JudgeAd
         return OpenAIJudgeAdapter(config, api_key=settings.openai_api_key)
     if provider == "http":
         return HTTPJudgeAdapter(config, bearer_token=settings.http_bearer_token)
+    if provider == "openrouter":
+        return OpenRouterJudgeAdapter(
+            config,
+            api_key=settings.openrouter_api_key,
+            site_url=settings.openrouter_site_url,
+            site_name=settings.openrouter_site_name,
+        )
     return JudgeAdapter(config)
 
 

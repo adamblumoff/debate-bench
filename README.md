@@ -4,7 +4,7 @@ CLI tool for running debate-style evaluations between LLM models, collecting jud
 
 ## Requirements
 - Python 3.9+
-- Optional: `.env` with `OPENAI_API_KEY` (for OpenAI provider) and/or `HTTP_BEARER_TOKEN` (for generic HTTP).
+- Optional: `.env` with `OPENAI_API_KEY` (OpenAI), `OPENROUTER_API_KEY` (OpenRouter), `HTTP_BEARER_TOKEN` (generic HTTP), plus optional `OPENROUTER_SITE_URL` / `OPENROUTER_SITE_NAME` for referral headers.
 - Plotting depends on pandas + seaborn + matplotlib (installed via project deps).
 
 ## Install
@@ -34,9 +34,18 @@ debatebench inspect-debate <debate_uuid>
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings.
 - `topics.json` -- list of `{id, motion, category}`.
-- `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`.
+- `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter` for OpenRouter-hosted models (default endpoint auto-set).
 - `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`.
 Note: Judge IDs must not overlap with debater IDs.
+
+OpenRouter example (`models.yaml`):
+```yaml
+- id: gpt4o
+  provider: openrouter
+  model: openai/gpt-4o
+  parameters:
+    temperature: 0.7
+```
 
 ## Outputs (`results/`)
 - `debates_<tag>.jsonl` -- one `DebateRecord` per line (transcript, judges, aggregate scores, timings, token usage).
