@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import json
 import random
+import time
 from typing import Dict, List, Optional
 
 import requests
+from requests import exceptions as req_exc
 
 from .schema import DebaterModelConfig, JudgeModelConfig, Turn
 from .settings import Settings
@@ -35,6 +37,10 @@ class OpenAIChatAdapter(ModelAdapter):
         if not api_key:
             raise ValueError("OPENAI_API_KEY is required for OpenAI provider.")
         self.api_key = api_key
+        params = self.config.parameters or {}
+        self.timeout = float(params.get("timeout", 300))  # default 5 minutes
+        self.retries = int(params.get("retries", 3))
+        self.backoff = float(params.get("backoff", 2.0))
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -65,10 +71,32 @@ class OpenAIChatAdapter(ModelAdapter):
             if tval is not None:
                 payload["temperature"] = tval
 
-        resp = requests.post(self.config.endpoint, headers=self._headers(), json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        last_err = None
+        for attempt in range(1, self.retries + 1):
+            try:
+                resp = requests.post(
+                    self.config.endpoint,
+                    headers=self._headers(),
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+            except (req_exc.Timeout, req_exc.ConnectionError) as e:
+                last_err = e
+                if attempt == self.retries:
+                    raise
+                time.sleep(self.backoff * attempt)
+            except req_exc.HTTPError as e:
+                # Do not retry on HTTP errors except 429/500s
+                status = e.response.status_code if e.response else None
+                if status in (429, 500, 502, 503, 504) and attempt < self.retries:
+                    last_err = e
+                    time.sleep(self.backoff * attempt)
+                    continue
+                raise
+        raise last_err or RuntimeError("Request failed without exception")
 
 
 class OpenAIDebaterAdapter(OpenAIChatAdapter, DebaterAdapter):
@@ -96,6 +124,10 @@ class HTTPJSONAdapter(ModelAdapter):
     def __init__(self, config, bearer_token: Optional[str] = None):
         super().__init__(config)
         self.bearer_token = bearer_token
+        params = self.config.parameters or {}
+        self.timeout = float(params.get("timeout", 300))  # default 5 minutes
+        self.retries = int(params.get("retries", 3))
+        self.backoff = float(params.get("backoff", 2.0))
 
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -109,10 +141,31 @@ class HTTPJSONAdapter(ModelAdapter):
             "messages": messages,
             "temperature": temperature,
         }
-        resp = requests.post(self.config.endpoint, headers=self._headers(), json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        last_err = None
+        for attempt in range(1, self.retries + 1):
+            try:
+                resp = requests.post(
+                    self.config.endpoint,
+                    headers=self._headers(),
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+            except (req_exc.Timeout, req_exc.ConnectionError) as e:
+                last_err = e
+                if attempt == self.retries:
+                    raise
+                time.sleep(self.backoff * attempt)
+            except req_exc.HTTPError as e:
+                status = e.response.status_code if e.response else None
+                if status in (429, 500, 502, 503, 504) and attempt < self.retries:
+                    last_err = e
+                    time.sleep(self.backoff * attempt)
+                    continue
+                raise
+        raise last_err or RuntimeError("Request failed without exception")
 
 
 class HTTPDebaterAdapter(HTTPJSONAdapter, DebaterAdapter):
