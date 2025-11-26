@@ -142,12 +142,21 @@ class HTTPJSONAdapter(ModelAdapter):
             headers["Authorization"] = f"Bearer {self.bearer_token}"
         return headers
 
-    def _request(self, messages: List[Dict[str, str]], temperature: float = 0.7):
+    def _request(self, messages: List[Dict[str, str]], temperature: float = 0.7, max_tokens: int | None = None):
+        # normalize temperature
+        try:
+            temp_val = float(temperature) if temperature is not None else None
+        except (TypeError, ValueError):
+            temp_val = None
+
         payload = {
             "model": self.config.model,
             "messages": messages,
-            "temperature": temperature,
         }
+        if temp_val is not None:
+            payload["temperature"] = temp_val
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         last_err = None
         for attempt in range(1, self.retries + 1):
             try:
@@ -172,11 +181,19 @@ class HTTPJSONAdapter(ModelAdapter):
                 time.sleep(self.backoff * attempt)
             except req_exc.HTTPError as e:
                 status = e.response.status_code if e.response else None
+                body = ""
+                try:
+                    body = e.response.text if e.response is not None else ""
+                except Exception:
+                    body = ""
                 if status in (429, 500, 502, 503, 504) and attempt < self.retries:
                     last_err = e
                     time.sleep(self.backoff * attempt)
                     continue
-                raise
+                detail = f"HTTP {status}"
+                if body:
+                    detail += f": {body}"
+                raise RuntimeError(detail) from e
         raise last_err or RuntimeError("Request failed without exception")
 
 
@@ -184,16 +201,18 @@ class HTTPDebaterAdapter(HTTPJSONAdapter, DebaterAdapter):
     def generate(self, prompt: str, turns: List[Turn]) -> str:
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.7)
+        token_limit = self.config.token_limit or params.get("max_tokens") or 1024
         messages = [{"role": "user", "content": prompt}]
-        return self._request(messages, temperature=temperature)
+        return self._request(messages, temperature=temperature, max_tokens=token_limit)
 
 
 class HTTPJudgeAdapter(HTTPJSONAdapter, JudgeAdapter):
     def judge(self, prompt: str) -> str:
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
+        token_limit = self.config.token_limit or params.get("max_tokens") or 256
         messages = [{"role": "user", "content": prompt}]
-        return self._request(messages, temperature=temperature)
+        return self._request(messages, temperature=temperature, max_tokens=token_limit)
 
 
 class OpenRouterAdapter(HTTPJSONAdapter):

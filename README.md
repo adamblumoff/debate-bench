@@ -15,7 +15,7 @@ pip install -e .
 ## Quickstart
 ```bash
 debatebench init                        # writes configs/ and results/
-# edit configs/topics.json, configs/models.yaml, configs/judges.yaml
+# edit configs/topics.json and configs/judges.yaml (debater models are picked interactively from OpenRouter)
 debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo
 # run writes results/debates_demo.jsonl and auto-summarizes/plots to results/viz_demo and results/plots_demo
 debatebench show-leaderboard --top 10
@@ -24,7 +24,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs and topics; accepts `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`.
+- `debatebench run` -- execute debates for all model pairs and topics; defaults to an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--openrouter-months`, `--no-openrouter-select` to bypass.
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
@@ -34,7 +34,7 @@ debatebench inspect-debate <debate_uuid>
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings.
 - `topics.json` -- list of `{id, motion, category}`.
-- `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter` for OpenRouter-hosted models (default endpoint auto-set).
+- `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter` for OpenRouter-hosted models (default endpoint auto-set). The interactive picker builds these for you at run time if `--openrouter-select` is on (default).
 - `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`.
 Note: Judge IDs must not overlap with debater IDs.
 

@@ -18,8 +18,9 @@ from . import config as cfg
 from .debate import run_debate
 from .judge import run_judge_panel
 from .models import build_debater_adapter, build_judge_adapter, sample_judges
+from .openrouter import fetch_recent_openrouter_models, probe_model
 from .rating import recompute_ratings
-from .schema import DebateRecord
+from .schema import DebateRecord, DebaterModelConfig
 from .storage import append_debate_record, load_debate_records, read_ratings, write_ratings
 from .settings import load_settings
 from collections import defaultdict
@@ -34,6 +35,92 @@ console = Console()
 
 def _path_option(default: str, help_text: str):
     return typer.Option(default, help=help_text, dir_okay=True, file_okay=True, readable=True, writable=True)
+
+
+def _interactive_select_models(catalog, console: Console):
+    """
+    Curses-based selector: arrow keys to move, Enter/Space to toggle, c to continue, q to cancel.
+    Falls back to simple enable prompt if curses is unavailable.
+    """
+    try:
+        import curses
+    except Exception:
+        return _fallback_select_models(catalog, console)
+
+    def menu(stdscr):
+        curses.curs_set(0)
+        selected = [False] * len(catalog)
+        idx = 0
+
+        def draw():
+            stdscr.clear()
+            stdscr.addstr(
+                0,
+                0,
+                "OpenRouter Models (Enter/Space toggle ON/OFF, ↑/↓ move, c=continue, q=cancel; default is OFF)",
+                curses.A_BOLD,
+            )
+            max_rows = curses.LINES - 2
+            start = max(0, idx - max_rows + 1)
+            visible = catalog[start : start + max_rows]
+            for offset, entry in enumerate(visible):
+                real_idx = start + offset
+                cursor = ">" if real_idx == idx else " "
+                mark = "[x]" if selected[real_idx] else "[ ]"
+                line = f"{cursor} {mark} {entry['id']} ({entry['created'].strftime('%Y-%m-%d')})"
+                stdscr.addstr(offset + 1, 0, line[: curses.COLS - 1])
+            stdscr.refresh()
+
+        draw()
+        while True:
+            ch = stdscr.getch()
+            if ch in (curses.KEY_UP, ord("k")):
+                idx = (idx - 1) % len(catalog)
+            elif ch in (curses.KEY_DOWN, ord("j")):
+                idx = (idx + 1) % len(catalog)
+            elif ch in (10, 13, ord(" "), ord("\n")):  # Enter or space toggles
+                selected[idx] = not selected[idx]
+            elif ch in (ord("c"), ord("C")):  # continue
+                return [c for i, c in enumerate(catalog) if selected[i]]
+            elif ch in (ord("q"), ord("Q")):
+                return []
+            draw()
+
+    try:
+        return curses.wrapper(menu)
+    except Exception:
+        return _fallback_select_models(catalog, console)
+
+
+def _fallback_select_models(catalog, console: Console):
+    """
+    Simpler prompt fallback: show table, accept comma-separated indexes to enable.
+    """
+    table = Table(title="OpenRouter Models (alphabetical)")
+    table.add_column("#", justify="right")
+    table.add_column("Model ID")
+    table.add_column("Created (UTC)")
+    for idx, entry in enumerate(catalog, start=1):
+        table.add_row(str(idx), entry["id"], entry["created"].strftime("%Y-%m-%d"))
+    console.print(table)
+
+    prompt_text = "Enter comma-separated indexes to enable (blank enables none): "
+    disable_raw = typer.prompt(prompt_text, default="")
+    enabled: set[int] = set()
+    if disable_raw.strip():
+        parts = [p.strip() for p in disable_raw.split(",")]
+        for p in parts:
+            if not p:
+                continue
+            try:
+                val = int(p)
+            except ValueError:
+                raise typer.BadParameter(f"Invalid index: {p}")
+            if val < 1 or val > len(catalog):
+                raise typer.BadParameter(f"Index out of range: {val}")
+            enabled.add(val)
+
+    return [e for idx, e in enumerate(catalog, start=1) if idx in enabled]
 
 
 @app.command()
@@ -89,6 +176,20 @@ def run_command(
     balanced_sides: bool = typer.Option(
         True, help="Ensure each model pair plays both sides (permutations). Disable for combinations."
     ),
+    openrouter_select: bool = typer.Option(
+        True,
+        "--openrouter-select/--no-openrouter-select",
+        help="Interactively select OpenRouter models (default on; overrides models.yaml debaters).",
+    ),
+    openrouter_months: int = typer.Option(
+        2, help="Lookback window in months for OpenRouter model selection."
+    ),
+    openrouter_temperature: float = typer.Option(
+        0.7, help="Default temperature for OpenRouter debater adapters."
+    ),
+    openrouter_probe: bool = typer.Option(
+        True, help="Probe each selected OpenRouter model before running; drop any that fail."
+    ),
 ):
     """
     Run a batch of debates and append results.
@@ -110,8 +211,6 @@ def run_command(
         raise typer.BadParameter(
             f"Judge pool ({len(judge_models)}) smaller than required panel ({main_cfg.num_judges})."
         )
-    if len(debater_models) < 2:
-        raise typer.BadParameter("Need at least two debater models.")
     overlap = {m.id for m in debater_models}.intersection({j.id for j in judge_models})
     if overlap:
         raise typer.BadParameter(
@@ -126,6 +225,71 @@ def run_command(
         if sample_topics <= 0:
             raise typer.BadParameter("sample_topics must be positive.")
         topics_selected = rng.sample(topics, k=min(sample_topics, len(topics)))
+
+    # Optionally override debater models via OpenRouter selection
+    if openrouter_select:
+        if not settings.openrouter_api_key:
+            raise typer.BadParameter("OPENROUTER_API_KEY is required for interactive OpenRouter selection.")
+        console.print(
+            f"[cyan]Fetching OpenRouter models from the last {openrouter_months} month(s)...[/cyan]"
+        )
+        catalog = fetch_recent_openrouter_models(
+            months=openrouter_months,
+            api_key=settings.openrouter_api_key,
+            site_url=settings.openrouter_site_url,
+            site_name=settings.openrouter_site_name,
+        )
+        if not catalog:
+            raise typer.BadParameter(f"No text-based OpenRouter models found in the last {openrouter_months} month(s).")
+
+        selected_entries = _interactive_select_models(catalog, console)
+        if not selected_entries:
+            raise typer.BadParameter("All models were disabled; nothing to run.")
+
+        # Build DebaterModelConfig list for the selected models
+        debater_models = []
+        for entry in selected_entries:
+            model_id = entry["id"]
+            debater_models.append(
+                DebaterModelConfig(
+                    id=model_id.replace("/", "-"),
+                    provider="openrouter",
+                    model=model_id,
+                    token_limit=None,
+                    endpoint=None,
+                    parameters={"temperature": openrouter_temperature},
+                )
+            )
+        console.print(
+            f"[green]Selected {len(debater_models)} debater models from OpenRouter (last {openrouter_months} month(s)).[/green]"
+        )
+
+    # Optional preflight probes
+    if openrouter_probe and debater_models:
+        console.print("[cyan]Probing selected models with 1-token requests...[/cyan]")
+        usable = []
+        dropped = []
+        for m in debater_models:
+            err = probe_model(
+                model_id=m.model,
+                api_key=settings.openrouter_api_key,
+                site_url=settings.openrouter_site_url,
+                site_name=settings.openrouter_site_name,
+            )
+            if err is None:
+                usable.append(m)
+            else:
+                dropped.append((m, err))
+        if dropped:
+            console.print("[yellow]Dropping models that failed probe:[/yellow]")
+            for m, err in dropped:
+                console.print(f"  [red]{m.model}[/red]: {err}")
+        debater_models = usable
+        if len(debater_models) < 2:
+            raise typer.BadParameter("Fewer than two usable models after probe; aborting.")
+
+    if len(debater_models) < 2:
+        raise typer.BadParameter("Need at least two debater models after selection.")
 
     # Build adapters
     debater_adapters = {m.id: build_debater_adapter(m, settings) for m in debater_models}
