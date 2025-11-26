@@ -1,27 +1,27 @@
 [
-    {
-        "id": "t001",
-        "motion": "Governments should ban face recognition technology in public spaces.",
-        "category": "policy"
-    },
-    {
-        "id": "t002",
-        "motion": "Nuclear power is necessary to achieve global net-zero emissions.",
-        "category": "science_policy"
-    },
-    {
-        "id": "t003",
-        "motion": "Large social media platforms should be legally responsible for harmful content recommended by their algorithms.",
-        "category": "technology_policy"
-    },
-    {
-        "id": "t004",
-        "motion": "Remote work is better than in-office work for most knowledge workers.",
-        "category": "work_culture"
-    },
-    {
-        "id": "t005",
-        "motion": "AI systems should be required to disclose when users are interacting with a machine, not a human.",
-        "category": "ai_policy"
-    }
+  { "id": "t001", "motion": "Governments should ban face recognition technology in public spaces.", "category": "policy" },
+  { "id": "t002", "motion": "Nuclear power is necessary to achieve global net-zero emissions.", "category": "science_policy" },
+  { "id": "t003", "motion": "Large social media platforms should be legally responsible for harmful content recommended by their algorithms.", "category": "technology_policy" },
+  { "id": "t004", "motion": "Remote work is better than in-office work for most knowledge workers.", "category": "work_culture" },
+  { "id": "t005", "motion": "AI systems should be required to disclose when users are interacting with a machine, not a human.", "category": "ai_policy" },
+  { "id": "t006", "motion": "Universal basic income is a better anti-poverty tool than expanding targeted welfare programs.", "category": "economics" },
+  { "id": "t007", "motion": "Gene editing of human embryos should be permitted for disease prevention.", "category": "bioethics" },
+  { "id": "t008", "motion": "Cryptocurrencies provide net social benefit compared to traditional banking systems.", "category": "finance_tech" },
+  { "id": "t009", "motion": "Public transit should be fare-free in major cities.", "category": "urban_policy" },
+  { "id": "t010", "motion": "College admissions should eliminate legacy preferences entirely.", "category": "education_policy" },
+  { "id": "t011", "motion": "Open-source AI models are safer for society than closed-source models.", "category": "ai_governance" },
+  { "id": "t012", "motion": "Telemedicine should remain reimbursed at parity with in-person visits.", "category": "health_policy" },
+  { "id": "t013", "motion": "Carbon border adjustment tariffs are necessary to prevent emissions leakage.", "category": "climate_policy" },
+  { "id": "t014", "motion": "Schools should ban smartphones during instructional hours.", "category": "education" },
+  { "id": "t015", "motion": "Large language models should undergo independent safety audits before deployment.", "category": "ai_safety" },
+  { "id": "t016", "motion": "Gig workers should be classified as employees rather than independent contractors.", "category": "labor_policy" },
+  { "id": "t017", "motion": "News organizations should refuse to publish hacked or leaked materials.", "category": "media_ethics" },
+  { "id": "t018", "motion": "Nations should commit to phasing out internal combustion engine vehicle sales by 2035.", "category": "environment" },
+  { "id": "t019", "motion": "Facial recognition at airports should be opt-in only.", "category": "privacy" },
+  { "id": "t020", "motion": "Developed countries should forgive the sovereign debts of low-income nations tied to climate impacts.", "category": "global_policy" },
+  { "id": "t021", "motion": "Publicly funded research should require immediate open access publication.", "category": "science_policy" },
+  { "id": "t022", "motion": "Social media platforms should verify the identity of political advertisers.", "category": "election_integrity" },
+  { "id": "t023", "motion": "Autonomous weapons should be banned under international law.", "category": "security" },
+  { "id": "t024", "motion": "Data collected from consumer IoT devices should be automatically deleted after one year.", "category": "privacy" },
+  { "id": "t025", "motion": "Teachers should be allowed to use AI tools for lesson planning without student disclosure requirements.", "category": "education_technology" }
 ]

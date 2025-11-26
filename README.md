@@ -24,7 +24,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs and topics; defaults to an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Judges default to the same selected models (sampled per debate); add `--no-judges-from-selection` to open a separate judge picker. Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--openrouter-months`, `--openrouter-judge-months`, `--no-openrouter-select`, `--no-judges-from-selection`.
+- `debatebench run` -- execute debates for all model pairs and topics; shows a topic picker first (25 topics); then an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Judges default to the same selected models (sampled per debate); add `--no-judges-from-selection` to open a separate judge picker. Token limits default to 512 (debaters) and 256 (judges); if OpenRouter returns a 402 with an allowed token count, the tool auto-retries with the lower value. Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-judge-months`, `--openrouter-max-tokens`, `--openrouter-judge-max-tokens`, `--no-openrouter-select`, `--no-judges-from-selection`.
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
@@ -33,7 +33,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings.
-- `topics.json` -- list of `{id, motion, category}`.
+- `topics.json` -- list of 25 topics `{id, motion, category}`; picked interactively by default before models.
 - `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter` for OpenRouter-hosted models (default endpoint auto-set). The interactive picker builds these for you at run time if `--openrouter-select` is on (default).
 - `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`.
 Note: Judge IDs must not overlap with debater IDs.

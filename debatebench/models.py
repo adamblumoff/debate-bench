@@ -158,6 +158,7 @@ class HTTPJSONAdapter(ModelAdapter):
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
         last_err = None
+        retried_402 = False
         for attempt in range(1, self.retries + 1):
             try:
                 resp = requests.post(
@@ -186,6 +187,21 @@ class HTTPJSONAdapter(ModelAdapter):
                     body = e.response.text if e.response is not None else ""
                 except Exception:
                     body = ""
+                # If insufficient credits for requested max_tokens, try once with allowed tokens if present.
+                if status == 402 and (not retried_402):
+                    import re
+
+                    allowed = None
+                    m = re.search(r"afford\s+(\d+)", body)
+                    if m:
+                        try:
+                            allowed = int(m.group(1))
+                        except Exception:
+                            allowed = None
+                    if allowed and allowed > 0:
+                        payload["max_tokens"] = allowed
+                        retried_402 = True
+                        continue
                 if status in (429, 500, 502, 503, 504) and attempt < self.retries:
                     last_err = e
                     time.sleep(self.backoff * attempt)

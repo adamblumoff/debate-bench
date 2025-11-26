@@ -63,6 +63,7 @@ class JudgeModelConfig(BaseModel):
     model: str
     endpoint: Optional[str] = None
     prompt_style: Optional[str] = None
+    token_limit: Optional[int] = None
     parameters: Dict[str, str] = Field(default_factory=dict)
 
 
