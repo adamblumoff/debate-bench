@@ -92,8 +92,22 @@ def run_single_judge(
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    while attempts < 3 and (not pro_scores or not con_scores):
-        prompt = _build_judge_prompt(transcript, config, reinforce_json=attempts == 1)
+    while attempts < 5 and (not pro_scores or not con_scores):
+        reinforce = attempts >= 1
+        prompt = _build_judge_prompt(transcript, config, reinforce_json=reinforce)
+        if attempts >= 3:
+            # Final attempts: add explicit JSON skeleton to maximize compliance.
+            example = {
+                "scores": {
+                    "pro": {dim: config.scoring.scale_min for dim in dim_ids},
+                    "con": {dim: config.scoring.scale_min for dim in dim_ids},
+                }
+            }
+            prompt += (
+                "\n\nReturn JSON only. Do NOT include Markdown or code fences. "
+                f"Example structure (fill with your integer scores {config.scoring.scale_min}-{config.scoring.scale_max}):\n"
+                f"{example}"
+            )
         t0 = time.perf_counter()
         raw, usage = adapter.judge(prompt)
         latency_ms = (time.perf_counter() - t0) * 1000
