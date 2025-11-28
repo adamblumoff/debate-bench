@@ -164,6 +164,8 @@ class OpenRouterJudgeAdapter(OpenRouterAdapter, JudgeAdapter):
 
 
 def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> DebaterAdapter:
+    if config.provider != "openrouter":
+        raise ValueError(f"Unsupported provider '{config.provider}'. Only 'openrouter' is supported.")
     return OpenRouterDebaterAdapter(
         config,
         api_key=settings.openrouter_api_key,
@@ -173,6 +175,8 @@ def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> Deb
 
 
 def build_judge_adapter(config: JudgeModelConfig, settings: Settings) -> JudgeAdapter:
+    if config.provider != "openrouter":
+        raise ValueError(f"Unsupported provider '{config.provider}'. Only 'openrouter' is supported.")
     return OpenRouterJudgeAdapter(
         config,
         api_key=settings.openrouter_api_key,

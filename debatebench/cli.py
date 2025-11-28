@@ -4,6 +4,10 @@ CLI entrypoints for DebateBench.
 from __future__ import annotations
 
 import itertools
+import json
+import shutil
+from typing import Dict, Tuple
+import requests
 import random
 import time
 from datetime import datetime, timezone
@@ -396,7 +400,7 @@ def run_command(
         1, help="Number of debates per model pair per topic."
     ),
     seed: Optional[int] = typer.Option(
-        None, help="Random seed for reproducibility."
+        12345, help="Random seed for reproducibility (default 12345)."
     ),
     swap_sides: bool = typer.Option(
         False, help="Randomly swap Pro/Con assignment per debate (ignored if --balanced-sides)."
@@ -458,6 +462,19 @@ def run_command(
         True,
         help="Generous token budgets for quality: opening=3200, rebuttal=2200, closing=1400; bump debater max_tokens to at least 3072 and judges to 512.",
     ),
+    resume: bool = typer.Option(
+        False,
+        help="Resume a previous run: skip debates already present in the debates file for this run_tag.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        help="Plan the run (models/topics/pairs) and exit without executing debates.",
+    ),
+    postrate: bool = typer.Option(
+        True,
+        "--postrate/--no-postrate",
+        help="After debates finish, recompute ratings and show leaderboard.",
+    ),
 ):
     """
     Run a batch of debates and append results.
@@ -482,8 +499,51 @@ def run_command(
     if not run_tag:
         run_tag = datetime.now(timezone.utc).strftime("run-%Y%m%d-%H%M%S")
     debates_path = debates_path.parent / f"debates_{run_tag}.jsonl"
+    run_dir = Path("results") / f"run_{run_tag}"
     viz_dir = Path("results") / f"viz_{run_tag}"
     plots_dir = Path("results") / f"plots_{run_tag}"
+    ratings_path = Path("results") / f"ratings_{run_tag}.json"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_dir = run_dir / "config_snapshot"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    # Preserve input config files and CLI args for reproducibility
+    for src in (config_path, topics_path, models_path, judges_path):
+        try:
+            shutil.copy(src, snapshot_dir / src.name)
+        except FileNotFoundError:
+            pass
+    cli_args = {
+        "config_path": str(config_path),
+        "topics_path": str(topics_path),
+        "models_path": str(models_path),
+        "judges_path": str(judges_path),
+        "debates_path_arg": str(debates_path),
+        "run_tag": run_tag,
+        "sample_topics": sample_topics,
+        "debates_per_pair": debates_per_pair,
+        "seed": seed,
+        "swap_sides": swap_sides,
+        "balanced_sides": balanced_sides,
+        "openrouter_select": openrouter_select,
+        "openrouter_months": openrouter_months,
+        "openrouter_temperature": openrouter_temperature,
+        "openrouter_max_tokens": openrouter_max_tokens,
+        "openrouter_probe": openrouter_probe,
+        "judges_from_selection": judges_from_selection,
+        "openrouter_judge_months": openrouter_judge_months,
+        "openrouter_judge_max_tokens": openrouter_judge_max_tokens,
+        "topic_select": topic_select,
+        "tui_wizard": tui_wizard,
+        "apply_stage_token_limits": apply_stage_token_limits,
+        "skip_on_empty": skip_on_empty,
+        "quick_test": quick_test,
+        "high_tokens": high_tokens,
+        "resume": resume,
+        "dry_run": dry_run,
+        "postrate": postrate,
+    }
+    with (snapshot_dir / "cli_args.json").open("w", encoding="utf-8") as f:
+        json.dump(cli_args, f, indent=2)
 
     if not topics:
         raise typer.BadParameter("Topics list is empty.")
@@ -768,6 +828,93 @@ def run_command(
             if j.token_limit is None or j.token_limit < 512:
                 j.token_limit = 512
 
+    selection_snapshot = {
+        "main_config": main_cfg.dict(),
+        "topics_selected": [t.dict() for t in topics_selected],
+        "debater_models": [m.dict() for m in debater_models],
+        "judge_models": [j.dict() for j in judge_models],
+    }
+    with (snapshot_dir / "effective_selection.json").open("w", encoding="utf-8") as f:
+        json.dump(selection_snapshot, f, indent=2)
+
+    def _fetch_pricing(models_needed: set[str]) -> Dict[str, Tuple[float, float]]:
+        """
+        Returns map model_id -> (prompt_price_per_token, completion_price_per_token) by hitting OpenRouter.
+        Falls back to an empty mapping if the API fails; caller should handle missing entries.
+        """
+        pricing: Dict[str, Tuple[float, float]] = {}
+        headers = {"Authorization": f"Bearer {settings.openrouter_api_key}", "Accept": "application/json"}
+        if settings.openrouter_site_url:
+            headers["HTTP-Referer"] = settings.openrouter_site_url
+        if settings.openrouter_site_name:
+            headers["X-Title"] = settings.openrouter_site_name
+        try:
+            resp = requests.get("https://openrouter.ai/api/v1/models", headers=headers, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json().get("data", [])
+            for entry in payload:
+                mid = entry.get("id")
+                if mid in models_needed:
+                    pr = entry.get("pricing") or {}
+                    p = float(pr.get("prompt")) if pr.get("prompt") not in (None, "") else None
+                    c = float(pr.get("completion")) if pr.get("completion") not in (None, "") else None
+                    if p is not None and c is not None:
+                        pricing[mid] = (p, c)
+        except Exception:
+            return {}
+        return pricing
+
+    def _estimate_cost(
+        debaters, judges, rounds, num_topics, debates_per_pair, balanced, pairs
+    ) -> Tuple[float, Dict[str, float], float, Dict[str, float]]:
+        """
+        Rough cost estimator using live OpenRouter pricing (USD per token) when available.
+        Token model:
+          - Debater: completion tokens = sum(token_limit for its stages); prompt tokens ~= sum(history before each turn)
+            approximated as completion_total + (completion_total - first_turn_tokens)
+          - Judge: prompt tokens = sum(token_limit for all turns); completion ~200 tokens JSON
+        """
+        models_needed = {m.model for m in debaters} | {j.model for j in judges}
+        live = _fetch_pricing(models_needed)
+
+        def side_token_budget():
+            comp = sum(r.token_limit for r in rounds if r.speaker == "pro")  # same for con
+            # approximate prompt as history accumulation: roughly comp + (comp - first_turn)
+            first_turn = next(r.token_limit for r in rounds if r.speaker == "pro")
+            prompt = comp + max(0, comp - first_turn)
+            return prompt, comp
+
+        prompt_side, comp_side = side_token_budget()
+        per_model_cost: Dict[str, float] = {}
+        total_debater_cost = 0.0
+        debates_per_pair_total = debates_per_pair * num_topics
+        for a, b in pairs:
+            for model, tokens in ((a, (prompt_side, comp_side)), (b, (prompt_side, comp_side))):
+                rates = live.get(model.model)
+                if not rates:
+                    continue
+                p_rate, c_rate = rates
+                prompt_tokens, comp_tokens = tokens
+                cost = prompt_tokens * p_rate + comp_tokens * c_rate
+                per_model_cost[model.id] = per_model_cost.get(model.id, 0.0) + cost * debates_per_pair_total
+                total_debater_cost += cost * debates_per_pair_total
+
+        transcript_tokens = sum(r.token_limit for r in rounds)
+        judge_output_tokens = 200
+        per_judge_cost: Dict[str, float] = {}
+        total_judge_cost = 0.0
+        judge_calls = len(pairs) * debates_per_pair_total
+        for j in judges:
+            rates = live.get(j.model)
+            if not rates:
+                continue
+            p_rate, c_rate = rates
+            cost = transcript_tokens * p_rate + judge_output_tokens * c_rate
+            per_judge_cost[j.id] = cost * judge_calls
+            total_judge_cost += cost * judge_calls
+
+        return total_debater_cost, per_model_cost, total_judge_cost, per_judge_cost
+
     # Build adapters
     debater_adapters = {m.id: build_debater_adapter(m, settings) for m in debater_models}
     judge_adapters = {j.id: build_judge_adapter(j, settings) for j in judge_models}
@@ -777,16 +924,130 @@ def run_command(
         pairs = list(itertools.permutations(debater_models, 2))
     else:
         pairs = list(itertools.combinations(debater_models, 2))
-    total_runs = len(pairs) * len(topics_selected) * debates_per_pair
-    console.print(f"Scheduled {total_runs} debates.")
+    completed_counts = defaultdict(int)
+    if resume and debates_path.exists():
+        existing = load_debate_records(debates_path)
+        for rec in existing:
+            key = (rec.transcript.topic.id, rec.transcript.pro_model_id, rec.transcript.con_model_id)
+            completed_counts[key] += 1
+        console.print(
+            f"[cyan]Resume mode: found {len(existing)} completed debates in {debates_path}; will skip already-finished matchups.[/cyan]"
+        )
+    existing_completed = sum(completed_counts.values())
+    def remaining_for(topic, a, b):
+        done = completed_counts.get((topic.id, a.id, b.id), 0)
+        return max(0, debates_per_pair - done)
+
+    total_runs = sum(remaining_for(topic, a, b) for topic in topics_selected for (a, b) in pairs)
+    console.print(f"Scheduled {total_runs} debates (remaining).")
+    progress_path = run_dir / "progress.json"
+    completed_new = 0
+    banned_models = set()
+
+    def write_progress():
+        payload = {
+            "run_tag": run_tag,
+            "debates_file": str(debates_path),
+            "total_planned_remaining": total_runs,
+            "completed_new": completed_new,
+            "completed_prior": existing_completed,
+            "completed_total": existing_completed + completed_new,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "banned_models": sorted(banned_models),
+        }
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        with progress_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+
+    write_progress()
+
+    if dry_run:
+        judge_calls = total_runs * main_cfg.num_judges
+        total_debater_cost, per_model_cost, total_judge_cost, per_judge_cost = _estimate_cost(
+            debater_models, judge_models, main_cfg.rounds, len(topics_selected), debates_per_pair, balanced_sides, pairs
+        )
+        console.print("[green]Dry run (no debates executed).[/green]")
+        console.print(
+            f"Topics={len(topics_selected)}, Debaters={len(debater_models)}, Judges={len(judge_models)}, "
+            f"Debates planned={total_runs}, Judge calls={judge_calls}"
+        )
+        console.print("Debater models:")
+        for m in debater_models:
+            console.print(f"  - {m.id} ({m.model}) max_tokens={m.token_limit}")
+        console.print("Judge models:")
+        for j in judge_models:
+            console.print(f"  - {j.id} ({j.model}) max_tokens={j.token_limit}")
+        approx_total = total_debater_cost + total_judge_cost
+        console.print(
+            f"Estimated cost (very rough, USD): debaters ~${total_debater_cost:.2f}, judges ~${total_judge_cost:.2f}, total ~${approx_total:.2f}"
+        )
+        missing_models = {
+            m.model for m in debater_models if m.id not in per_model_cost
+        } | {
+            j.model for j in judge_models if j.id not in per_judge_cost
+        }
+        if missing_models:
+            console.print(f"[yellow]Pricing unavailable for: {', '.join(sorted(missing_models))} (not in OpenRouter catalog response); omitted from estimate.[/yellow]")
+        console.print("Per-debater share (approx):")
+        for mid, cost in sorted(per_model_cost.items(), key=lambda kv: kv[1], reverse=True):
+            console.print(f"  {mid}: ~${cost:.2f}")
+        console.print("Per-judge share (approx):")
+        for jid, cost in sorted(per_judge_cost.items(), key=lambda kv: kv[1], reverse=True):
+            console.print(f"  {jid}: ~${cost:.2f}")
+        # Build a full schedule preview with per-debate judge sampling (matches run-time logic)
+        schedule_preview = []
+        for topic in topics_selected:
+            for (model_a, model_b) in pairs:
+                for rep in range(debates_per_pair):
+                    pro_model = model_a
+                    con_model = model_b
+                    if (not balanced_sides) and swap_sides and rng.random() < 0.5:
+                        pro_model, con_model = con_model, pro_model
+                    judge_source_pool = list(judge_models)
+                    if judges_from_selection:
+                        judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                    judges_chosen = []
+                    if main_cfg.num_judges > 0:
+                        if len(judge_source_pool) < main_cfg.num_judges:
+                            judges_chosen = ["<insufficient judges after exclusion>"]
+                        else:
+                            judges_chosen = [
+                                j.id
+                                for j in sample_judges(
+                                    judge_source_pool, main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
+                                )
+                            ]
+                    schedule_preview.append(
+                        {
+                            "topic": topic.id,
+                            "pro": pro_model.id,
+                            "con": con_model.id,
+                            "judges": judges_chosen,
+                            "rep": rep,
+                        }
+                    )
+        sched_path = run_dir / "dryrun_schedule.json"
+        with sched_path.open("w", encoding="utf-8") as f:
+            json.dump(schedule_preview, f, indent=2)
+        console.print(f"Saved full debate/judge schedule preview to {sched_path}")
+        console.print("First 10 debates:")
+        for i, entry in enumerate(schedule_preview[:10], start=1):
+            console.print(
+                f"  {i}. Topic {entry['topic']}: PRO={entry['pro']} vs CON={entry['con']} | judges={', '.join(entry['judges']) if entry['judges'] else 'n/a'}"
+            )
+        console.print(f"Output would be written to: debates={debates_path}, viz={viz_dir}, plots={plots_dir}")
+        return
 
     run_index = 0
-    banned_models = set()
     for topic in topics_selected:
         for (model_a, model_b) in pairs:
             if model_a.id in banned_models or model_b.id in banned_models:
                 continue
-            for rep in range(debates_per_pair):
+            key = (topic.id, model_a.id, model_b.id)
+            already_done = completed_counts.get(key, 0)
+            if already_done >= debates_per_pair:
+                continue
+            for rep in range(already_done, debates_per_pair):
                 run_index += 1
                 pro_model = model_a
                 con_model = model_b
@@ -813,15 +1074,28 @@ def run_command(
                         log=log,
                     )
 
+                    judge_source_pool = list(judge_models)
+                    # If judges are drawn from the debater set, exclude the two active debaters for this debate.
+                    if judges_from_selection:
+                        judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                    if len(judge_source_pool) < main_cfg.num_judges:
+                        raise typer.BadParameter(
+                            f"Need at least {main_cfg.num_judges} judges available after excluding debaters; "
+                            f"found {len(judge_source_pool)}. Increase model pool or lower num_judges."
+                        )
                     judge_pool = sample_judges(
-                        list(judge_models), main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
+                        judge_source_pool, main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
                     )
                     judge_adapter_objs = [judge_adapters[j.id] for j in judge_pool]
                     console.print(
                         f"  Judging with panel: {', '.join(j.id for j in judge_pool)}"
                     )
                     judge_results, aggregate = run_judge_panel(
-                        judge_adapter_objs, transcript, main_cfg, seed=rng.randint(0, 1_000_000)
+                        judge_adapter_objs,
+                        transcript,
+                        main_cfg,
+                        seed=rng.randint(0, 1_000_000),
+                        log=log,
                     )
 
                     record = DebateRecord(
@@ -831,6 +1105,9 @@ def run_command(
                         created_at=datetime.now(timezone.utc),
                     )
                     append_debate_record(debates_path, record)
+                    completed_counts[key] = completed_counts.get(key, 0) + 1
+                    completed_new += 1
+                    write_progress()
                     elapsed = (time.perf_counter() - t0) * 1000
 
                     console.print(
@@ -845,6 +1122,7 @@ def run_command(
                     if skip_on_empty:
                         banned_models.add(e.model_id)
                         console.print(f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]")
+                        write_progress()
                     else:
                         raise
                 except Exception as e:
@@ -853,6 +1131,10 @@ def run_command(
     console.print(f"[green]Run complete. Writing summaries to {viz_dir} and plots to {plots_dir}")
     summarize(debates_path=debates_path, out_dir=viz_dir)
     plot_command(viz_dir=viz_dir, out_dir=plots_dir)
+    if postrate:
+        console.print(f"[cyan]Recomputing ratings and showing leaderboard (top 10).[/cyan]")
+        rate_command(debates_path=debates_path, config_path=config_path, ratings_path=ratings_path)
+        show_leaderboard(ratings_path=ratings_path, top=10)
 
 
 @app.command("rate")

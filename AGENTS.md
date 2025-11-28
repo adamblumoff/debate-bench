@@ -10,16 +10,16 @@
 ## Build, Test, and Development Commands
 - Install editable: `pip install -e .`
 - Bootstrap configs/results: `debatebench init`
-- Run debates: `debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo` (topic picker first; OpenRouter picker defaults all models OFF; shows text-in/text-out models only; sorted alphabetically; arrow keys move, Enter/Space toggles on/off, c continues; judges default to the selected models, or use `--no-judges-from-selection` for a separate judge picker; debater/judge max tokens default 512/256 with automatic downshift on 402 errors; at least two judges required and clamped to the pool; writes `results/debates_demo.jsonl`, then summarizes and plots).
+- Run debates: `debatebench run --sample-topics 3 --debates-per-pair 1 --run-tag demo` (topic picker + OpenRouter picker; seed defaults to 12345; `high_tokens` defaults to 3200/2200/1400; judges can come from the debater pool with `--judges-from-selection` and the active debaters are excluded from judge sampling; `--dry-run` shows live-priced cost estimates and saves `dryrun_schedule.json`; `--resume` skips completed debates; summaries/plots/ratings auto-run). Useful toggles: `--no-tui-wizard`, `--no-topic-select`, `--no-openrouter-select`, `--skip-on-empty`.
 - Recompute ratings: `debatebench rate --debates-path results/debates.jsonl`
 - Inspect artifacts: `debatebench show-leaderboard --top 10`; `debatebench inspect-debate <uuid>`
 - Re-run summaries/plots: `debatebench summarize --debates-path results/debates_demo.jsonl --out-dir results/viz_demo`; `debatebench plot --viz-dir results/viz_demo --out-dir results/plots_demo`
 
 ## Coding Style & Naming Conventions
 - Python 3.9+; Pydantic v1 models; Typer CLI with Rich output. Use 4-space indentation and type hints.
-- Keep randomness seeded via parameters (`seed`, `run_tag`) for reproducibility.
+- Keep randomness seeded via parameters (`seed`, `run_tag`) for reproducibility (default seed=12345).
 - File/module names snake_case; config IDs short, lowercase strings (e.g., `gpt4o`, `claude-sonnet`).
-- When adding adapters, mirror the OpenAI/HTTP patterns in `models.py` and expose tunables through `parameters` in YAML.
+- When adding adapters, mirror the OpenRouter HTTP patterns in `models.py` and expose tunables through `parameters` in YAML.
 
 ## Testing Guidelines
 - No automated tests yet; prefer `pytest` under `tests/` with fixtures that load small sample debates from `results/` or synthetic `DebateRecord` objects.

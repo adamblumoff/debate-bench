@@ -24,7 +24,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs and topics; shows a topic picker first (25 topics); then an interactive OpenRouter picker (text-in/text-out models from last 2 months, sorted alphabetically) with arrow navigation (Enter/Space toggles OFF→ON; start state is OFF; c to continue). Judges default to the same selected models (sampled per debate); add `--no-judges-from-selection` to open a separate judge picker. Token limits default to 512 (debaters) and 256 (judges); at least two judges are required and clamped to the available pool; if OpenRouter returns a 402 with an allowed token count, the tool auto-retries with the lower value. Key flags: `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-judge-months`, `--openrouter-max-tokens`, `--openrouter-judge-max-tokens`, `--no-openrouter-select`, `--no-judges-from-selection`. Only OpenRouter is supported.
+- `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from last 4 months), `high_tokens` stage limits (3200/2200/1400) with per-model token bumps, seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note: `--dry-run` (plan only, shows cost using live OpenRouter pricing and writes `dryrun_schedule.json`), `--resume` (skip already-written debates), `--skip-on-empty`, `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-max-tokens`, `--openrouter-judge-max-tokens`, `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`. After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
@@ -32,7 +32,7 @@ debatebench inspect-debate <debate_uuid>
 - `debatebench plot` -- render PNGs from summary CSVs.
 
 ## Configuration Layout (`configs/`)
-- `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings.
+- `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings. Judge prompt expects scores-only JSON; winner is derived by DebateBench.
 - `topics.json` -- list of 25 topics `{id, motion, category}`; picked interactively by default before models.
 - `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter`; the interactive picker builds these for you at run time if `--openrouter-select` is on (default).
 - `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`; provider must be `openrouter`.
@@ -49,11 +49,13 @@ OpenRouter example (`models.yaml`):
 
 ## Outputs (`results/`)
 - `debates_<tag>.jsonl` -- one `DebateRecord` per line (transcript, judges, aggregate scores, timings, token usage).
-- `ratings.json` -- current Elo ratings and per-dimension averages.
+- `ratings_<tag>.json` -- Elo ratings and per-dimension averages.
 - `viz_<tag>/` -- CSV summaries (winner counts, topic win rates, dimension averages, judge agreement, token usage, etc.).
 - `plots_<tag>/` -- PNGs generated from the CSVs.
+- `run_<tag>/config_snapshot/` -- copies of configs plus effective selection and CLI args.
+- `run_<tag>/dryrun_schedule.json` -- dry-run schedule preview with per-debate judge panels.
 
 ## Current Status / Limitations
-- Default adapters return stub text and synthetic scores; configure real endpoints for meaningful results.
+- OpenRouter-only adapters; ensure `OPENROUTER_API_KEY` is set.
 - No automated tests yet; prefer `pytest` with seeded RNGs when adding coverage.
 - Results files can grow quickly; avoid committing large `results/` artifacts or `.env`.

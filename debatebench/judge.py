@@ -23,7 +23,7 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
     instructions = (
         f"Return a single JSON object with keys scores.pro, scores.con. "
         f"Scores must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"Do not include overall reasoning or commentary."
+        f"Do not include overall reasoning or commentary. Do not include a winner field; it will be computed separately."
     )
     if reinforce_json:
         instructions += " Do not include any text before or after the JSON. Respond with JSON only."
@@ -166,13 +166,15 @@ def run_judge_panel(
     transcript: Transcript,
     config: MainConfig,
     seed: int | None = None,
+    log=None,
 ) -> Tuple[List[JudgeResult], AggregatedResult]:
     results: List[JudgeResult] = []
     for adapter in judge_adapters:
         try:
             results.append(run_single_judge(adapter, transcript, config))
-        except Exception:
-            # Skip judges that fail to return valid JSON; continue with remaining panel.
+        except Exception as e:
+            if log:
+                log(f"[yellow]Judge {adapter.config.id} dropped: {e}[/yellow]")
             continue
     if not results:
         raise RuntimeError("All judges failed to return valid JSON.")
