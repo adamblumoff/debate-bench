@@ -4,7 +4,7 @@ Typed data structures used across DebateBench.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +40,9 @@ class MainConfig(BaseModel):
     num_judges: int = 3
     elo: EloConfig = EloConfig()
     language: str = "en"
+    system_prompt_pro: Optional[str] = None
+    system_prompt_con: Optional[str] = None
+    judge_system_prompt: Optional[str] = None
 
 
 class Topic(BaseModel):
@@ -77,6 +80,7 @@ class Turn(BaseModel):
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class Transcript(BaseModel):

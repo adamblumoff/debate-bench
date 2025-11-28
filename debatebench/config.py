@@ -48,6 +48,9 @@ def default_main_config() -> MainConfig:
         num_judges=3,
         elo=EloConfig(initial_rating=400.0, k_factor=32.0),
         language="en",
+        system_prompt_pro=None,
+        system_prompt_con=None,
+        judge_system_prompt=None,
     )
 
 
@@ -94,6 +97,8 @@ def _parse_main_config(data: dict) -> MainConfig:
         benchmark_version = benchmark.get("version", "v0")
         rubric_version = benchmark.get("rubric_version", benchmark_version)
         language = debate.get("language", "en")
+        system_prompt_pro = debate.get("system_prompt_pro")
+        system_prompt_con = debate.get("system_prompt_con")
 
         rounds_raw = debate.get("rounds", [])
         rounds: List[RoundConfig] = []
@@ -132,6 +137,7 @@ def _parse_main_config(data: dict) -> MainConfig:
         )
 
         num_judges = scoring.get("judges_per_debate") or scoring.get("num_judges") or 3
+        judge_system_prompt = scoring.get("judge_system_prompt")
 
         elo_cfg = EloConfig(
             initial_rating=elo.get("initial_rating", 400.0),
@@ -146,6 +152,9 @@ def _parse_main_config(data: dict) -> MainConfig:
             num_judges=num_judges,
             elo=elo_cfg,
             language=language,
+            system_prompt_pro=system_prompt_pro,
+            system_prompt_con=system_prompt_con,
+            judge_system_prompt=judge_system_prompt,
         )
 
     # Legacy flat schema

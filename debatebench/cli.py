@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import config as cfg
-from .debate import run_debate
+from .debate import run_debate, EmptyResponseError
 from .judge import run_judge_panel
 from .models import build_debater_adapter, build_judge_adapter, sample_judges
 from .openrouter import fetch_recent_openrouter_models, probe_model
@@ -216,6 +216,7 @@ def selection_wizard(
     enable_topics: bool,
     enable_models: bool,
     enable_judges: bool,
+    popular_ids: List[str] | None = None,
 ):
     """
     Unified curses wizard for topic/model/judge selection.
@@ -409,7 +410,7 @@ def run_command(
         help="Interactively select OpenRouter models (default on; overrides models.yaml debaters).",
     ),
     openrouter_months: int = typer.Option(
-        2, help="Lookback window in months for OpenRouter model selection."
+        4, help="Lookback window in months for OpenRouter model selection."
     ),
     openrouter_temperature: float = typer.Option(
         0.7, help="Default temperature for OpenRouter debater adapters."
@@ -421,7 +422,7 @@ def run_command(
         True, help="Probe each selected OpenRouter model before running; drop any that fail."
     ),
     judges_from_selection: bool = typer.Option(
-        True,
+        False,
         help="Use the selected debater models as the judge pool and sample a panel per debate.",
     ),
     openrouter_judge_months: Optional[int] = typer.Option(
@@ -444,6 +445,14 @@ def run_command(
     apply_stage_token_limits: bool = typer.Option(
         True,
         help="Apply default per-stage token limits (opening=900, rebuttal=600, closing=400) to rounds before running.",
+    ),
+    skip_on_empty: bool = typer.Option(
+        False,
+        help="If a model returns empty content after retries, skip that model for the rest of the run instead of aborting all debates.",
+    ),
+    quick_test: bool = typer.Option(
+        False,
+        help="Run a fixed sanity test: 1 random topic, Google Gemini 3 Pro Preview vs OpenAI GPT-5.1, judges Kimi K2 Thinking + Claude Opus 4.5 + DeepSeek V3.2.",
     ),
 ):
     """
@@ -477,80 +486,224 @@ def run_command(
 
     topics_selected = topics
 
-    # Pre-fetch catalogs for wizard and/or standalone pickers
-    debater_catalog = None
-    if openrouter_select:
-        if not settings.openrouter_api_key:
-            raise typer.BadParameter("OPENROUTER_API_KEY is required for interactive OpenRouter selection.")
-        console.print(
-            f"[cyan]Fetching OpenRouter models from the last {openrouter_months} month(s)...[/cyan]"
-        )
-        debater_catalog = fetch_recent_openrouter_models(
-            months=openrouter_months,
-            api_key=settings.openrouter_api_key,
-            site_url=settings.openrouter_site_url,
-            site_name=settings.openrouter_site_name,
-        )
-        if not debater_catalog:
-            raise typer.BadParameter(f"No text-based OpenRouter models found in the last {openrouter_months} month(s).")
-
-    judge_catalog = None
-    months_j = openrouter_judge_months or openrouter_months
-    if not judges_from_selection:
-        console.print(
-            f"[cyan]Fetching OpenRouter judge candidates from the last {months_j} month(s)...[/cyan]"
-        )
-        judge_catalog = fetch_recent_openrouter_models(
-            months=months_j,
-            api_key=settings.openrouter_api_key,
-            site_url=settings.openrouter_site_url,
-            site_name=settings.openrouter_site_name,
-        )
-        if not judge_catalog:
-            raise typer.BadParameter(f"No text-based OpenRouter models found in the last {months_j} month(s) for judges.")
-
-    # Wizard (topics -> debaters -> judges) if enabled and curses is available
-    used_wizard = False
-    if tui_wizard:
-        try:
-            wizard_result = selection_wizard(
-                topics=topics if topic_select else [],
-                model_catalog=debater_catalog if openrouter_select else [],
-                judge_catalog=judge_catalog if (not judges_from_selection) else [],
-                enable_topics=topic_select,
-                enable_models=openrouter_select,
-                enable_judges=not judges_from_selection,
+    if quick_test:
+        rng = random.Random(seed)
+        topics_selected = [rng.choice(topics)]
+        debater_models = [
+            DebaterModelConfig(
+                id="google-gemini-3-pro-preview",
+                provider="openrouter",
+                model="google/gemini-3-pro-preview",
+                token_limit=openrouter_max_tokens,
+                endpoint=None,
+                parameters={"temperature": openrouter_temperature},
+            ),
+            DebaterModelConfig(
+                id="openai-gpt-5.1",
+                provider="openrouter",
+                model="openai/gpt-5.1",
+                token_limit=openrouter_max_tokens,
+                endpoint=None,
+                parameters={"temperature": openrouter_temperature},
+            ),
+        ]
+        judge_models = [
+            JudgeModelConfig(
+                id="moonshotai-kimi-k2-thinking",
+                provider="openrouter",
+                model="moonshotai/kimi-k2-thinking",
+                token_limit=openrouter_judge_max_tokens,
+                endpoint=None,
+                prompt_style=None,
+                parameters={"temperature": openrouter_temperature},
+            ),
+            JudgeModelConfig(
+                id="anthropic-claude-opus-4.5",
+                provider="openrouter",
+                model="anthropic/claude-opus-4.5",
+                token_limit=openrouter_judge_max_tokens,
+                endpoint=None,
+                prompt_style=None,
+                parameters={"temperature": openrouter_temperature},
+            ),
+            JudgeModelConfig(
+                id="deepseek-deepseek-v3.2-exp",
+                provider="openrouter",
+                model="deepseek/deepseek-v3.2-exp",
+                token_limit=openrouter_judge_max_tokens,
+                endpoint=None,
+                prompt_style=None,
+                parameters={"temperature": openrouter_temperature},
+            ),
+        ]
+        main_cfg.num_judges = 3
+        console.print("[cyan]Quick test mode: 1 random topic, fixed debaters and judges.[/cyan]")
+    else:
+        # Pre-fetch catalogs for wizard and/or standalone pickers
+        debater_catalog = None
+        if openrouter_select:
+            if not settings.openrouter_api_key:
+                raise typer.BadParameter("OPENROUTER_API_KEY is required for interactive OpenRouter selection.")
+            console.print(
+                f"[cyan]Fetching OpenRouter models from the last {openrouter_months} month(s)...[/cyan]"
             )
-        except SelectionCancelled:
-            console.print("[yellow]Selection cancelled.[/yellow]")
-            raise typer.Exit(code=1)
-        if wizard_result is not None:
-            used_wizard = True
-            topics_selected, debater_entries, judge_entries = wizard_result
-            if not topics_selected:
-                raise typer.BadParameter("All topics were disabled; nothing to run.")
-            # build debater models
-            debater_models = []
-            for entry in debater_entries:
-                model_id = entry["id"]
-                debater_models.append(
-                    DebaterModelConfig(
-                        id=model_id.replace("/", "-"),
-                        provider="openrouter",
-                        model=model_id,
-                        token_limit=openrouter_max_tokens,
-                        endpoint=None,
-                        parameters={"temperature": openrouter_temperature},
-                    )
+            debater_catalog = fetch_recent_openrouter_models(
+                months=openrouter_months,
+                api_key=settings.openrouter_api_key,
+                site_url=settings.openrouter_site_url,
+                site_name=settings.openrouter_site_name,
+            )
+            if not debater_catalog:
+                raise typer.BadParameter(f"No text-based OpenRouter models found in the last {openrouter_months} month(s).")
+
+        judge_catalog = None
+        months_j = openrouter_judge_months or openrouter_months
+        if not judges_from_selection:
+            console.print(
+                f"[cyan]Fetching OpenRouter judge candidates from the last {months_j} month(s)...[/cyan]"
+            )
+            judge_catalog = fetch_recent_openrouter_models(
+                months=months_j,
+                api_key=settings.openrouter_api_key,
+                site_url=settings.openrouter_site_url,
+                site_name=settings.openrouter_site_name,
+            )
+            if not judge_catalog:
+                raise typer.BadParameter(f"No text-based OpenRouter models found in the last {months_j} month(s) for judges.")
+
+        # Wizard (topics -> debaters -> judges) if enabled and curses is available
+        used_wizard = False
+        if tui_wizard:
+            try:
+                wizard_result = selection_wizard(
+                    topics=topics if topic_select else [],
+                    model_catalog=debater_catalog if openrouter_select else [],
+                    judge_catalog=judge_catalog if (not judges_from_selection) else [],
+                    enable_topics=topic_select,
+                    enable_models=openrouter_select,
+                    enable_judges=not judges_from_selection,
                 )
-            if not debater_models:
-                raise typer.BadParameter("All models were disabled; nothing to run.")
-            # build judges depending on path
+            except SelectionCancelled:
+                console.print("[yellow]Selection cancelled.[/yellow]")
+                raise typer.Exit(code=1)
+            if wizard_result is not None:
+                used_wizard = True
+                topics_selected, debater_entries, judge_entries = wizard_result
+                if not topics_selected:
+                    raise typer.BadParameter("All topics were disabled; nothing to run.")
+                # build debater models
+                debater_models = []
+                for entry in debater_entries:
+                    model_id = entry["id"]
+                    debater_models.append(
+                        DebaterModelConfig(
+                            id=model_id.replace("/", "-"),
+                            provider="openrouter",
+                            model=model_id,
+                            token_limit=openrouter_max_tokens,
+                            endpoint=None,
+                            parameters={"temperature": openrouter_temperature},
+                        )
+                    )
+                if not debater_models:
+                    raise typer.BadParameter("All models were disabled; nothing to run.")
+                # build judges depending on path
+                if judges_from_selection:
+                    judge_models = debater_models
+                else:
+                    judge_models = []
+                    for entry in judge_entries:
+                        model_id = entry["id"]
+                        judge_models.append(
+                            JudgeModelConfig(
+                                id=model_id.replace("/", "-"),
+                                provider="openrouter",
+                                model=model_id,
+                                token_limit=openrouter_judge_max_tokens,
+                                endpoint=None,
+                                prompt_style=None,
+                                parameters={"temperature": openrouter_temperature},
+                            )
+                        )
+                    if not judge_models:
+                        raise typer.BadParameter("All judge models were disabled; nothing to run.")
+                # apply sample_topics after wizard selection
+                if sample_topics is not None:
+                    if sample_topics <= 0:
+                        raise typer.BadParameter("sample_topics must be positive.")
+                    topics_selected = rng.sample(topics_selected, k=min(sample_topics, len(topics_selected)))
+
+        if not quick_test and not used_wizard:
+            # Topic selection fallback
+            topics_selected = topics
+            if topic_select:
+                topics_selected = _interactive_select_topics(topics, console)
+                if not topics_selected:
+                    raise typer.BadParameter("All topics were disabled; nothing to run.")
+            if sample_topics is not None:
+                if sample_topics <= 0:
+                    raise typer.BadParameter("sample_topics must be positive.")
+                topics_selected = rng.sample(topics_selected, k=min(sample_topics, len(topics_selected)))
+
+            # Debater selection fallback
+            if openrouter_select:
+                selected_entries = _interactive_select_models(debater_catalog, console, title="Select Debater Models")
+                if not selected_entries:
+                    raise typer.BadParameter("All models were disabled; nothing to run.")
+
+                debater_models = []
+                for entry in selected_entries:
+                    model_id = entry["id"]
+                    debater_models.append(
+                        DebaterModelConfig(
+                            id=model_id.replace("/", "-"),
+                            provider="openrouter",
+                            model=model_id,
+                            token_limit=openrouter_max_tokens,
+                            endpoint=None,
+                            parameters={"temperature": openrouter_temperature},
+                        )
+                    )
+                console.print(
+                    f"[green]Selected {len(debater_models)} debater models from OpenRouter (last {openrouter_months} month(s)).[/green]"
+                )
+
+            # Optional preflight probes (debater)
+            if openrouter_probe and debater_models:
+                console.print("[cyan]Probing selected models with 1-token requests...[/cyan]")
+                usable = []
+                dropped = []
+                for m in debater_models:
+                    err = probe_model(
+                        model_id=m.model,
+                        api_key=settings.openrouter_api_key,
+                        site_url=settings.openrouter_site_url,
+                        site_name=settings.openrouter_site_name,
+                    )
+                    if err is None:
+                        usable.append(m)
+                    else:
+                        dropped.append((m, err))
+                if dropped:
+                    console.print("[yellow]Dropping models that failed probe:[/yellow]")
+                    for m, err in dropped:
+                        console.print(f"  [red]{m.model}[/red]: {err}")
+                debater_models = usable
+                if len(debater_models) < 2:
+                    raise typer.BadParameter("Fewer than two usable models after probe; aborting.")
+
+            # Configure judge pool fallback
             if judges_from_selection:
                 judge_models = debater_models
+                main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
+                if len(judge_models) < 2:
+                    raise typer.BadParameter("Need at least two judges after selection.")
             else:
+                selected_judges = _interactive_select_models(judge_catalog, console, title="Select Judge Models")
+                if not selected_judges:
+                    raise typer.BadParameter("All judge models were disabled; nothing to run.")
                 judge_models = []
-                for entry in judge_entries:
+                for entry in selected_judges:
                     model_id = entry["id"]
                     judge_models.append(
                         JudgeModelConfig(
@@ -563,124 +716,33 @@ def run_command(
                             parameters={"temperature": openrouter_temperature},
                         )
                     )
-                if not judge_models:
-                    raise typer.BadParameter("All judge models were disabled; nothing to run.")
-            # apply sample_topics after wizard selection
-            if sample_topics is not None:
-                if sample_topics <= 0:
-                    raise typer.BadParameter("sample_topics must be positive.")
-                topics_selected = rng.sample(topics_selected, k=min(sample_topics, len(topics_selected)))
-
-    if not used_wizard:
-        # Topic selection fallback
-        topics_selected = topics
-        if topic_select:
-            topics_selected = _interactive_select_topics(topics, console)
-            if not topics_selected:
-                raise typer.BadParameter("All topics were disabled; nothing to run.")
-        if sample_topics is not None:
-            if sample_topics <= 0:
-                raise typer.BadParameter("sample_topics must be positive.")
-            topics_selected = rng.sample(topics_selected, k=min(sample_topics, len(topics_selected)))
-
-        # Debater selection fallback
-        if openrouter_select:
-            selected_entries = _interactive_select_models(debater_catalog, console, title="Select Debater Models")
-            if not selected_entries:
-                raise typer.BadParameter("All models were disabled; nothing to run.")
-
-            debater_models = []
-            for entry in selected_entries:
-                model_id = entry["id"]
-                debater_models.append(
-                    DebaterModelConfig(
-                        id=model_id.replace("/", "-"),
-                        provider="openrouter",
-                        model=model_id,
-                        token_limit=openrouter_max_tokens,
-                        endpoint=None,
-                        parameters={"temperature": openrouter_temperature},
-                    )
-                )
-            console.print(
-                f"[green]Selected {len(debater_models)} debater models from OpenRouter (last {openrouter_months} month(s)).[/green]"
-            )
-
-        # Optional preflight probes (debater)
-        if openrouter_probe and debater_models:
-            console.print("[cyan]Probing selected models with 1-token requests...[/cyan]")
-            usable = []
-            dropped = []
-            for m in debater_models:
-                err = probe_model(
-                    model_id=m.model,
-                    api_key=settings.openrouter_api_key,
-                    site_url=settings.openrouter_site_url,
-                    site_name=settings.openrouter_site_name,
-                )
-                if err is None:
-                    usable.append(m)
-                else:
-                    dropped.append((m, err))
-            if dropped:
-                console.print("[yellow]Dropping models that failed probe:[/yellow]")
-                for m, err in dropped:
-                    console.print(f"  [red]{m.model}[/red]: {err}")
-            debater_models = usable
-            if len(debater_models) < 2:
-                raise typer.BadParameter("Fewer than two usable models after probe; aborting.")
-
-        # Configure judge pool fallback
-        if judges_from_selection:
-            judge_models = debater_models
-            main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
-            if len(judge_models) < 2:
-                raise typer.BadParameter("Need at least two judges after selection.")
-        else:
-            selected_judges = _interactive_select_models(judge_catalog, console, title="Select Judge Models")
-            if not selected_judges:
-                raise typer.BadParameter("All judge models were disabled; nothing to run.")
-            judge_models = []
-            for entry in selected_judges:
-                model_id = entry["id"]
-                judge_models.append(
-                    JudgeModelConfig(
-                        id=model_id.replace("/", "-"),
-                        provider="openrouter",
-                        model=model_id,
-                        token_limit=openrouter_judge_max_tokens,
-                        endpoint=None,
-                        prompt_style=None,
-                        parameters={"temperature": openrouter_temperature},
-                    )
-                )
-            if openrouter_probe and judge_models:
-                console.print("[cyan]Probing selected judge models with 1-token requests...[/cyan]")
-                usable_j = []
-                dropped_j = []
-                for j in judge_models:
-                    err = probe_model(
-                        model_id=j.model,
-                        api_key=settings.openrouter_api_key,
-                        site_url=settings.openrouter_site_url,
-                        site_name=settings.openrouter_site_name,
-                    )
-                    if err is None:
-                        usable_j.append(j)
-                    else:
-                        dropped_j.append((j, err))
-                if dropped_j:
-                    console.print("[yellow]Dropping judges that failed probe:[/yellow]")
-                    for j, err in dropped_j:
-                        console.print(f"  [red]{j.model}[/red]: {err}")
-                judge_models = usable_j
+                if openrouter_probe and judge_models:
+                    console.print("[cyan]Probing selected judge models with 1-token requests...[/cyan]")
+                    usable_j = []
+                    dropped_j = []
+                    for j in judge_models:
+                        err = probe_model(
+                            model_id=j.model,
+                            api_key=settings.openrouter_api_key,
+                            site_url=settings.openrouter_site_url,
+                            site_name=settings.openrouter_site_name,
+                        )
+                        if err is None:
+                            usable_j.append(j)
+                        else:
+                            dropped_j.append((j, err))
+                    if dropped_j:
+                        console.print("[yellow]Dropping judges that failed probe:[/yellow]")
+                        for j, err in dropped_j:
+                            console.print(f"  [red]{j.model}[/red]: {err}")
+                    judge_models = usable_j
         main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
         if len(judge_models) < main_cfg.num_judges:
             main_cfg.num_judges = len(judge_models)
         if main_cfg.num_judges < 2:
             raise typer.BadParameter("Need at least two judges in the final pool.")
 
-    # Final clamp for both wizard and fallback paths
+    # Final clamp for both paths
     main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
     if len(judge_models) < main_cfg.num_judges:
         main_cfg.num_judges = len(judge_models)
@@ -703,8 +765,11 @@ def run_command(
     console.print(f"Scheduled {total_runs} debates.")
 
     run_index = 0
+    banned_models = set()
     for topic in topics_selected:
         for (model_a, model_b) in pairs:
+            if model_a.id in banned_models or model_b.id in banned_models:
+                continue
             for rep in range(debates_per_pair):
                 run_index += 1
                 pro_model = model_a
@@ -757,6 +822,15 @@ def run_command(
                         f"Topic '{topic.id}' {pro_model.id} (Pro) vs {con_model.id} (Con) "
                         f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
                     )
+                except EmptyResponseError as e:
+                    console.print(
+                        f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}"
+                    )
+                    if skip_on_empty:
+                        banned_models.add(e.model_id)
+                        console.print(f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]")
+                    else:
+                        raise
                 except Exception as e:
                     console.print(f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
 
@@ -833,21 +907,57 @@ def show_leaderboard(
 
 @app.command("inspect-debate")
 def inspect_debate(
-    debate_id: str = typer.Argument(..., help="Debate ID to inspect."),
+    debate_id: Optional[str] = typer.Argument(
+        None, help="Debate ID to inspect (omit to show the latest debate)."
+    ),
     debates_path: Path = typer.Option(
         Path("results/debates.jsonl"), help="Path to debates file."
+    ),
+    latest: bool = typer.Option(
+        False,
+        "--latest",
+        help="Automatically pick the newest debates_*.jsonl file and the newest debate ID.",
     ),
 ):
     """
     Print a single debate and its judge decisions.
     """
-    debates = load_debate_records(debates_path)
-    matches = [d for d in debates if d.transcript.debate_id == debate_id]
-    if not matches:
-        console.print(f"[red]Debate {debate_id} not found.")
+    def _find_latest_debates_file() -> Optional[Path]:
+        results_dir = Path("results")
+        candidates = list(results_dir.glob("debates_*.jsonl"))
+        if candidates:
+            candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return candidates[0]
+        default = results_dir / "debates.jsonl"
+        return default if default.exists() else None
+
+    path_in = debates_path
+    if latest or debate_id is None:
+        auto = _find_latest_debates_file()
+        if auto:
+            path_in = auto
+
+    debates = load_debate_records(path_in)
+    if not debates:
+        console.print(f"[red]No debates found at {path_in}")
         raise typer.Exit(code=1)
 
-    record = matches[0]
+    record = None
+    if debate_id:
+        matches = [d for d in debates if d.transcript.debate_id == debate_id]
+        if matches:
+            record = matches[0]
+    else:
+        try:
+            record = max(debates, key=lambda d: d.created_at)
+        except Exception:
+            record = debates[-1] if debates else None
+
+    if record is None:
+        console.print(f"[red]Debate {debate_id or ''} not found in {path_in}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]Using debates file: {path_in}")
     console.print(f"[bold]Debate {record.transcript.debate_id}[/bold]")
     console.print(f"Motion: {record.transcript.topic.motion}")
     console.print(f"Pro: {record.transcript.pro_model_id} | Con: {record.transcript.con_model_id}")

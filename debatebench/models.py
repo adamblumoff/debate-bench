@@ -92,11 +92,21 @@ class OpenRouterAdapter(ModelAdapter):
                 resp.raise_for_status()
                 data = resp.json()
                 usage = data.get("usage", {})
-                return data["choices"][0]["message"]["content"], {
+                message = data["choices"][0].get("message", {})
+                content = message.get("content", "")
+                reasoning = message.get("reasoning") or message.get("reasoning_content")
+                # Some thinking routes place the answer in `reasoning` while leaving `content` empty.
+                # Keep reasoning hidden from the main transcript; only fallback when content is empty.
+                if (not content) and reasoning:
+                    content = reasoning
+                meta = {
+                    "raw_response": data,
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "completion_tokens": usage.get("completion_tokens"),
                     "total_tokens": usage.get("total_tokens"),
+                    "reasoning": reasoning,
                 }
+                return content, meta
             except (req_exc.Timeout, req_exc.ConnectionError) as e:
                 last_err = e
                 if attempt == self.retries:

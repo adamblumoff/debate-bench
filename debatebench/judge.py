@@ -4,7 +4,6 @@ Judge panel logic and aggregation.
 from __future__ import annotations
 
 import json
-import random
 import re
 import time
 from typing import Dict, List, Tuple, Optional
@@ -13,22 +12,28 @@ from .models import JudgeAdapter
 from .schema import AggregatedResult, JudgeResult, JudgeScores, MainConfig, Transcript
 
 
-def _build_judge_prompt(transcript: Transcript, config: MainConfig) -> str:
+def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_json: bool = False) -> str:
     turns_text = "\n".join(
         f"{t.speaker.upper()} ({t.stage}): {t.content}" for t in transcript.turns
     )
     dims = ", ".join(d.id for d in config.scoring.dimensions)
-    return (
-        f"Debate transcript for motion: {transcript.topic.motion}\n"
-        f"Scores needed on dimensions ({dims}) with scale "
-        f"{config.scoring.scale_min}-{config.scoring.scale_max}.\n"
-        f"Provide winner as pro/con/tie.\n\n"
-        f"{turns_text}"
+    system = config.judge_system_prompt or (
+        "You are an expert debate adjudicator. Read the transcript and output ONLY a JSON object with winner and per-dimension integer scores."
     )
-
-
-def _synthetic_scores(dim_ids: List[str], scale_min: int, scale_max: int, rng: random.Random) -> Dict[str, int]:
-    return {dim: rng.randint(scale_min, scale_max) for dim in dim_ids}
+    instructions = (
+        f"Return a single JSON object with keys winner, scores.pro, scores.con. "
+        f"Winner must be one of: pro, con, tie. Scores must include dimensions: {dims}, "
+        f"each an integer {config.scoring.scale_min}-{config.scoring.scale_max}."
+    )
+    if reinforce_json:
+        instructions += " Do not include any text before or after the JSON. Respond with JSON only."
+    return (
+        f"{system}\n\n"
+        f"Motion: {transcript.topic.motion}\n"
+        f"Dimensions: {dims} (scale {config.scoring.scale_min}-{config.scoring.scale_max})\n"
+        f"{instructions}\n\n"
+        f"Transcript:\n{turns_text}"
+    )
 
 
 def _extract_json_block(text: str) -> Optional[dict]:
@@ -49,67 +54,66 @@ def _extract_json_block(text: str) -> Optional[dict]:
     return None
 
 
-def _parse_or_synthesize(
-    response: str,
-    dim_ids: List[str],
-    scale_min: int,
-    scale_max: int,
-    rng: random.Random,
-) -> Tuple[str, Dict[str, int], Dict[str, int]]:
-    """
-    Try to parse a judge JSON response; fallback to extracting winner from text; then synthesize remaining fields.
-    """
-    winner = "tie"
-    pro_scores: Dict[str, int] = {}
-    con_scores: Dict[str, int] = {}
-
-    payload = _extract_json_block(response)
-    if payload:
-        winner = payload.get("winner", winner)
-        pro_scores = payload.get("pro", {}) or payload.get("scores", {}).get("pro", {})
-        con_scores = payload.get("con", {}) or payload.get("scores", {}).get("con", {})
-    else:
-        m = re.search(r"winner\s*[:\-]\s*(pro|con|tie)", response, re.I)
-        if m:
-            winner = m.group(1).lower()
-
-    # Fill missing dimensions
-    for dim in dim_ids:
-        if dim not in pro_scores:
-            pro_scores[dim] = rng.randint(scale_min, scale_max)
-        if dim not in con_scores:
-            con_scores[dim] = rng.randint(scale_min, scale_max)
-
+def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[str, Dict[str, int], Dict[str, int]]:
+    if not isinstance(payload, dict):
+        raise ValueError("Judge response is not a JSON object.")
+    winner = payload.get("winner")
+    scores = payload.get("scores") or {}
+    pro_scores = scores.get("pro") or payload.get("pro")
+    con_scores = scores.get("con") or payload.get("con")
     if winner not in {"pro", "con", "tie"}:
-        winner = "tie"
-
-    # Override winner based on average dimension scores (simple mean)
-    pro_avg = sum(pro_scores.values()) / len(pro_scores) if pro_scores else 0
-    con_avg = sum(con_scores.values()) / len(con_scores) if con_scores else 0
-    if pro_avg > con_avg:
-        winner = "pro"
-    elif con_avg > pro_avg:
-        winner = "con"
-    else:
-        winner = "tie"
-
-    return winner, pro_scores, con_scores
+        raise ValueError("Missing or invalid winner.")
+    if not isinstance(pro_scores, dict) or not isinstance(con_scores, dict):
+        raise ValueError("Missing scores for pro/con.")
+    def validate_side(side_scores: Dict[str, int]) -> Dict[str, int]:
+        out: Dict[str, int] = {}
+        for dim in dim_ids:
+            if dim not in side_scores:
+                raise ValueError(f"Missing dimension {dim}")
+            val = side_scores[dim]
+            if isinstance(val, str) and val.isdigit():
+                val = int(val)
+            if not isinstance(val, int):
+                raise ValueError(f"Dimension {dim} is not int")
+            if val < scale_min or val > scale_max:
+                raise ValueError(f"Dimension {dim} out of range")
+            out[dim] = val
+        return out
+    return winner, validate_side(pro_scores), validate_side(con_scores)
 
 
 def run_single_judge(
     adapter: JudgeAdapter,
     transcript: Transcript,
     config: MainConfig,
-    rng: random.Random,
 ) -> JudgeResult:
-    prompt = _build_judge_prompt(transcript, config)
-    t0 = time.perf_counter()
-    raw, usage = adapter.judge(prompt)
-    latency_ms = (time.perf_counter() - t0) * 1000
     dim_ids = [d.id for d in config.scoring.dimensions]
-    winner, pro_scores, con_scores = _parse_or_synthesize(
-        raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max, rng
-    )
+    attempts = 0
+    raw = ""
+    usage = {}
+    latency_ms = None
+    winner = None
+    pro_scores: Dict[str, int] = {}
+    con_scores: Dict[str, int] = {}
+
+    while attempts < 3 and winner is None:
+        prompt = _build_judge_prompt(transcript, config, reinforce_json=attempts == 1)
+        t0 = time.perf_counter()
+        raw, usage = adapter.judge(prompt)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        payload = _extract_json_block(raw)
+        if payload:
+            try:
+                winner, pro_scores, con_scores = _parse_json_scores(
+                    payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
+                )
+            except ValueError:
+                winner = None
+        attempts += 1
+
+    if winner is None:
+        raise RuntimeError("Judge response was not valid JSON after two attempts.")
+
     return JudgeResult(
         judge_id=adapter.config.id,
         pro=JudgeScores(scores=pro_scores),
@@ -156,9 +160,14 @@ def run_judge_panel(
     config: MainConfig,
     seed: int | None = None,
 ) -> Tuple[List[JudgeResult], AggregatedResult]:
-    rng = random.Random(seed)
-    results = [
-        run_single_judge(adapter, transcript, config, rng) for adapter in judge_adapters
-    ]
+    results: List[JudgeResult] = []
+    for adapter in judge_adapters:
+        try:
+            results.append(run_single_judge(adapter, transcript, config))
+        except Exception:
+            # Skip judges that fail to return valid JSON; continue with remaining panel.
+            continue
+    if not results:
+        raise RuntimeError("All judges failed to return valid JSON.")
     aggregate = aggregate_panel(results)
     return results, aggregate
