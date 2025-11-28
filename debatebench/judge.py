@@ -18,12 +18,12 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
     )
     dims = ", ".join(d.id for d in config.scoring.dimensions)
     system = config.judge_system_prompt or (
-        "You are an expert debate adjudicator. Read the transcript and output ONLY a JSON object with winner and per-dimension integer scores."
+        "You are an expert debate adjudicator. Read the transcript and output ONLY a JSON object with per-dimension integer scores; winner will be derived from the scores."
     )
     instructions = (
-        f"Return a single JSON object with keys winner, scores.pro, scores.con. "
-        f"Winner must be one of: pro, con, tie. Scores must include dimensions: {dims}, "
-        f"each an integer {config.scoring.scale_min}-{config.scoring.scale_max}."
+        f"Return a single JSON object with keys scores.pro, scores.con. "
+        f"Scores must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
+        f"Do not include overall reasoning or commentary."
     )
     if reinforce_json:
         instructions += " Do not include any text before or after the JSON. Respond with JSON only."
@@ -54,15 +54,12 @@ def _extract_json_block(text: str) -> Optional[dict]:
     return None
 
 
-def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[str, Dict[str, int], Dict[str, int]]:
+def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[Dict[str, int], Dict[str, int]]:
     if not isinstance(payload, dict):
         raise ValueError("Judge response is not a JSON object.")
-    winner = payload.get("winner")
     scores = payload.get("scores") or {}
     pro_scores = scores.get("pro") or payload.get("pro")
     con_scores = scores.get("con") or payload.get("con")
-    if winner not in {"pro", "con", "tie"}:
-        raise ValueError("Missing or invalid winner.")
     if not isinstance(pro_scores, dict) or not isinstance(con_scores, dict):
         raise ValueError("Missing scores for pro/con.")
     def validate_side(side_scores: Dict[str, int]) -> Dict[str, int]:
@@ -79,7 +76,7 @@ def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_
                 raise ValueError(f"Dimension {dim} out of range")
             out[dim] = val
         return out
-    return winner, validate_side(pro_scores), validate_side(con_scores)
+    return validate_side(pro_scores), validate_side(con_scores)
 
 
 def run_single_judge(
@@ -92,11 +89,10 @@ def run_single_judge(
     raw = ""
     usage = {}
     latency_ms = None
-    winner = None
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    while attempts < 3 and winner is None:
+    while attempts < 3 and (not pro_scores or not con_scores):
         prompt = _build_judge_prompt(transcript, config, reinforce_json=attempts == 1)
         t0 = time.perf_counter()
         raw, usage = adapter.judge(prompt)
@@ -104,15 +100,26 @@ def run_single_judge(
         payload = _extract_json_block(raw)
         if payload:
             try:
-                winner, pro_scores, con_scores = _parse_json_scores(
+                pro_scores, con_scores = _parse_json_scores(
                     payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
                 )
             except ValueError:
-                winner = None
+                pro_scores = {}
+                con_scores = {}
         attempts += 1
 
-    if winner is None:
-        raise RuntimeError("Judge response was not valid JSON after two attempts.")
+    if not pro_scores or not con_scores:
+        raise RuntimeError("Judge response was not valid JSON after three attempts.")
+
+    # Derive winner from mean dimension scores
+    pro_avg = sum(pro_scores.values()) / len(pro_scores)
+    con_avg = sum(con_scores.values()) / len(con_scores)
+    if pro_avg > con_avg:
+        winner = "pro"
+    elif con_avg > pro_avg:
+        winner = "con"
+    else:
+        winner = "tie"
 
     return JudgeResult(
         judge_id=adapter.config.id,

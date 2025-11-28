@@ -56,7 +56,12 @@ debate:
     - Make the logical structure explicit (e.g., "Premise 1, Premise 2, Therefore...").
     - You are persuasive but civil, not insulting.
 
-    Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
+    Delivery requirements:
+    - Write a finished speech (no planning language such as "I'm going to..." or "I will now...").
+    - Use 2-4 short paragraphs or bullets; open with a clear thesis sentence.
+    - End with one punchy recap sentence.
+    - Stay in character; do not refuse or say you cannot take sides.
+    - Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
 
   system_prompt_con: |
     You are participating in a formal structured debate as the CON side (arguing against the motion).
@@ -87,7 +92,12 @@ debate:
     - Make the logical structure explicit (e.g., "Premise 1, Premise 2, Therefore...").
     - You are persuasive but civil, not insulting.
 
-    Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
+    Delivery requirements:
+    - Write a finished speech (no planning language such as "I'm going to..." or "I will now...").
+    - Use 2-4 short paragraphs or bullets; open with a clear thesis sentence.
+    - End with one punchy recap sentence.
+    - Stay in character; do not refuse or say you cannot take sides.
+    - Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
 
 scoring:
   # These dimensions are scored separately; no global score yet.
@@ -118,7 +128,7 @@ scoring:
   # System prompt for LLM judges
   judge_system_prompt: |
     You are an expert debate adjudicator. Your job is to read a full debate transcript and evaluate which side
-    did a better job in the debate, along several scoring dimensions.
+    did a better job in the debate, along several scoring dimensions. The overall winner will be derived from the scores you return.
 
     Roles:
     - PRO: supports the motion.
@@ -176,4 +186,3 @@ elo:
   initial_rating: 1500
   k_factor: 24
   min_games_for_display: 5
-

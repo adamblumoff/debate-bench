@@ -454,6 +454,10 @@ def run_command(
         False,
         help="Run a fixed sanity test: 1 random topic, Google Gemini 3 Pro Preview vs OpenAI GPT-5.1, judges Kimi K2 Thinking + Claude Opus 4.5 + DeepSeek V3.2.",
     ),
+    high_tokens: bool = typer.Option(
+        True,
+        help="Generous token budgets for quality: opening=3200, rebuttal=2200, closing=1400; bump debater max_tokens to at least 3072 and judges to 512.",
+    ),
 ):
     """
     Run a batch of debates and append results.
@@ -462,9 +466,12 @@ def run_command(
         config_path, topics_path, models_path, judges_path
     )
 
-    # Apply default per-stage token limits if enabled
+    # Apply per-stage token limits if enabled
     if apply_stage_token_limits:
-        stage_limits = {"opening": 900, "rebuttal": 600, "closing": 400}
+        if high_tokens:
+            stage_limits = {"opening": 3200, "rebuttal": 2200, "closing": 1400}
+        else:
+            stage_limits = {"opening": 900, "rebuttal": 600, "closing": 400}
         new_rounds = []
         for r in main_cfg.rounds:
             lim = stage_limits.get(r.stage, r.token_limit)
@@ -496,7 +503,7 @@ def run_command(
                 model="google/gemini-3-pro-preview",
                 token_limit=openrouter_max_tokens,
                 endpoint=None,
-                parameters={"temperature": openrouter_temperature},
+                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
             ),
             DebaterModelConfig(
                 id="openai-gpt-5.1",
@@ -504,7 +511,7 @@ def run_command(
                 model="openai/gpt-5.1",
                 token_limit=openrouter_max_tokens,
                 endpoint=None,
-                parameters={"temperature": openrouter_temperature},
+                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
             ),
         ]
         judge_models = [
@@ -751,6 +758,15 @@ def run_command(
 
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models after selection.")
+
+    # If high_tokens, bump per-model token limits
+    if high_tokens:
+        for m in debater_models:
+            if m.token_limit is None or m.token_limit < 3072:
+                m.token_limit = 3072
+        for j in judge_models:
+            if j.token_limit is None or j.token_limit < 512:
+                j.token_limit = 512
 
     # Build adapters
     debater_adapters = {m.id: build_debater_adapter(m, settings) for m in debater_models}
