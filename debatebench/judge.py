@@ -24,10 +24,11 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
     instructions = (
         f"Return a single JSON object with keys scores.pro, scores.con. "
         f"Scores must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"Do not include overall reasoning, thinking, analysis, markdown, or commentary. Do not include a winner field; it will be computed separately."
+        f"Do not include overall reasoning or commentary. Do not include a winner field; it will be computed separately. "
+        f"If you cannot format valid JSON, you may reply as key:value lines, but include all dimensions for both pro and con."
     )
     if reinforce_json:
-        instructions += " Do not include any text before or after the JSON. Respond with JSON only."
+        instructions += " Prefer JSON; if not, return plain text key:value lines."
     return (
         f"{system}\n\n"
         f"Motion: {transcript.topic.motion}\n"
@@ -39,7 +40,7 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
 
 def _extract_json_block(text: str) -> Optional[dict]:
     """
-    Find the first JSON object in free-form text and parse it.
+    Find the first JSON object in free-form text and parse it. If none found, try YAML.
     """
     try:
         return json.loads(text)
@@ -48,14 +49,49 @@ def _extract_json_block(text: str) -> Optional[dict]:
     match = re.search(r"\{.*\}", text, re.S)
     if match:
         snippet = match.group(0)
-        try:
-            return json.loads(snippet)
-        except Exception:
-            # Try YAML to tolerate single quotes / json5-ish output
+        for loader in (json.loads, yaml.safe_load):
             try:
-                return yaml.safe_load(snippet)
+                return loader(snippet)
             except Exception:
-                return None
+                continue
+    return None
+
+
+def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, scale_max: int) -> Optional[Tuple[Dict[str, int], Dict[str, int]]]:
+    """
+    Best-effort parser for non-JSON replies:
+      expects lines like 'pro <dim>: <num>' or '<dim> pro: <num>' etc.
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    pro: Dict[str, int] = {}
+    con: Dict[str, int] = {}
+
+    def clamp(val):
+        try:
+            v = float(val)
+        except Exception:
+            return None
+        v = int(round(v))
+        return max(scale_min, min(scale_max, v))
+
+    for ln in lines:
+        lower = ln.lower()
+        for side, bucket in (("pro", pro), ("con", con)):
+            if side in lower:
+                for dim in dim_ids:
+                    if dim in lower:
+                        # find last number in line
+                        m = re.findall(r"[-+]?[0-9]*\\.?[0-9]+", ln)
+                        if m:
+                            val = clamp(m[-1])
+                            if val is not None:
+                                bucket[dim] = val
+    if pro and con:
+        # fill missing
+        for dim in dim_ids:
+            pro.setdefault(dim, scale_min)
+            con.setdefault(dim, scale_min)
+        return pro, con
     return None
 
 
@@ -138,15 +174,19 @@ def run_single_judge(
         t0 = time.perf_counter()
         raw, usage = adapter.judge(prompt)
         latency_ms = (time.perf_counter() - t0) * 1000
-        payload = _extract_json_block(raw)
-        if payload:
-            try:
-                pro_scores, con_scores = _parse_json_scores(
-                    payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
-                )
-            except ValueError:
-                pro_scores = {}
-                con_scores = {}
+    payload = _extract_json_block(raw)
+    if payload:
+        try:
+            pro_scores, con_scores = _parse_json_scores(
+                payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
+            )
+        except ValueError:
+            pro_scores = {}
+            con_scores = {}
+    if (not pro_scores or not con_scores) and raw:
+        fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
+        if fallback:
+            pro_scores, con_scores = fallback
         attempts += 1
 
     if not pro_scores or not con_scores:
