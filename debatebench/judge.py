@@ -24,11 +24,12 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
     instructions = (
         f"Return a single JSON object with keys scores.pro, scores.con. "
         f"Scores must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"Do not include overall reasoning or commentary. Do not include a winner field; it will be computed separately. "
-        f"If you cannot format valid JSON, you may reply as key:value lines, but include all dimensions for both pro and con."
+        f"Do NOT include rationale, markdown, thinking, or extra text. Do NOT include a winner field. "
+        f"Example JSON: {{\"scores\": {{\"pro\": {{dim: int}}, \"con\": {{dim: int}}}}}}. "
+        f"If you fail to return JSON, the content may be ignored."
     )
     if reinforce_json:
-        instructions += " Prefer JSON; if not, return plain text key:value lines."
+        instructions += " Respond with JSON only. No prose. No code fences."
     return (
         f"{system}\n\n"
         f"Motion: {transcript.topic.motion}\n"
