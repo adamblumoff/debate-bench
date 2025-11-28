@@ -69,10 +69,6 @@ class OpenRouterAdapter(ModelAdapter):
             temp_val = float(temperature) if temperature is not None else None
         except (TypeError, ValueError):
             temp_val = None
-        # Clamp judge temperatures low for determinism
-        if isinstance(self, OpenRouterJudgeAdapter):
-            if temp_val is None or temp_val > 0.2:
-                temp_val = 0.0
 
         payload = {
             "model": self.config.model,
@@ -82,10 +78,6 @@ class OpenRouterAdapter(ModelAdapter):
             payload["temperature"] = temp_val
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
-        # Encourage JSON responses for judges when supported (skip for some providers that lack support)
-        if isinstance(self, OpenRouterJudgeAdapter):
-            if not self.config.model.startswith("google/"):
-                payload["response_format"] = {"type": "json_object"}
 
         last_err = None
         retried_402 = False

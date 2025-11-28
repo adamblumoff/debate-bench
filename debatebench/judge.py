@@ -119,7 +119,7 @@ def run_single_judge(
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    while attempts < 5 and (not pro_scores or not con_scores):
+    while attempts < 6 and (not pro_scores or not con_scores):
         reinforce = attempts >= 1
         prompt = _build_judge_prompt(transcript, config, reinforce_json=reinforce)
         if attempts >= 3:
