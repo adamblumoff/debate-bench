@@ -56,6 +56,16 @@ def _strip_end_marker(text: str) -> str:
     return text.replace("<END_OF_TURN>", "").strip()
 
 
+def _strip_thinking(text: str) -> str:
+    """
+    Remove model-visible thinking/analysis sections so judges see only spoken content.
+    Strips <thinking>...</thinking> blocks and fenced ```thinking``` sections.
+    """
+    text_no_tags = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.S | re.I)
+    text_no_fence = re.sub(r"```thinking.*?```", "", text_no_tags, flags=re.S | re.I)
+    return text_no_fence.strip()
+
+
 def run_debate(
     topic: Topic,
     pro_adapter: DebaterAdapter,
@@ -103,7 +113,7 @@ def run_debate(
                 # If model omitted the marker, append it for convenience.
                 if "<END_OF_TURN>" not in content:
                     content = content.rstrip() + "\n<END_OF_TURN>"
-                content_clean = _strip_end_marker(content)
+                content_clean = _strip_thinking(_strip_end_marker(content))
                 content = content_clean
                 break
             if log:
