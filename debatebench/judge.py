@@ -55,6 +55,10 @@ def _extract_json_block(text: str) -> Optional[dict]:
 
 
 def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[Dict[str, int], Dict[str, int]]:
+    """
+    Lenient parser: accepts ints/floats/strings, case-insensitive dim keys, clamps to range,
+    and fills missing dims with scale_min if absent.
+    """
     if not isinstance(payload, dict):
         raise ValueError("Judge response is not a JSON object.")
     scores = payload.get("scores") or {}
@@ -62,21 +66,39 @@ def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_
     con_scores = scores.get("con") or payload.get("con")
     if not isinstance(pro_scores, dict) or not isinstance(con_scores, dict):
         raise ValueError("Missing scores for pro/con.")
-    def validate_side(side_scores: Dict[str, int]) -> Dict[str, int]:
+
+    def normalize_side(side_scores: Dict[str, int]) -> Dict[str, int]:
         out: Dict[str, int] = {}
+        # Build a case-insensitive map
+        lower_map = {k.lower(): v for k, v in side_scores.items()}
         for dim in dim_ids:
-            if dim not in side_scores:
-                raise ValueError(f"Missing dimension {dim}")
-            val = side_scores[dim]
-            if isinstance(val, str) and val.isdigit():
-                val = int(val)
+            val = None
+            if dim in side_scores:
+                val = side_scores[dim]
+            elif dim.lower() in lower_map:
+                val = lower_map[dim.lower()]
+            if val is None:
+                # Fill missing with minimum to avoid drop
+                val = scale_min
+            # Coerce types
+            if isinstance(val, str):
+                try:
+                    val = float(val)
+                except Exception:
+                    val = scale_min
+            if isinstance(val, float):
+                val = int(round(val))
             if not isinstance(val, int):
-                raise ValueError(f"Dimension {dim} is not int")
-            if val < scale_min or val > scale_max:
-                raise ValueError(f"Dimension {dim} out of range")
+                val = scale_min
+            # Clamp
+            if val < scale_min:
+                val = scale_min
+            if val > scale_max:
+                val = scale_max
             out[dim] = val
         return out
-    return validate_side(pro_scores), validate_side(con_scores)
+
+    return normalize_side(pro_scores), normalize_side(con_scores)
 
 
 def run_single_judge(
