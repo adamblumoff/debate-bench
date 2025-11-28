@@ -4,6 +4,7 @@ Judge panel logic and aggregation.
 from __future__ import annotations
 
 import json
+import yaml
 import re
 import time
 from typing import Dict, List, Tuple, Optional
@@ -50,7 +51,11 @@ def _extract_json_block(text: str) -> Optional[dict]:
         try:
             return json.loads(snippet)
         except Exception:
-            return None
+            # Try YAML to tolerate single quotes / json5-ish output
+            try:
+                return yaml.safe_load(snippet)
+            except Exception:
+                return None
     return None
 
 

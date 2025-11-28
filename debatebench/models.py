@@ -82,9 +82,10 @@ class OpenRouterAdapter(ModelAdapter):
             payload["temperature"] = temp_val
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
-        # Encourage JSON responses for judges when supported
+        # Encourage JSON responses for judges when supported (skip for some providers that lack support)
         if isinstance(self, OpenRouterJudgeAdapter):
-            payload["response_format"] = {"type": "json_object"}
+            if not self.config.model.startswith("google/"):
+                payload["response_format"] = {"type": "json_object"}
 
         last_err = None
         retried_402 = False
