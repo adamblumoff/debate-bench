@@ -23,7 +23,7 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
     instructions = (
         f"Return a single JSON object with keys scores.pro, scores.con. "
         f"Scores must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"Do not include overall reasoning or commentary. Do not include a winner field; it will be computed separately."
+        f"Do not include overall reasoning, thinking, analysis, markdown, or commentary. Do not include a winner field; it will be computed separately."
     )
     if reinforce_json:
         instructions += " Do not include any text before or after the JSON. Respond with JSON only."
@@ -104,7 +104,7 @@ def run_single_judge(
                 }
             }
             prompt += (
-                "\n\nReturn JSON only. Do NOT include Markdown or code fences. "
+                "\n\nReturn JSON only. Do NOT include Markdown, code fences, preamble, reasoning, or thinking. "
                 f"Example structure (fill with your integer scores {config.scoring.scale_min}-{config.scoring.scale_max}):\n"
                 f"{example}"
             )
