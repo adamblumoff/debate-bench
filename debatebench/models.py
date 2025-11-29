@@ -97,13 +97,23 @@ class OpenRouterAdapter(ModelAdapter):
                                 "scores": {
                                     "type": "object",
                                     "properties": {
-                                        "pro": {"type": "object", "additionalProperties": {"type": "integer"}},
-                                        "con": {"type": "object", "additionalProperties": {"type": "integer"}},
+                                        "pro": {
+                                            "type": "object",
+                                            "additionalProperties": {"type": "integer"},
+                                            "required": [],
+                                        },
+                                        "con": {
+                                            "type": "object",
+                                            "additionalProperties": {"type": "integer"},
+                                            "required": [],
+                                        },
                                     },
                                     "required": ["pro", "con"],
+                                    "additionalProperties": False,
                                 }
                             },
                             "required": ["scores"],
+                            "additionalProperties": False,
                         },
                     },
                 },
