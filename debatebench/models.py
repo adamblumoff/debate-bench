@@ -100,12 +100,10 @@ class OpenRouterAdapter(ModelAdapter):
                                         "pro": {
                                             "type": "object",
                                             "additionalProperties": {"type": "integer"},
-                                            "required": [],
                                         },
                                         "con": {
                                             "type": "object",
                                             "additionalProperties": {"type": "integer"},
-                                            "required": [],
                                         },
                                     },
                                     "required": ["pro", "con"],
