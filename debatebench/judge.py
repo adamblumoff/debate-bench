@@ -13,21 +13,41 @@ from .models import JudgeAdapter
 from .schema import AggregatedResult, JudgeResult, JudgeScores, MainConfig, Transcript
 
 
-def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_json: bool = False) -> str:
+def _build_judge_prompt(
+    transcript: Transcript,
+    config: MainConfig,
+    reinforce_json: bool = False,
+    template_hint: Optional[str] = None,
+) -> str:
     turns_text = "\n".join(
         f"{t.speaker.upper()} ({t.stage}): {t.content}" for t in transcript.turns
     )
-    dims = ", ".join(d.id for d in config.scoring.dimensions)
+    dim_ids = [d.id for d in config.scoring.dimensions]
+    dims = ", ".join(dim_ids)
     system = config.judge_system_prompt or (
         "You are an expert debate adjudicator. Read the transcript and output ONLY a JSON object with per-dimension integer scores; winner will be derived from the scores."
     )
     instructions = (
         f"Return EXACTLY one JSON object and nothing else. Keys: scores.pro and scores.con. "
         f"Include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"No rationale, no markdown, no code fences, no winner field."
+        f"No rationale, no markdown, no code fences, and do NOT declare a winner. If you include any text outside the JSON object, the answer will be discarded."
     )
     if reinforce_json:
-        instructions += " JSON only. No prose. No thinking. Match the JSON schema you've been given."
+        example_obj = {
+            "scores": {
+                "pro": {d: config.scoring.scale_min for d in dim_ids},
+                "con": {d: config.scoring.scale_min for d in dim_ids},
+            }
+        }
+        import json as _json
+
+        example_json = _json.dumps(example_obj, separators=(",", ":"))
+        instructions += (
+            " JSON only. No prose. No thinking. Use exactly these keys. Example: "
+            f"{example_json}"
+        )
+    if template_hint:
+        instructions += f" Fill this JSON skeleton with your integer scores and return ONLY the completed JSON: {template_hint}"
     return (
         f"{system}\n\n"
         f"Motion: {transcript.topic.motion}\n"
@@ -59,9 +79,14 @@ def _extract_json_block(text: str) -> Optional[dict]:
 def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, scale_max: int) -> Optional[Tuple[Dict[str, int], Dict[str, int]]]:
     """
     Best-effort parser for non-JSON replies:
-      expects lines like 'pro <dim>: <num>' or '<dim> pro: <num>' etc.
+      accepts only explicit side/dimension/number patterns; avoids loose planning text.
+      Handles:
+        - 'pro persuasiveness: 7'
+        - 'persuasiveness pro: 7'
+        - 'persuasiveness scores for PRO and CON are 8 and 7'
+        - 'persuasiveness pro 8 con 7'
     """
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    body = text
     pro: Dict[str, int] = {}
     con: Dict[str, int] = {}
 
@@ -73,18 +98,36 @@ def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, sca
         v = int(round(v))
         return max(scale_min, min(scale_max, v))
 
-    for ln in lines:
-        lower = ln.lower()
-        for side, bucket in (("pro", pro), ("con", con)):
-            if side in lower:
-                for dim in dim_ids:
-                    if dim in lower:
-                        # find last number in line
-                        m = re.findall(r"[-+]?[0-9]*\\.?[0-9]+", ln)
-                        if m:
-                            val = clamp(m[-1])
-                            if val is not None:
-                                bucket[dim] = val
+    for dim in dim_ids:
+        if dim in pro and dim in con:
+            continue
+        patterns = [
+            rf"\b{dim}\b[^0-9]{{0,40}}?\bpro\b[^0-9]{{0,10}}?(\d+)[^0-9]{{0,20}}?\bcon\b[^0-9]{{0,10}}?(\d+)",
+            rf"\b{dim}\b[^0-9]{{0,40}}?\bcon\b[^0-9]{{0,10}}?(\d+)[^0-9]{{0,20}}?\bpro\b[^0-9]{{0,10}}?(\d+)",
+            rf"\b{dim}\b[^0-9]{{0,20}}?\bscores?\b[^0-9]{{0,20}}?for\b[^0-9]{{0,10}}?\bpro\b[^0-9]{{0,10}}?(\d+)[^0-9]{{0,20}}?\bcon\b[^0-9]{{0,10}}?(\d+)",
+            rf"\bpro\b[^0-9]{{0,10}}?\b{dim}\b[^0-9]{{0,10}}?[:=]\s*(\d+)",
+            rf"\bcon\b[^0-9]{{0,10}}?\b{dim}\b[^0-9]{{0,10}}?[:=]\s*(\d+)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, body, re.IGNORECASE)
+            if not m:
+                continue
+            if len(m.groups()) == 2:
+                p_val = clamp(m.group(1))
+                c_val = clamp(m.group(2))
+                if p_val is not None and c_val is not None:
+                    pro[dim] = p_val
+                    con[dim] = c_val
+                break
+            if len(m.groups()) == 1:
+                v = clamp(m.group(1))
+                if v is not None:
+                    if "pro" in pat:
+                        pro[dim] = v
+                    else:
+                        con[dim] = v
+                break
+
     if pro and con:
         # fill missing
         for dim in dim_ids:
@@ -147,32 +190,69 @@ def run_single_judge(
     config: MainConfig,
 ) -> JudgeResult:
     dim_ids = [d.id for d in config.scoring.dimensions]
-    attempts = 0
     raw = ""
     usage = {}
     latency_ms = None
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    # Single-attempt parse: send prompt once, parse whatever comes back.
-    prompt = _build_judge_prompt(transcript, config, reinforce_json=True)
-    t0 = time.perf_counter()
-    raw, usage = adapter.judge(prompt)
-    latency_ms = (time.perf_counter() - t0) * 1000
-    payload = _extract_json_block(raw)
-    if payload:
+    template_hint = None
+    if dim_ids:
+        template_obj = {
+            "scores": {
+                "pro": {d: config.scoring.scale_min for d in dim_ids},
+                "con": {d: config.scoring.scale_min for d in dim_ids},
+            }
+        }
+        import json as _json
+
+        template_hint = _json.dumps(template_obj, separators=(",", ":"))
+
+    attempts = [
+        {"structured": True, "reinforce_json": True, "format_hint": None, "template": None},
+        {"structured": False, "reinforce_json": True, "format_hint": "json_object", "template": None},
+        {"structured": False, "reinforce_json": True, "format_hint": None, "template": template_hint},
+    ]
+
+    last_error: Optional[Exception] = None
+    for attempt in attempts:
+        prompt = _build_judge_prompt(
+            transcript,
+            config,
+            reinforce_json=attempt["reinforce_json"],
+            template_hint=attempt["template"],
+        )
+        t0 = time.perf_counter()
         try:
-            pro_scores, con_scores = _parse_json_scores(
-                payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
+            raw, usage = adapter.judge(
+                prompt,
+                structured=attempt["structured"],
+                dim_ids=dim_ids,
+                format_hint=attempt["format_hint"],  # type: ignore[arg-type]
             )
-        except ValueError:
-            pro_scores = {}
-            con_scores = {}
-    if (not pro_scores or not con_scores) and raw:
-        fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
-        if fallback:
-            pro_scores, con_scores = fallback
+        except Exception as e:
+            last_error = e
+            continue
+        latency_ms = (time.perf_counter() - t0) * 1000
+        payload = _extract_json_block(raw)
+        if payload:
+            try:
+                pro_scores, con_scores = _parse_json_scores(
+                    payload, dim_ids, config.scoring.scale_min, config.scoring.scale_max
+                )
+            except ValueError:
+                pro_scores = {}
+                con_scores = {}
+        if (not pro_scores or not con_scores) and raw:
+            fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
+            if fallback:
+                pro_scores, con_scores = fallback
+        if pro_scores and con_scores:
+            break
+
     if not pro_scores or not con_scores:
+        if last_error:
+            raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}") from last_error
         raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}")
 
     # Derive winner from mean dimension scores

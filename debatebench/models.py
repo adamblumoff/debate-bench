@@ -25,7 +25,13 @@ class DebaterAdapter(ModelAdapter):
 
 
 class JudgeAdapter(ModelAdapter):
-    def judge(self, prompt: str):
+    def judge(
+        self,
+        prompt: str,
+        structured: bool = True,
+        dim_ids: Optional[List[str]] = None,
+        format_hint: Optional[str] = None,
+    ):
         """Return (content, usage_dict)."""
         return "", {}
 
@@ -63,7 +69,14 @@ class OpenRouterAdapter(ModelAdapter):
             headers["X-Title"] = self.site_name
         return headers
 
-    def _request(self, messages: List[Dict[str, str]], temperature: float | None = 0.7, max_tokens: int | None = None):
+    def _request(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float | None = 0.7,
+        max_tokens: int | None = None,
+        use_structured: bool = True,
+        response_format: Optional[Dict] = None,
+    ):
         # normalize temperature
         try:
             temp_val = float(temperature) if temperature is not None else None
@@ -83,7 +96,9 @@ class OpenRouterAdapter(ModelAdapter):
             payload["max_tokens"] = max_tokens
 
         # Encourage JSON responses for judges using structured outputs
-        if isinstance(self, OpenRouterJudgeAdapter):
+        if response_format is not None:
+            payload["response_format"] = response_format
+        elif isinstance(self, OpenRouterJudgeAdapter) and use_structured:
             payload.setdefault(
                 "response_format",
                 {
@@ -93,14 +108,25 @@ class OpenRouterAdapter(ModelAdapter):
                         "strict": True,
                         "schema": {
                             "type": "object",
+                            "additionalProperties": False,
                             "properties": {
                                 "scores": {
                                     "type": "object",
+                                    "additionalProperties": False,
                                     "properties": {
-                                        "pro": {"type": "object", "additionalProperties": {"type": "integer"}},
-                                        "con": {"type": "object", "additionalProperties": {"type": "integer"}},
-                                    }
-                                }
+                                        "pro": {
+                                            "type": "object",
+                                            "additionalProperties": {"type": "integer"},
+                                            "required": [],
+                                        },
+                                        "con": {
+                                            "type": "object",
+                                            "additionalProperties": {"type": "integer"},
+                                            "required": [],
+                                        },
+                                    },
+                                    "required": ["pro", "con"],
+                                },
                             },
                             "required": ["scores"],
                         },
@@ -184,12 +210,74 @@ class OpenRouterDebaterAdapter(OpenRouterAdapter, DebaterAdapter):
 
 
 class OpenRouterJudgeAdapter(OpenRouterAdapter, JudgeAdapter):
-    def judge(self, prompt: str):
+    def judge(
+        self,
+        prompt: str,
+        structured: bool = True,
+        dim_ids: Optional[List[str]] = None,
+        format_hint: Optional[str] = None,
+    ):
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
         token_limit = self.config.token_limit or params.get("max_tokens")
-        messages = [{"role": "user", "content": prompt}]
-        return self._request(messages, temperature=temperature, max_tokens=token_limit)
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a strict JSON emitter. Reply with JSON only, no markdown or prose.",
+            },
+            {"role": "user", "content": prompt},
+        ]
+
+        response_format = None
+        if structured:
+            dims = dim_ids or []
+            # Build a strict schema that enumerates required dimensions so OpenAI accepts it.
+            dim_props = {d: {"type": "integer"} for d in dims}
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "judge_scores",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "scores": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "pro": {
+                                        "type": "object",
+                                        "properties": dim_props,
+                                        "required": dims,
+                                        "additionalProperties": False,
+                                    },
+                                    "con": {
+                                        "type": "object",
+                                        "properties": dim_props,
+                                        "required": dims,
+                                        "additionalProperties": False,
+                                    },
+                                },
+                                "required": ["pro", "con"],
+                                "additionalProperties": False,
+                            }
+                        },
+                        "required": ["scores"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        elif format_hint == "json_object":
+            response_format = {"type": "json_object"}
+
+        return self._request(
+            messages,
+            temperature=temperature,
+            max_tokens=token_limit,
+            use_structured=structured,
+            response_format=response_format,
+        )
 
 
 def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> DebaterAdapter:

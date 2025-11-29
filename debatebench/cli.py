@@ -458,6 +458,10 @@ def run_command(
         False,
         help="Run a fixed sanity test: 1 random topic, Google Gemini 3 Pro Preview vs OpenAI GPT-5.1, judges Kimi K2 Thinking + Claude Opus 4.5 + DeepSeek V3.2.",
     ),
+    judges_test: bool = typer.Option(
+        False,
+        help="Run a fixed judge-focused test: 1 random topic, debaters Claude Haiku 4.5 (pro) vs Gemini 2.5 Flash Lite Preview, judges Gemini 3 Pro Preview + OpenAI GPT-5.1.",
+    ),
     high_tokens: bool = typer.Option(
         True,
         help="Generous token budgets for quality: opening=3200, rebuttal=2200, closing=1400; bump debater max_tokens to at least 3072 and judges to 512.",
@@ -537,6 +541,7 @@ def run_command(
         "apply_stage_token_limits": apply_stage_token_limits,
         "skip_on_empty": skip_on_empty,
         "quick_test": quick_test,
+        "judges_test": judges_test,
         "high_tokens": high_tokens,
         "resume": resume,
         "dry_run": dry_run,
@@ -552,6 +557,10 @@ def run_command(
     settings = load_settings()
 
     topics_selected = topics
+    judge_output_max_tokens = int(openrouter_judge_max_tokens * 5)
+
+    if quick_test and judges_test:
+        raise typer.BadParameter("Choose only one of --quick-test or --judges-test.")
 
     if quick_test:
         rng = random.Random(seed)
@@ -579,7 +588,7 @@ def run_command(
                 id="moonshotai-kimi-k2-thinking",
                 provider="openrouter",
                 model="moonshotai/kimi-k2-thinking",
-                token_limit=openrouter_judge_max_tokens,
+                token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
                 parameters={"temperature": openrouter_temperature},
@@ -588,7 +597,7 @@ def run_command(
                 id="anthropic-claude-opus-4.5",
                 provider="openrouter",
                 model="anthropic/claude-opus-4.5",
-                token_limit=openrouter_judge_max_tokens,
+                token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
                 parameters={"temperature": openrouter_temperature},
@@ -597,7 +606,7 @@ def run_command(
                 id="deepseek-deepseek-v3.2-exp",
                 provider="openrouter",
                 model="deepseek/deepseek-v3.2-exp",
-                token_limit=openrouter_judge_max_tokens,
+                token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
                 parameters={"temperature": openrouter_temperature},
@@ -605,6 +614,51 @@ def run_command(
         ]
         main_cfg.num_judges = 3
         console.print("[cyan]Quick test mode: 1 random topic, fixed debaters and judges.[/cyan]")
+    elif judges_test:
+        rng = random.Random(seed)
+        topics_selected = [rng.choice(topics)]
+        balanced_sides = False  # single orientation: pro=first model, con=second
+        debates_per_pair = 1
+        debater_models = [
+            DebaterModelConfig(
+                id="anthropic-claude-haiku-4.5",
+                provider="openrouter",
+                model="anthropic/claude-haiku-4.5",
+                token_limit=openrouter_max_tokens,
+                endpoint=None,
+                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
+            ),
+            DebaterModelConfig(
+                id="google-gemini-2.5-flash-lite-preview-09-2025",
+                provider="openrouter",
+                model="google/gemini-2.5-flash-lite-preview-09-2025",
+                token_limit=openrouter_max_tokens,
+                endpoint=None,
+                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
+            ),
+        ]
+        judge_models = [
+            JudgeModelConfig(
+                id="google-gemini-3-pro-preview",
+                provider="openrouter",
+                model="google/gemini-3-pro-preview",
+                token_limit=judge_output_max_tokens,
+                endpoint=None,
+                prompt_style=None,
+                parameters={"temperature": 0.0},
+            ),
+            JudgeModelConfig(
+                id="openai-gpt-5.1",
+                provider="openrouter",
+                model="openai/gpt-5.1",
+                token_limit=judge_output_max_tokens,
+                endpoint=None,
+                prompt_style=None,
+                parameters={"temperature": 0.0},
+            ),
+        ]
+        main_cfg.num_judges = 2
+        console.print("[cyan]Judges test mode: 1 random topic, Claude Haiku 4.5 vs Gemini 2.5 Flash Lite; judges Gemini 3 Pro + OpenAI GPT-5.1.[/cyan]")
     else:
         # Pre-fetch catalogs for wizard and/or standalone pickers
         debater_catalog = None
@@ -777,7 +831,7 @@ def run_command(
                             id=model_id.replace("/", "-"),
                             provider="openrouter",
                             model=model_id,
-                            token_limit=openrouter_judge_max_tokens,
+                            token_limit=judge_output_max_tokens,
                             endpoint=None,
                             prompt_style=None,
                             parameters={"temperature": openrouter_temperature},
