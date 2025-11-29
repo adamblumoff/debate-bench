@@ -156,25 +156,11 @@ def run_single_judge(
     pro_scores: Dict[str, int] = {}
     con_scores: Dict[str, int] = {}
 
-    while attempts < 6 and (not pro_scores or not con_scores):
-        reinforce = attempts >= 1
-        prompt = _build_judge_prompt(transcript, config, reinforce_json=reinforce)
-        if attempts >= 3:
-            # Final attempts: add explicit JSON skeleton to maximize compliance.
-            example = {
-                "scores": {
-                    "pro": {dim: config.scoring.scale_min for dim in dim_ids},
-                    "con": {dim: config.scoring.scale_min for dim in dim_ids},
-                }
-            }
-            prompt += (
-                "\n\nReturn JSON only. Do NOT include Markdown, code fences, preamble, reasoning, or thinking. "
-                f"Example structure (fill with your integer scores {config.scoring.scale_min}-{config.scoring.scale_max}):\n"
-                f"{example}"
-            )
-        t0 = time.perf_counter()
-        raw, usage = adapter.judge(prompt)
-        latency_ms = (time.perf_counter() - t0) * 1000
+    # Single-attempt parse: send prompt once, parse whatever comes back.
+    prompt = _build_judge_prompt(transcript, config, reinforce_json=True)
+    t0 = time.perf_counter()
+    raw, usage = adapter.judge(prompt)
+    latency_ms = (time.perf_counter() - t0) * 1000
     payload = _extract_json_block(raw)
     if payload:
         try:
@@ -188,10 +174,8 @@ def run_single_judge(
         fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
         if fallback:
             pro_scores, con_scores = fallback
-        attempts += 1
-
     if not pro_scores or not con_scores:
-        raise RuntimeError("Judge response was not valid JSON after three attempts.")
+        raise RuntimeError("Judge response did not contain usable scores.")
 
     # Derive winner from mean dimension scores
     pro_avg = sum(pro_scores.values()) / len(pro_scores)
