@@ -22,13 +22,12 @@ def _build_judge_prompt(transcript: Transcript, config: MainConfig, reinforce_js
         "You are an expert debate adjudicator. Read the transcript and output ONLY a JSON object with per-dimension integer scores; winner will be derived from the scores."
     )
     instructions = (
-        f"Respond with EXACTLY one JSON object and nothing else. Keys: scores.pro and scores.con. "
-        f"Each must include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
-        f"Do NOT include rationale, explanations, markdown, code fences, or a winner field. "
-        f"Example (fill with your integers): {{\"scores\": {{\"pro\": {{\"{dims.split(', ')[0]}\": {config.scoring.scale_min}}}, \"con\": {{\"{dims.split(', ')[0]}\": {config.scoring.scale_min}}}}}}}"
+        f"Return EXACTLY one JSON object and nothing else. Keys: scores.pro and scores.con. "
+        f"Include dimensions: {dims}, each an integer {config.scoring.scale_min}-{config.scoring.scale_max}. "
+        f"No rationale, no markdown, no code fences, no winner field."
     )
     if reinforce_json:
-        instructions += " JSON only. No prose. No thinking. No code fences."
+        instructions += " JSON only. No prose. No thinking. Match the JSON schema you've been given."
     return (
         f"{system}\n\n"
         f"Motion: {transcript.topic.motion}\n"

@@ -82,9 +82,32 @@ class OpenRouterAdapter(ModelAdapter):
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
 
-        # Encourage JSON responses for judges when supported
+        # Encourage JSON responses for judges using structured outputs
         if isinstance(self, OpenRouterJudgeAdapter):
-            payload.setdefault("response_format", {"type": "json_object"})
+            payload.setdefault(
+                "response_format",
+                {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "judge_scores",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "scores": {
+                                    "type": "object",
+                                    "properties": {
+                                        "pro": {"type": "object", "additionalProperties": {"type": "integer"}},
+                                        "con": {"type": "object", "additionalProperties": {"type": "integer"}},
+                                    },
+                                    "required": ["pro", "con"],
+                                }
+                            },
+                            "required": ["scores"],
+                        },
+                    },
+                },
+            )
 
         last_err = None
         retried_402 = False
