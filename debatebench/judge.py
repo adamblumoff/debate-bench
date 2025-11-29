@@ -175,7 +175,8 @@ def run_single_judge(
         if fallback:
             pro_scores, con_scores = fallback
     if not pro_scores or not con_scores:
-        raise RuntimeError("Judge response did not contain usable scores.")
+        # keep raw response for debugging instead of dropping silently
+        raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}")
 
     # Derive winner from mean dimension scores
     pro_avg = sum(pro_scores.values()) / len(pro_scores)
