@@ -95,6 +95,13 @@ def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, sca
     return None
 
 
+def _default_scores(dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[Dict[str, int], Dict[str, int]]:
+    mid = int(round((scale_min + scale_max) / 2))
+    pro = {dim: mid for dim in dim_ids}
+    con = {dim: mid for dim in dim_ids}
+    return pro, con
+
+
 def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
     Lenient parser: accepts ints/floats/strings, case-insensitive dim keys, clamps to range,
@@ -173,9 +180,10 @@ def run_single_judge(
         fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
         if fallback:
             pro_scores, con_scores = fallback
+    imputed = False
     if not pro_scores or not con_scores:
-        # keep raw response for debugging instead of dropping silently
-        raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}")
+        pro_scores, con_scores = _default_scores(dim_ids, config.scoring.scale_min, config.scoring.scale_max)
+        imputed = True
 
     # Derive winner from mean dimension scores
     pro_avg = sum(pro_scores.values()) / len(pro_scores)
@@ -197,6 +205,7 @@ def run_single_judge(
         prompt_tokens=usage.get("prompt_tokens") if usage else None,
         completion_tokens=usage.get("completion_tokens") if usage else None,
         total_tokens=usage.get("total_tokens") if usage else None,
+        metadata={"imputed": imputed} if imputed else None,
     )
 
 
