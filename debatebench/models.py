@@ -69,7 +69,7 @@ class OpenRouterAdapter(ModelAdapter):
             temp_val = float(temperature) if temperature is not None else None
         except (TypeError, ValueError):
             temp_val = None
-        # Clamp judge temperature to 0 for deterministic, short answers
+        # Clamp judge temperature to 0 for deterministic scoring
         if isinstance(self, OpenRouterJudgeAdapter):
             temp_val = 0.0
 
@@ -165,7 +165,7 @@ class OpenRouterJudgeAdapter(OpenRouterAdapter, JudgeAdapter):
     def judge(self, prompt: str):
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
-        token_limit = self.config.token_limit or params.get("max_tokens") or 256
+        token_limit = self.config.token_limit or params.get("max_tokens")
         messages = [{"role": "user", "content": prompt}]
         return self._request(messages, temperature=temperature, max_tokens=token_limit)
 
