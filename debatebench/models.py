@@ -165,8 +165,7 @@ class OpenRouterJudgeAdapter(OpenRouterAdapter, JudgeAdapter):
     def judge(self, prompt: str):
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
-        base_limit = self.config.token_limit or params.get("max_tokens") or 256
-        token_limit = min(base_limit, 512)
+        token_limit = self.config.token_limit or params.get("max_tokens") or 256
         messages = [{"role": "user", "content": prompt}]
         return self._request(messages, temperature=temperature, max_tokens=token_limit)
 
