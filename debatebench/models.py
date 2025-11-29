@@ -82,10 +82,9 @@ class OpenRouterAdapter(ModelAdapter):
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
 
-        # Encourage JSON responses for judges when supported (skip Google, which may not honor it)
+        # Encourage JSON responses for judges when supported
         if isinstance(self, OpenRouterJudgeAdapter):
-            if not getattr(self.config, "model", "").startswith("google/"):
-                payload.setdefault("response_format", {"type": "json_object"})
+            payload.setdefault("response_format", {"type": "json_object"})
 
         last_err = None
         retried_402 = False
@@ -166,7 +165,8 @@ class OpenRouterJudgeAdapter(OpenRouterAdapter, JudgeAdapter):
     def judge(self, prompt: str):
         params = self.config.parameters or {}
         temperature = params.get("temperature", 0.0)
-        token_limit = self.config.token_limit or params.get("max_tokens") or 256
+        base_limit = self.config.token_limit or params.get("max_tokens") or 256
+        token_limit = min(base_limit, 512)
         messages = [{"role": "user", "content": prompt}]
         return self._request(messages, temperature=temperature, max_tokens=token_limit)
 
