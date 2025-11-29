@@ -97,7 +97,8 @@ def probe_model(
     payload = {
         "model": model_id,
         "messages": [{"role": "user", "content": "ping"}],
-        "max_tokens": 1,
+        # Some providers (OpenAI/Azure) enforce a minimum of 16 output tokens.
+        "max_tokens": 16,
     }
 
     try:
