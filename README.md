@@ -24,7 +24,15 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from last 4 months), `high_tokens` stage limits (3200/2200/1400) with per-model token bumps, seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note: `--dry-run` (plan only, shows cost using live OpenRouter pricing and writes `dryrun_schedule.json`), `--resume` (skip already-written debates), `--skip-on-empty`, `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`, `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-max-tokens`, `--openrouter-judge-max-tokens`, `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`. After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).
+- `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from last 4 months), `high_tokens` stage limits (3200/2200/1400) with per-model token bumps, seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note:
+  - `--dry-run` (plan only, shows cost using live OpenRouter pricing and writes `dryrun_schedule.json`)
+  - `--resume` (skip already-written debates), `--skip-on-empty`
+  - `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`
+  - `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-max-tokens`
+  - `--openrouter-judge-max-tokens` (base value; effective judge limit is 5× this to keep JSON judges from truncating)
+  - `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`
+  - `--estimate-time/--no-estimate-time` (default on): prints estimated wall-clock time using the median per-debate duration from recent runs; adds a 15% buffer.
+  After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
