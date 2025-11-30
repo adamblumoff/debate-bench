@@ -30,6 +30,7 @@ debatebench inspect-debate <debate_uuid>
   - `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`
   - `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-max-tokens`
   - `--openrouter-judge-max-tokens` (base value; effective judge limit is 5× this to keep JSON judges from truncating)
+  - Stage limits: with `high_tokens` (default) all stages are 3200 tokens; without, 900/600/400.
   - `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`
   - `--estimate-time/--no-estimate-time` (default on): prints estimated wall-clock time using the median per-debate duration from recent runs; adds a 15% buffer.
   After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).

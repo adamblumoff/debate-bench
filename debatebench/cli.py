@@ -467,7 +467,7 @@ def run_command(
         0.7, help="Default temperature for OpenRouter debater adapters."
     ),
     openrouter_max_tokens: int = typer.Option(
-        512, help="Max tokens per debater completion when using OpenRouter models."
+        3200, help="Max tokens per debater completion when using OpenRouter models."
     ),
     openrouter_probe: bool = typer.Option(
         True, help="Probe each selected OpenRouter model before running; drop any that fail."
@@ -511,7 +511,7 @@ def run_command(
     ),
     high_tokens: bool = typer.Option(
         True,
-        help="Generous token budgets for quality: opening=3200, rebuttal=2200, closing=1400; bump debater max_tokens to at least 3072 and judges to 512.",
+        help="Generous token budgets for quality: opening=3200, rebuttal=3200, closing=3200; bump debater max_tokens to at least 3200 and judges to 512 (x5 safety).",
     ),
     resume: bool = typer.Option(
         False,
@@ -541,7 +541,7 @@ def run_command(
     # Apply per-stage token limits if enabled
     if apply_stage_token_limits:
         if high_tokens:
-            stage_limits = {"opening": 3200, "rebuttal": 2200, "closing": 1400}
+            stage_limits = {"opening": 3200, "rebuttal": 3200, "closing": 3200}
         else:
             stage_limits = {"opening": 900, "rebuttal": 600, "closing": 400}
         new_rounds = []
