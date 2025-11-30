@@ -10,7 +10,8 @@ from typing import Dict, Tuple
 import requests
 import random
 import time
-from datetime import datetime, timezone
+import statistics
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -211,6 +212,52 @@ def _fallback_select_topics(topics, console: Console):
                 raise typer.BadParameter(f"Index out of range: {val}")
             enabled.add(val)
     return [t for idx, t in enumerate(topics_sorted, start=1) if idx in enabled]
+
+
+def _format_duration(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds*1000:.0f} ms"
+    delta = timedelta(seconds=int(seconds))
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    parts = []
+    if delta.days:
+        parts.append(f"{delta.days}d")
+    if hours or delta.days:
+        parts.append(f"{hours}h")
+    if minutes or hours or delta.days:
+        parts.append(f"{minutes}m")
+    parts.append(f"{secs}s")
+    return " ".join(parts)
+
+
+def _historical_debate_durations(results_dir: Path, max_files: int = 5, max_records: int = 500) -> Tuple[float | None, int]:
+    """
+    Return (median_total_seconds, num_records) from recent debate files.
+    Total seconds = sum(turn.duration_ms) + sum(judge.latency_ms) for each debate.
+    """
+    totals = []
+    files = sorted(results_dir.glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for idx, path in enumerate(files):
+        try:
+            records = load_debate_records(path)
+        except Exception:
+            continue
+        for rec in records:
+            turn_ms = sum(t.duration_ms or 0 for t in rec.transcript.turns)
+            judge_ms = sum(j.latency_ms or 0 for j in rec.judges)
+            total_ms = turn_ms + judge_ms
+            if total_ms > 0:
+                totals.append(total_ms / 1000.0)
+            if len(totals) >= max_records:
+                break
+        if len(totals) >= max_records:
+            break
+        if idx + 1 >= max_files:
+            break
+    if not totals:
+        return None, 0
+    return statistics.median(totals), len(totals)
 
 
 def selection_wizard(
@@ -478,6 +525,10 @@ def run_command(
         True,
         "--postrate/--no-postrate",
         help="After debates finish, recompute ratings and show leaderboard.",
+    ),
+    estimate_time: bool = typer.Option(
+        True,
+        help="Estimate total wall-clock time using recent runs (median) and planned debate count.",
     ),
 ):
     """
@@ -997,6 +1048,21 @@ def run_command(
     progress_path = run_dir / "progress.json"
     completed_new = 0
     banned_models = set()
+
+    if estimate_time:
+        median_sec, hist_n = _historical_debate_durations(Path("results"))
+        per_debate_sec = median_sec if median_sec is not None else 60.0
+        est_total_sec = per_debate_sec * total_runs
+        buffered_sec = est_total_sec * 1.15  # 15% cushion for network variance
+        median_label = f"{_format_duration(per_debate_sec)} per debate"
+        if hist_n:
+            median_label += f" (median of {hist_n} recent debates)"
+        else:
+            median_label += " (heuristic default)"
+        console.print(
+            f"[cyan]Estimated wall time:[/cyan] ~{_format_duration(buffered_sec)} "
+            f"(planned {total_runs} debates; {median_label})"
+        )
 
     def write_progress():
         payload = {
