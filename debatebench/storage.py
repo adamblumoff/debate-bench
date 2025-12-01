@@ -14,7 +14,8 @@ from .schema import DebateRecord, RatingsFile
 
 def append_debate_record(path: Path, record: DebateRecord) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    line = record.json()
+    # Use Pydantic v2 API to avoid deprecated .json/dumps_kwargs issues.
+    line = record.model_dump_json()
     with path.open("a", encoding="utf-8") as f:
         f.write(line)
         f.write("\n")
@@ -39,7 +40,8 @@ def load_debate_records(path: Path) -> List[DebateRecord]:
 def write_ratings(path: Path, ratings: RatingsFile) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
-        f.write(ratings.json(indent=2))
+        # Pydantic v2: model_dump_json supports stdlib json kwargs like indent.
+        f.write(ratings.model_dump_json(indent=2))
 
 
 def read_ratings(path: Path) -> RatingsFile:
