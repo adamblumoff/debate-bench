@@ -28,9 +28,9 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       set({ status: "loading", error: undefined });
       const manifest = await fetchJson<{ runs: { id: string; key: string }[] }>("/api/manifest");
-      const run = manifest.runs[0];
-      const signed = await fetchJson<{ url: string }>(`/api/sign?key=${encodeURIComponent(run.key)}`);
-      const debates = await parseJsonlStream<DebateRecord>(signed.url);
+      if (!manifest.runs.length) throw new Error("No runs available");
+      // Fetch via server proxy to avoid CORS issues and keep key private
+      const debates = await parseJsonlStream<DebateRecord>("/api/debates");
       const derived = buildDerived(debates);
       set({ status: "ready", debates, derived });
     } catch (e) {
