@@ -7,9 +7,19 @@ import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { ChartBuilder } from "@/components/ChartBuilder";
 import { useEnsureData } from "@/store/useDataStore";
 import { DerivedData } from "@/lib/types";
+import { useEffect, useState } from "react";
 import { VisualizationSpec } from "vega-embed";
 
 const toPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
+
+const sections = [
+  { id: "overview", label: "Overview" },
+  { id: "models", label: "Models" },
+  { id: "judges", label: "Judges" },
+  { id: "topics", label: "Topics" },
+  { id: "builder", label: "Builder" },
+  { id: "data", label: "Data" },
+];
 
 type Specs = {
   leaderboard?: VisualizationSpec;
@@ -127,6 +137,42 @@ function useSpecs(derived?: DerivedData): Specs {
   }, [derived]);
 }
 
+function NavTabs() {
+  const [active, setActive] = useState("overview");
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) setActive(visible.target.id);
+      },
+      { rootMargin: "-30% 0px -50% 0px", threshold: [0.1, 0.25, 0.5] }
+    );
+
+    sections.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="nav-tabs mb-5">
+      {sections.map((s) => (
+        <a
+          key={s.id}
+          href={`#${s.id}`}
+          className={`nav-tab ${active === s.id ? "active" : ""}`}
+        >
+          {s.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   const { status, error, derived } = useEnsureData();
   const specs = useSpecs(derived);
@@ -168,60 +214,60 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="nav-tabs mb-5">
-          <span className="nav-tab active">Overview</span>
-          <span className="nav-tab">Models</span>
-          <span className="nav-tab">Judges</span>
-          <span className="nav-tab">Topics</span>
-          <span className="nav-tab">Builder</span>
-          <span className="nav-tab">Data</span>
-        </div>
+        <NavTabs />
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
-            {kpi && (
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="kpi-tile">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Top model</p>
-                  <p className="text-lg font-semibold text-white">{kpi.topModel}</p>
+            <section id="overview" className="space-y-4">
+              {kpi && (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="kpi-tile">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Top model</p>
+                    <p className="text-lg font-semibold text-white">{kpi.topModel}</p>
+                  </div>
+                  <div className="kpi-tile">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Widest side gap</p>
+                    <p className="text-lg font-semibold text-white">{kpi.sideGap}</p>
+                  </div>
+                  <div className="kpi-tile">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Judge agreement span</p>
+                    <p className="text-lg font-semibold text-white">{kpi.judgeSpan}</p>
+                  </div>
                 </div>
-                <div className="kpi-tile">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Widest side gap</p>
-                  <p className="text-lg font-semibold text-white">{kpi.sideGap}</p>
-                </div>
-                <div className="kpi-tile">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Judge agreement span</p>
-                  <p className="text-lg font-semibold text-white">{kpi.judgeSpan}</p>
-                </div>
-              </div>
-            )}
+              )}
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <section id="models" className="grid gap-4 md:grid-cols-2">
               <ChartCard title="Leaderboard (win rate)">
                 {specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}
               </ChartCard>
               <ChartCard title="Side bias (pro minus con win rate)">
                 {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
               </ChartCard>
-            </div>
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <section id="topics" className="grid gap-4 md:grid-cols-2">
               <ChartCard title="Head-to-head win rate" subtitle="Row model vs column model">
                 {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
               </ChartCard>
               <ChartCard title="Topic/category win rates" subtitle="Per model × category heatmap">
                 {specs.categoryHeat && <VegaLiteChart spec={specs.categoryHeat} />}
               </ChartCard>
-            </div>
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <section id="judges" className="grid gap-4 md:grid-cols-2">
               <ChartCard title="Judge agreement">
                 {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
               </ChartCard>
+              <div className="hidden md:block" />
+            </section>
+
+            <section id="builder" className="grid gap-4 md:grid-cols-2">
+              <div className="hidden md:block" />
               <ChartCard title="Custom chart builder" subtitle="Pick fields and chart type">
                 <ChartBuilder data={derived} />
               </ChartCard>
-            </div>
+            </section>
           </div>
         ) : (
           <div className="card text-slate-200">

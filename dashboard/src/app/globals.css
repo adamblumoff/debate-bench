@@ -91,6 +91,7 @@ a {
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-muted);
   font-size: 13px;
+  text-decoration: none;
 }
 
 .nav-tab.active {
