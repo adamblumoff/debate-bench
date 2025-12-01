@@ -4,8 +4,10 @@ CLI tool for running debate-style evaluations between LLM models, collecting jud
 
 ## Requirements
 - Python 3.9+
+- Pydantic v2 (installed via project deps); adapters updated to use `model_dump_json`.
 - `.env` with `OPENROUTER_API_KEY` (required) and optional `OPENROUTER_SITE_URL` / `OPENROUTER_SITE_NAME` for referral headers.
 - Plotting depends on pandas + seaborn + matplotlib (installed via project deps).
+- Optional for uploads: AWS credentials (env vars or profile) and S3 bucket if you use `debatebench upload-results`.
 
 ## Install
 ```bash
@@ -39,6 +41,7 @@ debatebench inspect-debate <debate_uuid>
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
 - `debatebench summarize` -- emit CSV summaries from a debates file.
 - `debatebench plot` -- render PNGs from summary CSVs.
+- `debatebench upload-results` -- upload a file or directory tree to S3 (`--bucket`, optional `--prefix`, `--profile`, `--region`, `--dry-run`). Uses SSE-S3 by default; requires your AWS creds to allow List/Put/Get (and Delete if needed) on the target bucket.
 
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings. Judge prompt expects scores-only JSON; winner is derived by DebateBench.
@@ -63,6 +66,7 @@ OpenRouter example (`models.yaml`):
 - `plots_<tag>/` -- PNGs generated from the CSVs.
 - `run_<tag>/config_snapshot/` -- copies of configs plus effective selection and CLI args.
 - `run_<tag>/dryrun_schedule.json` -- dry-run schedule preview with per-debate judge panels.
+- If you use S3 uploads, point `upload-results` at the relevant `results/` subdirectory; versioning/lifecycle can be managed on the bucket side.
 
 ## Current Status / Limitations
 - OpenRouter-only adapters; ensure `OPENROUTER_API_KEY` is set.
