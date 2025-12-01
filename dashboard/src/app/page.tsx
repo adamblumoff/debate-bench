@@ -151,32 +151,45 @@ export default function Home() {
   }, [derived]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-slate-400">DebateBench</p>
-            <h1 className="text-3xl font-semibold text-white">Interactive Results Dashboard</h1>
-            <p className="text-slate-400">Balanced sample5 run (private S3-signed JSONL)</p>
+    <main className="min-h-screen text-slate-50">
+      <div className="container-page">
+        <div className="nav-bar">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-sm font-bold text-[var(--accent)]">DB</div>
+            <div>
+              <p className="text-xs tracking-[0.28em] text-slate-400">DEBATEBENCH</p>
+              <h1 className="text-3xl font-semibold text-white">Interactive Results Dashboard</h1>
+              <p className="text-slate-400 text-sm">Balanced sample5 run • private S3 JSONL</p>
+            </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
-            <LoadState status={status} error={error} />
+          <div className="pill">
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
+            <span>{status === "ready" ? "Live" : status === "loading" ? "Loading" : "Idle"}</span>
           </div>
-        </header>
+        </div>
+
+        <div className="nav-tabs mb-5">
+          <span className="nav-tab active">Overview</span>
+          <span className="nav-tab">Models</span>
+          <span className="nav-tab">Judges</span>
+          <span className="nav-tab">Topics</span>
+          <span className="nav-tab">Builder</span>
+          <span className="nav-tab">Data</span>
+        </div>
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
             {kpi && (
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                <div className="kpi-tile">
                   <p className="text-xs uppercase tracking-wide text-slate-400">Top model</p>
                   <p className="text-lg font-semibold text-white">{kpi.topModel}</p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                <div className="kpi-tile">
                   <p className="text-xs uppercase tracking-wide text-slate-400">Widest side gap</p>
                   <p className="text-lg font-semibold text-white">{kpi.sideGap}</p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                <div className="kpi-tile">
                   <p className="text-xs uppercase tracking-wide text-slate-400">Judge agreement span</p>
                   <p className="text-lg font-semibold text-white">{kpi.judgeSpan}</p>
                 </div>
@@ -211,9 +224,10 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-slate-200">
+          <div className="card text-slate-200">
             <LoadState status={status} error={error} />
-            {status === "idle" && <p>Initializing data loader…</p>}
+            {status === "idle" && <p className="text-sm text-slate-400">Initializing data loader…</p>}
+            {status === "loading" && <div className="mt-3 h-32 skeleton" />}
           </div>
         )}
       </div>

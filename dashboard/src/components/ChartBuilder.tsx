@@ -84,82 +84,88 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
   }, [datasets, datasetKey, xField, yField, colorField, chartType]);
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm text-zinc-600 dark:text-zinc-300">
-          Dataset
-          <select
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            value={datasetKey}
-            onChange={(e) => setDatasetKey(e.target.value as DatasetKey)}
-          >
-            <option value="debates">Debates</option>
-            <option value="judges">Judges</option>
-          </select>
-        </label>
-        <label className="text-sm text-zinc-600 dark:text-zinc-300">
-          Chart type
-          <select
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value as ChartType)}
-          >
-            {chartTypes.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm text-zinc-600 dark:text-zinc-300">
-          X field
-          <select
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            value={xField}
-            onChange={(e) => setXField(e.target.value)}
-          >
-            {fields.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm text-zinc-600 dark:text-zinc-300">
-          Y field
-          <select
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            value={yField}
-            onChange={(e) => setYField(e.target.value)}
-          >
-            {fields.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm text-zinc-600 dark:text-zinc-300 sm:col-span-2 lg:col-span-4">
-          Color (optional)
-          <select
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            value={colorField}
-            onChange={(e) => setColorField(e.target.value)}
-          >
-            <option value="">None</option>
-            {fields.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="grid gap-3 md:grid-cols-[300px_1fr]">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+        <h4 className="text-sm font-semibold text-white">Chart builder</h4>
+        <p className="text-xs text-slate-400 mb-3">Pick dataset and encodings</p>
+        <div className="space-y-3 text-sm text-slate-200">
+          <label className="flex flex-col gap-1">
+            <span className="text-slate-400">Dataset</span>
+            <select
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={datasetKey}
+              onChange={(e) => setDatasetKey(e.target.value as DatasetKey)}
+            >
+              <option value="debates">Debates</option>
+              <option value="judges">Judges</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-slate-400">Chart type</span>
+            <select
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value as ChartType)}
+            >
+              {chartTypes.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-slate-400">X field</span>
+            <select
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={xField}
+              onChange={(e) => setXField(e.target.value)}
+            >
+              {fields.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-slate-400">Y field</span>
+            <select
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={yField}
+              onChange={(e) => setYField(e.target.value)}
+            >
+              {fields.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-slate-400">Color (optional)</span>
+            <select
+              className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={colorField}
+              onChange={(e) => setColorField(e.target.value)}
+            >
+              <option value="">None</option>
+              {fields.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
-      {spec ? (
-        <VegaLiteChart spec={spec} />
-      ) : (
-        <p className="text-sm text-zinc-500">Select fields to preview a chart.</p>
-      )}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+        {spec ? (
+          <VegaLiteChart spec={spec} />
+        ) : (
+          <p className="text-sm text-slate-400">Select fields to preview a chart.</p>
+        )}
+      </div>
     </div>
   );
 }
