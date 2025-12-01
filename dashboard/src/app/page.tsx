@@ -1,65 +1,222 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo } from "react";
+import { ChartCard } from "@/components/ChartCard";
+import { LoadState } from "@/components/LoadState";
+import { VegaLiteChart } from "@/components/VegaLiteChart";
+import { ChartBuilder } from "@/components/ChartBuilder";
+import { useEnsureData } from "@/store/useDataStore";
+import { DerivedData } from "@/lib/types";
+import { VisualizationSpec } from "vega-embed";
+
+const toPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
+
+type Specs = {
+  leaderboard?: VisualizationSpec;
+  sideBias?: VisualizationSpec;
+  h2h?: VisualizationSpec;
+  judgeHeat?: VisualizationSpec;
+  categoryHeat?: VisualizationSpec;
+};
+
+function useSpecs(derived?: DerivedData): Specs {
+  return useMemo<Specs>(() => {
+    if (!derived) return {};
+    const top = derived.modelStats.slice(0, 6).map((m) => ({
+      model: m.model_id,
+      win_rate: m.win_rate,
+    }));
+
+    const leaderboard = {
+      width: "container",
+      height: 280,
+      data: { values: top },
+      mark: "bar",
+      encoding: {
+        y: { field: "model", type: "nominal", sort: "-x" },
+        x: { field: "win_rate", type: "quantitative", axis: { format: ".0%" } },
+        color: { field: "win_rate", type: "quantitative", scale: { scheme: "blues" } },
+      },
+    };
+
+    const side = derived.modelStats.map((m) => ({
+      model: m.model_id,
+      gap: m.pro_win_rate - m.con_win_rate,
+      pro: m.pro_win_rate,
+      con: m.con_win_rate,
+    }));
+    side.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+    const sideBias = {
+      width: "container",
+      height: 280,
+      data: { values: side },
+      mark: "bar",
+      encoding: {
+        x: { field: "gap", type: "quantitative", axis: { format: ".0%" } },
+        y: { field: "model", type: "nominal", sort: "-x" },
+        color: { field: "gap", type: "quantitative", scale: { scheme: "purpleorange" } },
+      },
+    };
+
+    const h2h = {
+      width: "container",
+      height: 320,
+      data: { values: derived.headToHead },
+      mark: "rect",
+      encoding: {
+        x: { field: "col", type: "nominal" },
+        y: { field: "row", type: "nominal" },
+        color: { field: "win_rate", type: "quantitative", scale: { scheme: "blues" }, legend: { format: ".0%" } },
+        tooltip: [
+          { field: "row", type: "nominal", title: "row" },
+          { field: "col", type: "nominal", title: "col" },
+          { field: "win_rate", type: "quantitative", title: "win %", format: ".1%" },
+          { field: "samples", type: "quantitative", title: "n" },
+        ],
+      },
+      config: { axis: { labelAngle: -45 } },
+    };
+
+    const judgeHeat = {
+      width: "container",
+      height: 260,
+      data: { values: derived.judgeAgreement },
+      mark: "rect",
+      encoding: {
+        x: { field: "judge_a", type: "nominal" },
+        y: { field: "judge_b", type: "nominal" },
+        color: { field: "agreement_rate", type: "quantitative", scale: { scheme: "tealblues" }, legend: { format: ".0%" } },
+        tooltip: [
+          { field: "judge_a", type: "nominal" },
+          { field: "judge_b", type: "nominal" },
+          { field: "agreement_rate", type: "quantitative", format: ".1%" },
+          { field: "samples", type: "quantitative" },
+        ],
+      },
+      config: { axis: { labelAngle: -30 } },
+    };
+
+    const categoryHeat = (() => {
+      const rows = derived.topicWinrates.map((t) => ({
+        category: t.category || t.topic_id,
+        model: t.model_id,
+        win_rate: t.win_rate,
+      }));
+      return {
+        width: "container",
+        height: 320,
+        data: { values: rows },
+        mark: "rect",
+        encoding: {
+          x: { field: "category", type: "nominal", sort: "-y" },
+          y: { field: "model", type: "nominal" },
+          color: { field: "win_rate", type: "quantitative", scale: { scheme: "greens" }, legend: { format: ".0%" } },
+          tooltip: [
+            { field: "model", type: "nominal" },
+            { field: "category", type: "nominal" },
+            { field: "win_rate", type: "quantitative", format: ".1%" },
+            { field: "wins", type: "quantitative" },
+            { field: "samples", type: "quantitative" },
+          ],
+        },
+        config: { axis: { labelAngle: -40 } },
+      };
+    })();
+
+    return { leaderboard, sideBias, h2h, judgeHeat, categoryHeat };
+  }, [derived]);
+}
 
 export default function Home() {
+  const { status, error, derived } = useEnsureData();
+  const specs = useSpecs(derived);
+
+  const kpi = useMemo(() => {
+    if (!derived) return null;
+    const top = derived.modelStats[0];
+    const widestGap = [...derived.modelStats].sort((a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate))[0];
+    const judgeRange = derived.judgeAgreement.reduce(
+      (acc, j) => {
+        acc.min = Math.min(acc.min, j.agreement_rate);
+        acc.max = Math.max(acc.max, j.agreement_rate);
+        return acc;
+      },
+      { min: 1, max: 0 }
+    );
+    return {
+      topModel: `${top.model_id} (${toPercent(top.win_rate)})`,
+      sideGap: `${widestGap.model_id}: ${toPercent(widestGap.pro_win_rate - widestGap.con_win_rate)}`,
+      judgeSpan: `${toPercent(judgeRange.min)} – ${toPercent(judgeRange.max)}`,
+    };
+  }, [derived]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-slate-400">DebateBench</p>
+            <h1 className="text-3xl font-semibold text-white">Interactive Results Dashboard</h1>
+            <p className="text-slate-400">Balanced sample5 run (private S3-signed JSONL)</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+            <LoadState status={status} error={error} />
+          </div>
+        </header>
+
+        {status === "ready" && derived ? (
+          <div className="space-y-6">
+            {kpi && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Top model</p>
+                  <p className="text-lg font-semibold text-white">{kpi.topModel}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Widest side gap</p>
+                  <p className="text-lg font-semibold text-white">{kpi.sideGap}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Judge agreement span</p>
+                  <p className="text-lg font-semibold text-white">{kpi.judgeSpan}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <ChartCard title="Leaderboard (win rate)">
+                {specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}
+              </ChartCard>
+              <ChartCard title="Side bias (pro minus con win rate)">
+                {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
+              </ChartCard>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <ChartCard title="Head-to-head win rate" subtitle="Row model vs column model">
+                {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
+              </ChartCard>
+              <ChartCard title="Topic/category win rates" subtitle="Per model × category heatmap">
+                {specs.categoryHeat && <VegaLiteChart spec={specs.categoryHeat} />}
+              </ChartCard>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <ChartCard title="Judge agreement">
+                {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
+              </ChartCard>
+              <ChartCard title="Custom chart builder" subtitle="Pick fields and chart type">
+                <ChartBuilder data={derived} />
+              </ChartCard>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-slate-200">
+            <LoadState status={status} error={error} />
+            {status === "idle" && <p>Initializing data loader…</p>}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

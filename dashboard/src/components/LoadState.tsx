@@ -1,0 +1,7 @@
+"use client";
+
+export function LoadState({ status, error }: { status: string; error?: string }) {
+  if (status === "loading") return <p className="text-sm text-zinc-500">Loading debates…</p>;
+  if (status === "error") return <p className="text-sm text-red-500">Error: {error}</p>;
+  return null;
+}
