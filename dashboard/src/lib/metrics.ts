@@ -77,7 +77,9 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     }
 
     const hk = hkey(pro, con);
+    const hkRev = hkey(con, pro);
     headTot.set(hk, (headTot.get(hk) ?? 0) + 1);
+    headTot.set(hkRev, (headTot.get(hkRev) ?? 0) + 1);
     if (winner === "pro") headWin.set(hk, (headWin.get(hk) ?? 0) + 1);
     if (winner === "con") headWin.set(hkey(con, pro), (headWin.get(hkey(con, pro)) ?? 0) + 1);
     if (winner === "tie") {

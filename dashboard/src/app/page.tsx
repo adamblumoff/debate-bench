@@ -132,7 +132,7 @@ export default function Home() {
   const specs = useSpecs(derived);
 
   const kpi = useMemo(() => {
-    if (!derived) return null;
+    if (!derived || !derived.modelStats.length) return null;
     const top = derived.modelStats[0];
     const widestGap = [...derived.modelStats].sort((a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate))[0];
     const judgeRange = derived.judgeAgreement.reduce(
@@ -141,7 +141,7 @@ export default function Home() {
         acc.max = Math.max(acc.max, j.agreement_rate);
         return acc;
       },
-      { min: 1, max: 0 }
+      { min: derived.judgeAgreement.length ? 1 : 0, max: derived.judgeAgreement.length ? 0 : 0 }
     );
     return {
       topModel: `${top.model_id} (${toPercent(top.win_rate)})`,
