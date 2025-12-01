@@ -7,19 +7,11 @@ import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { ChartBuilder } from "@/components/ChartBuilder";
 import { useEnsureData } from "@/store/useDataStore";
 import { DerivedData } from "@/lib/types";
-import { useEffect, useState } from "react";
+// no-op imports removed
 import { VisualizationSpec } from "vega-embed";
 
 const toPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
 
-const sections = [
-  { id: "overview", label: "Overview" },
-  { id: "models", label: "Models" },
-  { id: "judges", label: "Judges" },
-  { id: "topics", label: "Topics" },
-  { id: "builder", label: "Builder" },
-  { id: "data", label: "Data" },
-];
 
 type Specs = {
   leaderboard?: VisualizationSpec;
@@ -138,37 +130,11 @@ function useSpecs(derived?: DerivedData): Specs {
 }
 
 function NavTabs() {
-  const [active, setActive] = useState("overview");
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible?.target?.id) setActive(visible.target.id);
-      },
-      { rootMargin: "-30% 0px -50% 0px", threshold: [0.1, 0.25, 0.5] }
-    );
-
-    sections.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <div className="nav-tabs mb-5">
-      {sections.map((s) => (
-        <a
-          key={s.id}
-          href={`#${s.id}`}
-          className={`nav-tab ${active === s.id ? "active" : ""}`}
-        >
-          {s.label}
-        </a>
-      ))}
+      <a href="#overview" className="nav-tab active">
+        Overview
+      </a>
     </div>
   );
 }
