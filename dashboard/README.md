@@ -37,6 +37,13 @@ Open http://localhost:3000. The app calls `/api/manifest` → `/api/sign` to fet
 - Cost snapshot table (per‑1M tokens) with optional live pricing override.
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.
 
+## Code structure (dashboard)
+- `src/app/page.tsx`: light orchestration—loads data, wires hooks, renders modular sections.
+- `src/hooks/`: `useHighlightsState`, `useCompareQuery` (URL-synced compare), `usePricingData`.
+- `src/lib/specs/`: pure Vega specs (`core.ts`, `highlights.ts`); `src/lib/format.ts` for small formatters.
+- `src/components/dashboard/`: layout pieces (Hero, FilterBar, DiscoveryTiles, HighlightLists, PricingTable, CompareDrawer).
+- `src/lib/pricing.ts`: bundled snapshot + optional fetch helper.
+
 ## Adding more runs later
 - Extend `/api/manifest` to return multiple keys and add a run selector in the UI.
 
