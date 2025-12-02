@@ -11,7 +11,6 @@ import { useCompareQuery } from "@/hooks/useCompareQuery";
 import { usePricingData } from "@/hooks/usePricingData";
 import { Hero } from "@/components/dashboard/Hero";
 import { FilterBar } from "@/components/dashboard/FilterBar";
-import { DiscoveryTiles } from "@/components/dashboard/DiscoveryTiles";
 import { CompareDrawer } from "@/components/dashboard/CompareDrawer";
 import { PricingTable } from "@/components/dashboard/PricingTable";
 import { HighlightsTabs, MiniBarList, TokenBarList } from "@/components/dashboard/HighlightLists";
@@ -158,8 +157,6 @@ function DashboardContent() {
             </div>
           )}
         </section>
-
-        <DiscoveryTiles />
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
