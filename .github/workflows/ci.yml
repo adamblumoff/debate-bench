@@ -9,6 +9,11 @@ jobs:
   dashboard:
     name: Lint & Build Dashboard
     runs-on: ubuntu-latest
+    env:
+      S3_BUCKET: dummy-bucket
+      S3_REGION: us-east-1
+      S3_KEY: dummy/key.json
+      S3_URL_EXPIRY_SECONDS: "900"
     defaults:
       run:
         working-directory: dashboard
