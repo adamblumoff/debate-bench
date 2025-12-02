@@ -66,7 +66,11 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
     } else {
       // bar
       if (yField) {
-        enc.y = { field: yField, type: yType, aggregate: yType === "quantitative" ? "mean" : undefined };
+        const yEncoding: Record<string, unknown> = { field: yField, type: yType };
+        if (yType === "quantitative") {
+          yEncoding.aggregate = "mean";
+        }
+        enc.y = yEncoding;
       } else {
         enc.y = { aggregate: "count", type: "quantitative" };
       }
