@@ -75,9 +75,9 @@ function DashboardContent() {
     const tokens = filteredDerived.modelStats
       .slice(0, topN)
       .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
-    const cost = pricing.rows
-      .slice(0, 6)
+    const cost = [...pricing.rows]
       .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
+      .slice(0, 6)
       .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
     const sideBias = [...filteredDerived.modelStats]
       .map((m) => {
