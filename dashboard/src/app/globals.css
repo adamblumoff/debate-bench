@@ -172,18 +172,63 @@ a {
 .filter-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 20px;
   flex-wrap: wrap;
 }
 
+.category-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: center;
+  margin-right: 8px;
+}
+
+.category-label {
+  padding-right: 0;
+}
+
+.chip-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topn-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  align-self: center;
+}
+
+.topn-label {
+  margin-top: -2px;
+}
+
+.topn-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.filter-help {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  height: auto;
+  align-self: center;
+}
+
 .chip {
-  padding: 5px 9px;
-  border-radius: 9px;
+  padding: 3px 8px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .chip.active {
