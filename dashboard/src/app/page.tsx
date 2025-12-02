@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useCallback, useState } from "react";
 import { ChartCard } from "@/components/ChartCard";
 import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
@@ -22,9 +22,20 @@ import { toPercent } from "@/lib/format";
 function DashboardContent() {
   const { status, error, derived, debates } = useEnsureData();
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
-  const { selected: compareModels, addModel, removeModel } = useCompareQuery();
+  const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
   const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
   const pricing = usePricingData(modelIds);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [lastAdded, setLastAdded] = useState<number>();
+
+  const addModel = useCallback(
+    (id: string) => {
+      addCompareModel(id);
+      setCompareOpen(true);
+      setLastAdded(Date.now());
+    },
+    [addCompareModel]
+  );
 
   const categories = useMemo(
     () => (derived ? Array.from(new Set(derived.topicWinrates.map((t) => t.category).filter(Boolean) as string[])) : []),
@@ -204,7 +215,7 @@ function DashboardContent() {
         )}
       </div>
 
-      <CompareDrawer models={compareModels} onRemove={removeModel} derived={derived} />
+      <CompareDrawer models={compareModels} onRemove={removeModel} derived={derived} open={compareOpen} setOpen={setCompareOpen} lastAdded={lastAdded} />
     </main>
   );
 }
