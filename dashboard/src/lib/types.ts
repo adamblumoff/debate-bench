@@ -56,6 +56,7 @@ export interface DebateRecord {
 
 export interface ModelStats {
   model_id: string;
+  rating: number;
   wins: number;
   losses: number;
   ties: number;
@@ -65,6 +66,9 @@ export interface ModelStats {
   con_games: number;
   pro_win_rate: number;
   con_win_rate: number;
+  mean_prompt_tokens: number;
+  mean_completion_tokens: number;
+  mean_total_tokens: number;
 }
 
 export interface HeadToHeadCell {
