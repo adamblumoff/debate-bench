@@ -46,13 +46,18 @@ function DashboardContent() {
     [addCompareModel]
   );
 
-  const categories = useMemo(
-    () =>
-      filteredDerived
-        ? Array.from(new Set(filteredDerived.topicWinrates.map((t) => t.category).filter(Boolean) as string[]))
-        : [],
-    [filteredDerived]
-  );
+  const categories = useMemo(() => {
+    if (!filteredDerived) return [];
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const t of filteredDerived.topicWinrates) {
+      if (!t.category) continue;
+      if (seen.has(t.category)) continue;
+      seen.add(t.category);
+      list.push(t.category);
+    }
+    return list;
+  }, [filteredDerived]);
 
   const specs = useMemo(() => {
     if (!filteredDerived) return {};
