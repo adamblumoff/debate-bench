@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
 
 export function usePricingData(modelIds: string[]): PricingSnapshot {
   const [data, setData] = useState<PricingSnapshot>({ ...pricingSnapshot, source: "snapshot" });
 
+  const idsKey = useMemo(() => modelIds.filter(Boolean).join(","), [modelIds]);
+
   useEffect(() => {
-    if (!modelIds.length) return;
+    if (!idsKey) return;
     const controller = new AbortController();
-    const idsParam = encodeURIComponent(modelIds.join(","));
+    const idsParam = encodeURIComponent(idsKey);
     fetch(`/api/pricing?ids=${idsParam}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`pricing http ${res.status}`);
@@ -20,7 +22,7 @@ export function usePricingData(modelIds: string[]): PricingSnapshot {
         setData({ ...pricingSnapshot, source: "snapshot" });
       });
     return () => controller.abort();
-  }, [modelIds]);
+  }, [idsKey]);
 
   return data;
 }

@@ -69,7 +69,7 @@ function DashboardContent() {
   }, [filteredDerived, topN, category]);
 
   const highlightData = useMemo(() => {
-    if (!filteredDerived) return { elo: [], win: [], tokens: [], cost: [] };
+    if (!filteredDerived) return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
     const elo = filteredDerived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
     const win = [...filteredDerived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
     const tokens = filteredDerived.modelStats
@@ -79,7 +79,18 @@ function DashboardContent() {
       .slice(0, 6)
       .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
       .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
-    return { elo, win, tokens, cost };
+    const sideBias = [...filteredDerived.modelStats]
+      .map((m) => {
+        const gap = (m.pro_win_rate || 0) - (m.con_win_rate || 0);
+        return {
+          label: m.model_id,
+          value: Math.abs(gap),
+          hint: `${gap >= 0 ? "+" : ""}${toPercent(gap)} • Pro ${toPercent(m.pro_win_rate)} / Con ${toPercent(m.con_win_rate)}`,
+        };
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, topN);
+    return { elo, win, tokens, cost, sideBias };
   }, [filteredDerived, topN, pricing]);
 
   const kpi = useMemo(() => {
@@ -129,7 +140,7 @@ function DashboardContent() {
                 <>
                   <TokenBarList title="Mean tokens (prompt/output)" items={highlightData.tokens} onAdd={addModel} />
                   <ChartCard title="Token stack (top N)">{specs.tokens && <VegaLiteChart spec={specs.tokens} />}</ChartCard>
-                  <MiniBarList title="Side bias spread" items={highlightData.elo.slice(0, 4)} formatter={(v) => v.toFixed(0)} onAdd={addModel} />
+                  <MiniBarList title="Side bias spread" items={highlightData.sideBias} formatter={(v) => toPercent(v)} onAdd={addModel} />
                 </>
               )}
               {activeTab === "cost" && (
