@@ -27,12 +27,14 @@ function DashboardContent() {
     () => (category === "all" ? debates : debates.filter((d) => (d.transcript.topic.category || "") === category)),
     [debates, category]
   );
-  const filteredDerived = useMemo(() => {
+  // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
+  const highlightDerived = useMemo(() => {
     if (!derived) return undefined;
     if (category === "all") return derived;
     return buildDerived(filteredDebates);
   }, [derived, category, filteredDebates]);
-  const modelIds = filteredDerived?.modelStats.map((m) => m.model_id) || [];
+
+  const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
   const pricing = usePricingData(modelIds);
   const [compareOpen, setCompareOpen] = useState(false);
   const [lastAdded, setLastAdded] = useState<number>();
@@ -47,44 +49,46 @@ function DashboardContent() {
   );
 
   const categories = useMemo(() => {
-    if (!filteredDerived) return [];
+    if (!derived) return [];
     const seen = new Set<string>();
     const list: string[] = [];
-    for (const t of filteredDerived.topicWinrates) {
+    for (const t of derived.topicWinrates) {
       if (!t.category) continue;
       if (seen.has(t.category)) continue;
       seen.add(t.category);
       list.push(t.category);
     }
     return list;
-  }, [filteredDerived]);
+  }, [derived]);
 
   const specs = useMemo(() => {
-    if (!filteredDerived) return {};
+    if (!highlightDerived || !derived) return {};
     return {
-      leaderboard: buildLeaderboardSpec(filteredDerived, topN),
-      winrate: buildWinrateSpec(filteredDerived, topN),
-      sideBias: buildSideBiasSpec(filteredDerived, topN),
-      h2h: buildH2HSpec(filteredDerived),
-      judgeHeat: buildJudgeHeatSpec(filteredDerived),
-      categoryHeat: buildCategoryHeatSpec(filteredDerived, category),
-      tokens: buildTokenStackSpec(filteredDerived, topN),
-      ratingVsWin: buildRatingVsWinSpec(filteredDerived),
+      // Highlights + category heatmap respect category filter
+      leaderboard: buildLeaderboardSpec(highlightDerived, topN),
+      winrate: buildWinrateSpec(highlightDerived, topN),
+      sideBias: buildSideBiasSpec(highlightDerived, topN),
+      categoryHeat: buildCategoryHeatSpec(highlightDerived, category),
+      tokens: buildTokenStackSpec(highlightDerived, topN),
+      ratingVsWin: buildRatingVsWinSpec(highlightDerived),
+      // Global charts use full dataset
+      h2h: buildH2HSpec(derived),
+      judgeHeat: buildJudgeHeatSpec(derived),
     };
-  }, [filteredDerived, topN, category]);
+  }, [highlightDerived, topN, category, derived]);
 
   const highlightData = useMemo(() => {
-    if (!filteredDerived) return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
-    const elo = filteredDerived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
-    const win = [...filteredDerived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
-    const tokens = filteredDerived.modelStats
+    if (!highlightDerived) return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
+    const elo = highlightDerived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
+    const win = [...highlightDerived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
+    const tokens = highlightDerived.modelStats
       .slice(0, topN)
       .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
     const cost = [...pricing.rows]
       .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
       .slice(0, 6)
       .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
-    const sideBias = [...filteredDerived.modelStats]
+    const sideBias = [...highlightDerived.modelStats]
       .map((m) => {
         const gap = (m.pro_win_rate || 0) - (m.con_win_rate || 0);
         return {
@@ -96,31 +100,31 @@ function DashboardContent() {
       .sort((a, b) => b.value - a.value)
       .slice(0, topN);
     return { elo, win, tokens, cost, sideBias };
-  }, [filteredDerived, topN, pricing]);
+  }, [highlightDerived, topN, pricing]);
 
   const kpi = useMemo(() => {
-    if (!filteredDerived || !filteredDerived.modelStats.length) return null;
-    const top = filteredDerived.modelStats[0];
-    const widestGap = [...filteredDerived.modelStats].sort((a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate))[0];
-    const judgeRange = filteredDerived.judgeAgreement.reduce(
+    if (!derived || !derived.modelStats.length) return null;
+    const top = derived.modelStats[0];
+    const widestGap = [...derived.modelStats].sort((a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate))[0];
+    const judgeRange = derived.judgeAgreement.reduce(
       (acc, j) => {
         acc.min = Math.min(acc.min, j.agreement_rate);
         acc.max = Math.max(acc.max, j.agreement_rate);
         return acc;
       },
-      { min: filteredDerived.judgeAgreement.length ? 1 : 0, max: filteredDerived.judgeAgreement.length ? 0 : 0 }
+      { min: derived.judgeAgreement.length ? 1 : 0, max: derived.judgeAgreement.length ? 0 : 0 }
     );
     return {
       topModel: `${top.model_id} (${toPercent(top.win_rate)})`,
       sideGap: `${widestGap.model_id}: ${toPercent(widestGap.pro_win_rate - widestGap.con_win_rate)}`,
       judgeSpan: `${toPercent(judgeRange.min)} – ${toPercent(judgeRange.max)}`,
     };
-  }, [filteredDerived]);
+  }, [derived]);
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
       <div className="container-page space-y-8 pb-28">
-        <Hero debateCount={filteredDebates.length} modelCount={filteredDerived?.models.length || 0} />
+        <Hero debateCount={debates.length} modelCount={derived?.models.length || 0} />
 
         <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
 
