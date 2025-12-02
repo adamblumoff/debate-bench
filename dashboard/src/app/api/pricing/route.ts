@@ -24,13 +24,27 @@ const ALIASES: Record<string, string> = {
   "claude-3-opus": "anthropic/claude-3-opus",
   "gemini-1.5-pro": "google/gemini-1.5-pro",
   "gemini-1.5-flash": "google/gemini-1.5-flash",
+  "claude-opus-4.5": "anthropic/claude-4.5-opus",
+  "claude-sonnet-4.5": "anthropic/claude-4.5-sonnet",
+  "gpt-5.1": "openai/gpt-5.1",
+  "gpt-5-mini": "openai/gpt-5-mini",
 };
 
 const cache = new Map<string, { ts: number; data: PricingSnapshot }>();
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 function resolveId(id: string) {
-  return ALIASES[id] || id;
+  const clean = id.toLowerCase();
+  if (ALIASES[clean]) return ALIASES[clean];
+  if (id.includes("/")) return id;
+  // handle vendor-model naming like openai-gpt-4o-mini or anthropic-claude-sonnet-4.5
+  const parts = id.split("-");
+  if (parts.length > 1) {
+    const provider = parts.shift()!;
+    const rest = parts.join("-");
+    return `${provider}/${rest}`;
+  }
+  return id;
 }
 
 async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterModel[]> {
