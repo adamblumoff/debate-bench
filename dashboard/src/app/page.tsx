@@ -103,6 +103,8 @@ function useSpecs(derived?: DerivedData): Specs {
         category: t.category || t.topic_id,
         model: t.model_id,
         win_rate: t.win_rate,
+        wins: t.wins,
+        samples: t.samples,
       }));
       return {
         width: "container",
