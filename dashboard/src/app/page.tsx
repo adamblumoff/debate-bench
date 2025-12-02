@@ -9,6 +9,7 @@ import { ChartBuilder } from "@/components/ChartBuilder";
 import { useEnsureData } from "@/store/useDataStore";
 import { DerivedData } from "@/lib/types";
 import { VisualizationSpec } from "vega-embed";
+import { fetchPricing, pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
 
 const toPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
 const toTokens = (v: number) => `${Math.round(v).toLocaleString()} tok`;
@@ -458,6 +459,70 @@ function useCompareQuery() {
   return { selected, addModel, removeModel };
 }
 
+function usePricingData(): PricingSnapshot {
+  const [data, setData] = useState<PricingSnapshot>(pricingSnapshot);
+
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_PRICING_URL;
+    if (!url) return;
+    fetchPricing(url)
+      .then((next) => setData(next))
+      .catch(() => {
+        // fall back silently to snapshot
+      });
+  }, []);
+
+  return data;
+}
+
+function PricingTable({ pricing, onAdd }: { pricing: PricingSnapshot; onAdd?: (id: string) => void }) {
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Pricing</p>
+          <h3 className="text-lg font-semibold text-white">Cost per 1M tokens</h3>
+          <p className="text-xs text-slate-500">Snapshot updated {pricing.updated} ({pricing.currency})</p>
+        </div>
+        <span className="pill">Snapshot</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="text-slate-400">
+            <tr>
+              <th className="py-2 pr-4 text-left">Model</th>
+              <th className="py-2 pr-4 text-left">Provider</th>
+              <th className="py-2 pr-4 text-right">Input</th>
+              <th className="py-2 pr-4 text-right">Output</th>
+              <th className="py-2 pr-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-200">
+            {pricing.rows.map((r) => (
+              <tr key={r.model_id} className="border-t border-[var(--border)]/60">
+                <td className="py-2 pr-4">{r.model_id}</td>
+                <td className="py-2 pr-4 text-slate-400">{r.provider}</td>
+                <td className="py-2 pr-4 text-right">${r.input_per_million.toFixed(2)}</td>
+                <td className="py-2 pr-4 text-right">${r.output_per_million.toFixed(2)}</td>
+                <td className="py-2 pr-4 text-right">
+                  {onAdd && (
+                    <button
+                      className="text-xs px-2 py-1 rounded-md border border-[var(--border)] hover:border-[var(--accent)]"
+                      onClick={() => onAdd(r.model_id)}
+                    >
+                      + Compare
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Hero({ debateCount, modelCount }: { debateCount: number; modelCount: number }) {
   return (
     <header className="hero">
@@ -483,6 +548,7 @@ function DashboardPage() {
   const [topN, setTopN] = useState(6);
   const [category, setCategory] = useState<string>("all");
   const { selected: compareModels, addModel, removeModel } = useCompareQuery();
+  const pricing = usePricingData();
 
   const categories = useMemo(
     () => (derived ? Array.from(new Set(derived.topicWinrates.map((t) => t.category).filter(Boolean) as string[])) : []),
@@ -492,14 +558,18 @@ function DashboardPage() {
   const specs = useSpecs(derived, { limit: topN, category });
 
   const highlightData = useMemo(() => {
-    if (!derived) return { elo: [], win: [], tokens: [] };
+    if (!derived) return { elo: [], win: [], tokens: [], cost: [] };
     const elo = derived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
     const win = [...derived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
     const tokens = derived.modelStats
       .slice(0, topN)
       .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
-    return { elo, win, tokens };
-  }, [derived, topN]);
+    const cost = pricing.rows
+      .slice(0, 6)
+      .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
+      .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
+    return { elo, win, tokens, cost };
+  }, [derived, topN, pricing]);
 
   const kpi = useMemo(() => {
     if (!derived || !derived.modelStats.length) return null;
@@ -563,11 +633,21 @@ function DashboardPage() {
               )}
               {activeTab === "cost" && (
                 <>
-                  <div className="card col-span-2">
-                    <p className="text-sm text-slate-300 mb-2">Cost snapshot</p>
-                    <p className="text-xs text-slate-500">Live pricing TBD — showing placeholder snapshot with last-updated badge.</p>
+                  <MiniBarList
+                    title="Cheapest blended cost"
+                    items={highlightData.cost}
+                    formatter={(v) => `$${v.toFixed(2)}`}
+                    onAdd={addModel}
+                  />
+                  <div className="card col-span-2 flex flex-col justify-between">
+                    <div>
+                      <p className="text-sm text-slate-300 mb-1">Pricing snapshot</p>
+                      <p className="text-xs text-slate-500">Updated {pricing.updated} • {pricing.currency} per 1M tokens</p>
+                    </div>
+                    <div className="mt-3">
+                      <a href="#pricing" className="btn-ghost inline-block">View pricing table</a>
+                    </div>
                   </div>
-                  <MiniBarList title="Win rate" items={highlightData.win.slice(0, 3)} formatter={(v) => toPercent(v)} onAdd={addModel} />
                 </>
               )}
             </div>
@@ -626,6 +706,10 @@ function DashboardPage() {
               <ChartCard title="Side bias (pro minus con win rate)">
                 {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
               </ChartCard>
+            </section>
+
+            <section id="pricing" className="space-y-3">
+              <PricingTable pricing={pricing} onAdd={addModel} />
             </section>
 
             <section id="builder" className="grid gap-4 md:grid-cols-2">
