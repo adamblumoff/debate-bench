@@ -9,9 +9,11 @@ export function PricingTable({ pricing, onAdd }: { pricing: PricingSnapshot; onA
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Pricing</p>
           <h3 className="text-lg font-semibold text-white">Cost per 1M tokens</h3>
-          <p className="text-xs text-slate-500">Snapshot updated {pricing.updated} ({pricing.currency})</p>
+          <p className="text-xs text-slate-500">
+            {pricing.source === "live" ? "Live" : "Snapshot"} updated {pricing.updated} ({pricing.currency})
+          </p>
         </div>
-        <span className="pill">Snapshot</span>
+        <span className="pill">{pricing.source === "live" ? "Live" : "Snapshot"}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">

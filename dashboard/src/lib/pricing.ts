@@ -8,6 +8,7 @@ export type PricingRow = {
 export type PricingSnapshot = {
   updated: string;
   currency: string;
+  source?: "live" | "snapshot";
   rows: PricingRow[];
 };
 

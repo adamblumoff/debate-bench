@@ -23,7 +23,8 @@ function DashboardContent() {
   const { status, error, derived, debates } = useEnsureData();
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
   const { selected: compareModels, addModel, removeModel } = useCompareQuery();
-  const pricing = usePricingData();
+  const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
+  const pricing = usePricingData(modelIds);
 
   const categories = useMemo(
     () => (derived ? Array.from(new Set(derived.topicWinrates.map((t) => t.category).filter(Boolean) as string[])) : []),

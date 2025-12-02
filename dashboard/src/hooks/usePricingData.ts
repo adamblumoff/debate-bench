@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchPricing, pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
+import { pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
 
-export function usePricingData(): PricingSnapshot {
-  const [data, setData] = useState<PricingSnapshot>(pricingSnapshot);
+export function usePricingData(modelIds: string[]): PricingSnapshot {
+  const [data, setData] = useState<PricingSnapshot>({ ...pricingSnapshot, source: "snapshot" });
 
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_PRICING_URL;
-    if (!url) return;
-    fetchPricing(url)
-      .then((next) => setData(next))
+    if (!modelIds.length) return;
+    const controller = new AbortController();
+    const idsParam = encodeURIComponent(modelIds.join(","));
+    fetch(`/api/pricing?ids=${idsParam}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`pricing http ${res.status}`);
+        return res.json();
+      })
+      .then((next) => setData(next as PricingSnapshot))
       .catch(() => {
-        // fallback to bundled snapshot
+        setData({ ...pricingSnapshot, source: "snapshot" });
       });
-  }, []);
+    return () => controller.abort();
+  }, [modelIds]);
 
   return data;
 }
