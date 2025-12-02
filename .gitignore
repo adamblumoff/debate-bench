@@ -12,12 +12,23 @@ dist/
 .eggs/
 pip-wheel-metadata/
 
+# Node/JS build
+node_modules/
+.next/
+.turbo/
+.pnpm-store/
+.pnpm-home/
+.npm-cache/
+.xdg-cache/
+.xdg-config/
+
 # Virtual environments
 .venv/
 venv/
 env/
 .env
 .env.*
+!.env.example
 
 # Type checkers / tooling
 .mypy_cache/
