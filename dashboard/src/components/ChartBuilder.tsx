@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DerivedData } from "@/lib/types";
 import { VisualizationSpec } from "vega-embed";
+import { AnyMark, MarkDef } from "vega-lite";
 import { VegaLiteChart } from "./VegaLiteChart";
 
 const chartTypes = ["bar", "scatter", "heatmap", "boxplot"] as const;
@@ -44,7 +45,7 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
     if (!rows?.length || !xField) return null;
     const xType = inferType(rows, xField);
     const yType = yField ? inferType(rows, yField) : "nominal";
-    const markByType: Record<ChartType, any> = {
+    const markByType: Record<ChartType, AnyMark | MarkDef<AnyMark>> = {
       bar: { type: "bar" },
       scatter: { type: "point", tooltip: true },
       heatmap: { type: "rect" },
