@@ -44,7 +44,7 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
     if (!rows?.length || !xField) return null;
     const xType = inferType(rows, xField);
     const yType = yField ? inferType(rows, yField) : "nominal";
-    const markByType: Record<ChartType, VisualizationSpec["mark"]> = {
+    const markByType: Record<ChartType, any> = {
       bar: { type: "bar" },
       scatter: { type: "point", tooltip: true },
       heatmap: { type: "rect" },

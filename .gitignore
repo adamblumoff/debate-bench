@@ -46,6 +46,7 @@ htmlcov/
 # OS junk
 .DS_Store
 Thumbs.db
+image.png
 
 # Project data outputs
 results/

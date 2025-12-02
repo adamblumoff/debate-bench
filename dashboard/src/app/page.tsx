@@ -33,13 +33,13 @@ function useSpecs(derived?: DerivedData): Specs {
       width: "container",
       height: 280,
       data: { values: top },
-      mark: "bar",
+      mark: { type: "bar" },
       encoding: {
         y: { field: "model", type: "nominal", sort: "-x" },
         x: { field: "win_rate", type: "quantitative", axis: { format: ".0%" } },
         color: { field: "win_rate", type: "quantitative", scale: { scheme: "blues" } },
       },
-    };
+    } satisfies VisualizationSpec;
 
     const side = derived.modelStats.map((m) => ({
       model: m.model_id,
@@ -52,19 +52,19 @@ function useSpecs(derived?: DerivedData): Specs {
       width: "container",
       height: 280,
       data: { values: side },
-      mark: "bar",
+      mark: { type: "bar" },
       encoding: {
         x: { field: "gap", type: "quantitative", axis: { format: ".0%" } },
         y: { field: "model", type: "nominal", sort: "-x" },
         color: { field: "gap", type: "quantitative", scale: { scheme: "purpleorange" } },
       },
-    };
+    } satisfies VisualizationSpec;
 
     const h2h = {
       width: "container",
       height: 320,
       data: { values: derived.headToHead },
-      mark: "rect",
+      mark: { type: "rect" },
       encoding: {
         x: { field: "col", type: "nominal" },
         y: { field: "row", type: "nominal" },
@@ -77,13 +77,13 @@ function useSpecs(derived?: DerivedData): Specs {
         ],
       },
       config: { axis: { labelAngle: -45 } },
-    };
+    } satisfies VisualizationSpec;
 
     const judgeHeat = {
       width: "container",
       height: 260,
       data: { values: derived.judgeAgreement },
-      mark: "rect",
+      mark: { type: "rect" },
       encoding: {
         x: { field: "judge_a", type: "nominal" },
         y: { field: "judge_b", type: "nominal" },
@@ -96,7 +96,7 @@ function useSpecs(derived?: DerivedData): Specs {
         ],
       },
       config: { axis: { labelAngle: -30 } },
-    };
+    } satisfies VisualizationSpec;
 
     const categoryHeat = (() => {
       const rows = derived.topicWinrates.map((t) => ({
@@ -110,7 +110,7 @@ function useSpecs(derived?: DerivedData): Specs {
         width: "container",
         height: 320,
         data: { values: rows },
-        mark: "rect",
+        mark: { type: "rect" },
         encoding: {
           x: { field: "category", type: "nominal", sort: "-y" },
           y: { field: "model", type: "nominal" },
@@ -124,7 +124,7 @@ function useSpecs(derived?: DerivedData): Specs {
           ],
         },
         config: { axis: { labelAngle: -40 } },
-      };
+      } satisfies VisualizationSpec;
     })();
 
     return { leaderboard, sideBias, h2h, judgeHeat, categoryHeat };

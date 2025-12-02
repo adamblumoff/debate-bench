@@ -108,6 +108,7 @@ export interface JudgeRowForBuilder {
   con_model_id: string;
   topic_id: string;
   category?: string;
+  [key: string]: string | number | Winner | undefined;
 }
 
 export interface DerivedData {
