@@ -22,38 +22,33 @@ export function useCompareQuery(max = 4) {
     setSelected(parseParams());
   }, [parseParams]);
 
-  const updateQuery = useCallback(
-    (next: string[]) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("compare");
-      next.forEach((c) => params.append("compare", c));
-      router.replace(`?${params.toString()}`, { scroll: false });
-    },
-    [router, searchParams]
-  );
-
   const addModel = useCallback(
     (id: string) => {
       setSelected((prev) => {
         if (prev.includes(id)) return prev;
-        const next = [...prev, id].slice(-max);
-        updateQuery(next);
-        return next;
+        return [...prev, id].slice(-max);
       });
     },
-    [max, updateQuery]
+    [max]
   );
 
   const removeModel = useCallback(
     (id: string) => {
       setSelected((prev) => {
-        const next = prev.filter((m) => m !== id);
-        updateQuery(next);
-        return next;
+        return prev.filter((m) => m !== id);
       });
     },
-    [updateQuery]
+    []
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("compare");
+    selected.forEach((c) => params.append("compare", c));
+    const query = params.toString();
+    const href = query ? `?${query}` : ".";
+    router.replace(href, { scroll: false });
+  }, [router, searchParams, selected]);
 
   return { selected, addModel, removeModel };
 }
