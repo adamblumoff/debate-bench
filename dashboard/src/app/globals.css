@@ -201,6 +201,10 @@ a {
   box-shadow: var(--shadow);
 }
 
+.tile:hover {
+  border-color: rgba(77, 211, 255, 0.5);
+}
+
 .tab-switch {
   display: inline-flex;
   border: 1px solid var(--border);
