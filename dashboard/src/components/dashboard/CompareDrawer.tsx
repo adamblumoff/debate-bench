@@ -44,7 +44,7 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
             </div>
             <div className="text-xs text-slate-400">Shareable via URL params</div>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3">
             {rows.map((r) => (
               <div key={r!.model_id} className="compare-card">
                 <div className="flex items-center justify-between">
