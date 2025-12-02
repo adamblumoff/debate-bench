@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export function useCompareQuery(max = 4) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const searchString = useMemo(() => searchParams.toString(), [searchParams]);
 
   const parseParams = useCallback(() => {
     const params = searchParams;
@@ -42,13 +43,15 @@ export function useCompareQuery(max = 4) {
   );
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
+    const current = searchString;
+    const params = new URLSearchParams(current);
     params.delete("compare");
     selected.forEach((c) => params.append("compare", c));
-    const query = params.toString();
-    const href = query ? `?${query}` : ".";
+    const nextString = params.toString();
+    if (nextString === current) return;
+    const href = nextString ? `?${nextString}` : window.location.pathname;
     router.replace(href, { scroll: false });
-  }, [router, searchParams, selected]);
+  }, [router, searchString, selected]);
 
   return { selected, addModel, removeModel };
 }
