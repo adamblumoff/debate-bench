@@ -82,10 +82,16 @@ export async function GET(request: Request) {
   try {
     const models = await fetchOpenRouterModels(apiKey);
     const map = new Map<string, OpenRouterModel>();
-    for (const m of models) map.set(m.id, m);
+    for (const m of models) {
+      map.set(m.id, m);
+      const parts = m.id.split("/");
+      const bare = parts[parts.length - 1];
+      map.set(bare, m);
+      map.set(bare.toLowerCase(), m);
+    }
     const rows = ids.map((id) => {
       const resolved = resolveId(id);
-      const model = map.get(resolved);
+      const model = map.get(resolved) || map.get(resolved.toLowerCase()) || map.get(id) || map.get(id.toLowerCase());
       if (!model || !model.pricing) {
         const fallback = pricingSnapshot.rows.find((r) => r.model_id === id);
         return (
@@ -97,8 +103,10 @@ export async function GET(request: Request) {
           }
         );
       }
-      const input = (model.pricing.prompt ?? model.pricing.cached ?? 0) * 1_000_000;
-      const output = (model.pricing.completion ?? model.pricing.cached ?? 0) * 1_000_000;
+      const prompt = Number(model.pricing.prompt ?? model.pricing.cached ?? 0);
+      const completion = Number(model.pricing.completion ?? model.pricing.cached ?? 0);
+      const input = prompt * 1_000_000;
+      const output = completion * 1_000_000;
       return {
         model_id: id,
         provider: model.provider?.name || "openrouter",
