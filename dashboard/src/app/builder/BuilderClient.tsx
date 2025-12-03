@@ -34,6 +34,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
 
   const { selected, addModel, removeModel } = useCompareQuery(6);
   const [isPending, startTransition] = useTransition();
+  const [search, setSearch] = useState("");
 
   // Seed compare selection from server defaults if query is empty.
   useEffect(() => {
@@ -102,56 +103,100 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableFields.join("|")]);
 
-  return (
-    <div className="grid gap-4 md:grid-cols-[320px_1fr]">
-      <div className="card space-y-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Dataset</p>
-          <select
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-            value={dataset}
-            onChange={(e) => {
-              const ds = e.target.value as DatasetKey;
-              setDataset(ds);
-              // reset y/color for safety
-              setYField(undefined);
-              setColorField(undefined);
-              sendUpdate({ dataset: ds, yField: undefined, colorField: undefined });
-            }}
-          >
-            <option value="debates">Debates</option>
-            <option value="judges">Judges</option>
-          </select>
-        </div>
+  const resetFields = () => {
+    setDataset(initialRequest.dataset);
+    setChartType(initialRequest.chartType);
+    setXField(initialRequest.xField);
+    setYField(initialRequest.yField);
+    setColorField(initialRequest.colorField);
+    sendUpdate({
+      dataset: initialRequest.dataset,
+      chartType: initialRequest.chartType,
+      xField: initialRequest.xField,
+      yField: initialRequest.yField,
+      colorField: initialRequest.colorField,
+    });
+  };
 
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Chart type</p>
-          <select
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-            value={chartType}
-            onChange={(e) => {
-              const ct = e.target.value as ChartType;
-              setChartType(ct);
-              // Ensure y is set for types that need it
-              if ((ct === "scatter" || ct === "boxplot") && !yField) {
-                const fallback = fieldOptions.find((f) => f !== xField) ?? fieldOptions[0] ?? "";
-                setYField(fallback || undefined);
-                sendUpdate({ chartType: ct, yField: fallback || undefined });
-              } else {
-                sendUpdate({ chartType: ct });
-              }
-            }}
-          >
-            <option value="bar">bar</option>
-            <option value="scatter">scatter</option>
-            <option value="heatmap">heatmap</option>
-            <option value="boxplot">boxplot</option>
-          </select>
+  const filteredModels = useMemo(() => {
+    const term = search.toLowerCase().trim();
+    const list = term ? allModels.filter((m) => m.toLowerCase().includes(term)) : allModels.slice();
+    return list.sort((a, b) => {
+      const aSel = selected.includes(a);
+      const bSel = selected.includes(b);
+      if (aSel === bSel) return a.localeCompare(b);
+      return aSel ? -1 : 1;
+    });
+  }, [allModels, search, selected]);
+
+  useEffect(() => {
+    if (availableFields.length === 0) return;
+    if (!availableFields.includes(xField)) {
+      const next = availableFields[0];
+      setXField(next);
+      sendUpdate({ xField: next });
+    }
+    if (yField && !availableFields.includes(yField)) {
+      setYField(undefined);
+      sendUpdate({ yField: undefined });
+    }
+    if (colorField && !availableFields.includes(colorField)) {
+      setColorField(undefined);
+      sendUpdate({ colorField: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableFields.join("|")]);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-[340px_1fr] items-start">
+      <div className="card space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Dataset</span>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={dataset}
+              onChange={(e) => {
+                const ds = e.target.value as DatasetKey;
+                setDataset(ds);
+                setYField(undefined);
+                setColorField(undefined);
+                sendUpdate({ dataset: ds, yField: undefined, colorField: undefined });
+              }}
+            >
+              <option value="debates">Debates</option>
+              <option value="judges">Judges</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Chart type</span>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+              value={chartType}
+              onChange={(e) => {
+                const ct = e.target.value as ChartType;
+                setChartType(ct);
+                if ((ct === "scatter" || ct === "boxplot") && !yField) {
+                  const fallback = fieldOptions.find((f) => f !== xField) ?? fieldOptions[0] ?? "";
+                  setYField(fallback || undefined);
+                  sendUpdate({ chartType: ct, yField: fallback || undefined });
+                } else {
+                  sendUpdate({ chartType: ct });
+                }
+              }}
+            >
+              <option value="bar">bar</option>
+              <option value="scatter">scatter</option>
+              <option value="heatmap">heatmap</option>
+              <option value="boxplot">boxplot</option>
+            </select>
+          </label>
         </div>
 
         <div className="space-y-2">
           <label className="flex flex-col gap-1">
-            <span className="text-slate-400 text-xs">X field</span>
+            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">X field</span>
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={xField}
@@ -170,7 +215,12 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-slate-400 text-xs">Y field (blank = count)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Y field</span>
+              {(chartType === "scatter" || chartType === "boxplot") && (
+                <span className="text-[10px] text-slate-400 border border-[var(--border)] rounded px-2 py-0.5">Required</span>
+              )}
+            </div>
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={yField ?? ""}
@@ -190,7 +240,13 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-slate-400 text-xs">Color (optional)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Color</span>
+              <span className="inline-flex items-center gap-2 text-[11px] text-slate-400">
+                <span className="h-3 w-3 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]" />
+                {colorField ? "Encoding" : "None"}
+              </span>
+            </div>
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={colorField ?? ""}
@@ -208,27 +264,72 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
               ))}
             </select>
           </label>
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              className="text-xs text-slate-400 underline underline-offset-2"
+              onClick={resetFields}
+            >
+              Reset fields
+            </button>
+          </div>
         </div>
 
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Models ({selected.length}/6)</p>
-          <div className="max-h-48 overflow-auto border border-[var(--border)] rounded-md p-2 space-y-1">
-            {allModels.map((m) => {
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Models ({selected.length}/6)
+            </p>
+            <span className="text-xs text-slate-400">
+              Selected {selected.length} of {allModels.length}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="search"
+              placeholder="Search models"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+            />
+            <button
+              type="button"
+              className="text-xs px-3 py-2 rounded-md border border-[var(--border)] text-slate-200"
+              onClick={() => {
+                const next = allModels.slice(0, 6);
+                next.forEach((m) => addModel(m));
+              }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="text-xs px-3 py-2 rounded-md border border-[var(--border)] text-slate-200"
+              onClick={() => selected.forEach((m) => removeModel(m))}
+            >
+              Clear
+            </button>
+          </div>
+          <div className="max-h-52 overflow-auto border border-[var(--border)] rounded-md p-2 space-y-1">
+            {filteredModels.map((m) => {
               const checked = selected.includes(m);
+              const disabled = !checked && selected.length >= 6;
               return (
                 <label key={m} className="flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={disabled}
                     onChange={() => {
                       if (checked) {
                         removeModel(m);
-                      } else {
+                      } else if (!disabled) {
                         addModel(m);
                       }
                     }}
                   />
-                  <span>{m}</span>
+                  <span className={checked ? "text-white" : ""}>{m}</span>
                 </label>
               );
             })}
@@ -244,7 +345,8 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           </div>
           {isPending && <span className="text-xs text-slate-400">Updating…</span>}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 relative">
+          {isPending && <div className="absolute inset-0 bg-black/20 animate-pulse rounded-md z-10" />}
           {spec ? <VegaLiteChart spec={spec} /> : <p className="text-slate-400 text-sm">Select fields to render a chart.</p>}
         </div>
       </div>

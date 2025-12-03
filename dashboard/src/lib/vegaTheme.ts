@@ -16,7 +16,7 @@ const baseConfig: Config = {
     labelColor: MUTED,
     titleColor: TEXT,
     gridColor: BORDER,
-    gridOpacity: 0.25,
+    gridOpacity: 0.14,
     tickColor: BORDER,
     domainColor: BORDER,
     labelFontSize: 11,

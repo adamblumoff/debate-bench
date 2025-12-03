@@ -40,10 +40,14 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
   };
 
   const enc: Record<string, unknown> = {
-    x: { field: req.xField, type: xType },
+    x: {
+      field: req.xField,
+      type: xType,
+      axis: xType === "nominal" ? { labelAngle: -25 } : undefined,
+    },
   };
   if (req.yField) {
-    const xEnc = enc.x as { field: string; type: string; sort?: string };
+    const xEnc = enc.x as { field: string; type: string; sort?: string; axis?: unknown };
     xEnc.sort = "-y";
     enc.x = xEnc;
   }
@@ -72,7 +76,7 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
   }
 
-  return {
+  const baseSpec: VisualizationSpec = {
     width: "container",
     height: 360,
     data: { values: rows },
@@ -80,4 +84,44 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     encoding: enc,
     autosize: { type: "fit", contains: "padding" },
   };
+
+  // Add value labels for bar charts
+  if (req.chartType === "bar") {
+    const yEnc = enc.y as Record<string, unknown> | undefined;
+    let textEncoding: Record<string, unknown> | null = null;
+    if (yEnc) {
+      const aggregate = yEnc.aggregate as string | undefined;
+      const textField = (yEnc.field as string | undefined) ?? "*";
+      textEncoding = {
+        x: enc.x,
+        y: enc.y,
+        text: {
+          field: textField,
+          aggregate: aggregate,
+          type: "quantitative",
+          format: ".2~f",
+        },
+        color: { value: "#e9eef7" },
+      };
+    } else {
+      textEncoding = {
+        x: enc.x,
+        y: { aggregate: "count", type: "quantitative" },
+        text: { aggregate: "count", type: "quantitative", format: ".0f" },
+        color: { value: "#e9eef7" },
+      };
+    }
+    return {
+      ...baseSpec,
+      layer: [
+        { mark: markByType.bar, encoding: enc },
+        {
+          mark: { type: "text", dy: -6 },
+          encoding: textEncoding ?? {},
+        },
+      ],
+    };
+  }
+
+  return baseSpec;
 }
