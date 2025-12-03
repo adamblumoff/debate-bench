@@ -48,12 +48,16 @@ function resolveId(id: string) {
 }
 
 async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterModel[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
   const res = await fetch("https://openrouter.ai/api/v1/models", {
     headers: {
       Authorization: `Bearer ${apiKey}`,
     },
     cache: "no-store",
+    signal: controller.signal,
   });
+  clearTimeout(timeoutId);
   if (!res.ok) throw new Error(`openrouter models failed: ${res.status}`);
   const json = await res.json();
   return json?.data ?? [];
