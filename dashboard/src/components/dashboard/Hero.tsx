@@ -1,6 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+
 export function Hero({ debateCount, modelCount }: { debateCount: number; modelCount: number }) {
+  const searchParams = useSearchParams();
+  const builderHref = useMemo(() => {
+    const params = new URLSearchParams();
+    searchParams.getAll("compare").forEach((v) => params.append("compare", v));
+    const qs = params.toString();
+    return qs ? `/builder?${qs}` : "/builder";
+  }, [searchParams]);
   return (
     <header className="hero">
       <div className="flex items-center gap-4">
@@ -12,7 +23,7 @@ export function Hero({ debateCount, modelCount }: { debateCount: number; modelCo
         </div>
       </div>
       <div className="hero-cta">
-        <a href="#builder" className="btn-primary">Custom chart</a>
+        <Link href={builderHref} className="btn-primary">Custom chart</Link>
       </div>
     </header>
   );

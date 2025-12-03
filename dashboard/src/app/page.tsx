@@ -4,7 +4,6 @@ import { Suspense, useMemo, useCallback, useState } from "react";
 import { ChartCard } from "@/components/ChartCard";
 import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
-import { ChartBuilder } from "@/components/ChartBuilder";
 import { useEnsureData } from "@/store/useDataStore";
 import { useHighlightsState } from "@/hooks/useHighlightsState";
 import { useCompareQuery } from "@/hooks/useCompareQuery";
@@ -206,20 +205,6 @@ function DashboardContent() {
 
             <section id="pricing" className="space-y-3">
               <PricingTable pricing={pricing} onAdd={addModel} />
-            </section>
-
-            <section id="builder" className="grid gap-4 md:grid-cols-2">
-              <div className="card">
-                <h3 className="text-lg font-semibold text-white mb-2">Notes</h3>
-                <ul className="text-sm text-slate-300 list-disc pl-4 space-y-1">
-                  <li>Highlights respect Top N and category filters for topic heatmaps.</li>
-                  <li>Compare drawer is shareable (see URL query).</li>
-                  <li>Token metrics use mean per-turn prompt and completion tokens.</li>
-                </ul>
-              </div>
-              <ChartCard title="Custom chart builder" subtitle="Pick fields and chart type">
-                <ChartBuilder data={derived} />
-              </ChartCard>
             </section>
           </div>
         ) : (
