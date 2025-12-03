@@ -108,7 +108,7 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
-      <div className="container-page space-y-8 pb-28">
+      <div className="container-page space-y-8 pb-28 bg-[rgba(12,17,27,0.4)] border border-[var(--border)] rounded-2xl shadow-[0_18px_55px_rgba(0,0,0,0.35)]">
         <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
 
         <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />

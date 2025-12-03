@@ -118,6 +118,16 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
         {
           mark: { type: "text", dy: -6 },
           encoding: textEncoding ?? {},
+          transform: [
+            {
+              filter: {
+                or: [
+                  { field: "value", gte: 4 },
+                  { field: "count_*", gte: 4 },
+                ],
+              },
+            },
+          ],
         },
       ],
     };

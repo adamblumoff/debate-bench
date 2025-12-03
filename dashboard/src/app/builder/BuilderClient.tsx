@@ -343,10 +343,15 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Preview</p>
             <p className="text-slate-300 text-sm">Data and spec are composed on the server.</p>
           </div>
-          {isPending && <span className="text-xs text-slate-400">Updating…</span>}
+          {isPending && (
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+              Updating…
+            </div>
+          )}
         </div>
         <div className="flex-1 relative">
-          {isPending && <div className="absolute inset-0 bg-black/20 animate-pulse rounded-md z-10" />}
+          {isPending && <div className="absolute inset-0 bg-black/15 animate-pulse rounded-md z-10" />}
           {spec ? <VegaLiteChart spec={spec} /> : <p className="text-slate-400 text-sm">Select fields to render a chart.</p>}
         </div>
       </div>
