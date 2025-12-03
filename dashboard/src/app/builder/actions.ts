@@ -2,12 +2,13 @@
 
 import { VisualizationSpec } from "vega-embed";
 import { getMetrics } from "@/lib/server/metrics";
-import { buildChartSpec, buildFields, ChartRequest, DatasetKey } from "@/lib/server/chartSpec";
+import { buildChartSpec, buildFields, ChartRequest, DatasetKey, buildFieldTypes } from "@/lib/server/chartSpec";
 import { chooseModels, filterRowsByModels, parseCompareParam } from "./shared";
 
 export type BuildChartResponse = {
   spec: VisualizationSpec | null;
   fields: string[];
+  fieldTypes: Record<string, "quantitative" | "nominal">;
   selectedModels: string[];
 };
 
@@ -26,6 +27,7 @@ export async function buildChart(formData: FormData): Promise<BuildChartResponse
   const selectedModels = chooseModels(derived, requested);
   const rows = filterRowsByModels(derived, selectedModels, dataset);
   const fields = buildFields(derived, dataset);
+    const fieldTypes = buildFieldTypes(rows);
 
   const req: ChartRequest = {
     dataset,
@@ -37,5 +39,5 @@ export async function buildChart(formData: FormData): Promise<BuildChartResponse
 
   const spec = buildChartSpec(rows, req);
 
-  return { spec, fields, selectedModels };
+  return { spec, fields, fieldTypes, selectedModels };
 }

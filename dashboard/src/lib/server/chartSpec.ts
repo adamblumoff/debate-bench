@@ -14,7 +14,7 @@ export interface ChartRequest {
   colorField?: string;
 }
 
-function inferType(values: DataRow[], field: string): "quantitative" | "nominal" {
+export function inferType(values: DataRow[], field: string): "quantitative" | "nominal" {
   const sample = values.find((v) => v[field] !== undefined && v[field] !== null);
   if (!sample) return "nominal";
   return typeof sample[field] === "number" ? "quantitative" : "nominal";
@@ -24,6 +24,15 @@ export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
   const rows = dataset === "debates" ? data.debateRows : data.judgeRows;
   if (!rows?.length) return [];
   return Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+}
+
+export function buildFieldTypes(rows: DataRow[]): Record<string, "quantitative" | "nominal"> {
+  const types: Record<string, "quantitative" | "nominal"> = {};
+  if (!rows.length) return types;
+  for (const field of Object.keys(rows[0])) {
+    types[field] = inferType(rows, field);
+  }
+  return types;
 }
 
 export function buildChartSpec(rows: DataRow[], req: ChartRequest): VisualizationSpec | null {
@@ -53,7 +62,11 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
 
   if (req.chartType === "heatmap") {
     enc.y = { field: req.yField || req.xField, type: yType };
-    enc.color = { aggregate: "count", type: "quantitative" };
+    const colorField = req.colorField || req.yField || req.xField;
+    const colorType = inferType(rows, colorField);
+    enc.color = colorType === "quantitative"
+      ? { field: colorField, type: "quantitative", title: colorField }
+      : { aggregate: "count", type: "quantitative" };
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };

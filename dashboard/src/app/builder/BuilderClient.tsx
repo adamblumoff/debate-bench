@@ -13,6 +13,7 @@ type Props = {
   allModels: string[];
   selectedModels: string[];
   fields: string[];
+  fieldTypes: Record<string, "quantitative" | "nominal">;
   initialSpec: VisualizationSpec | null;
   initialRequest: {
     dataset: DatasetKey;
@@ -23,18 +24,24 @@ type Props = {
   };
 };
 
-export default function BuilderClient({ allModels, selectedModels, fields, initialSpec, initialRequest }: Props) {
+export default function BuilderClient({ allModels, selectedModels, fields, fieldTypes, initialSpec, initialRequest }: Props) {
   const [dataset, setDataset] = useState<DatasetKey>(initialRequest.dataset);
   const [chartType, setChartType] = useState<ChartType>(initialRequest.chartType);
   const [xField, setXField] = useState<string>(initialRequest.xField);
   const [yField, setYField] = useState<string | undefined>(initialRequest.yField);
   const [colorField, setColorField] = useState<string | undefined>(initialRequest.colorField);
   const [availableFields, setAvailableFields] = useState<string[]>(fields);
+  const [fieldTypesState, setFieldTypesState] = useState<Record<string, "quantitative" | "nominal">>(fieldTypes);
   const [spec, setSpec] = useState<VisualizationSpec | null>(initialSpec);
 
   const { selected, addModel, removeModel } = useCompareQuery(6);
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
+  const quantitativeFields = useMemo(
+    () => availableFields.filter((f) => fieldTypesState[f] === "quantitative"),
+    [availableFields, fieldTypesState]
+  );
+  const defaultHeatColor = quantitativeFields[0];
 
   // Seed compare selection from server defaults if query is empty.
   useEffect(() => {
@@ -60,7 +67,16 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
     const hasY = next && Object.prototype.hasOwnProperty.call(next, "yField");
     const hasColor = next && Object.prototype.hasOwnProperty.call(next, "colorField");
     const yf = hasY ? next?.yField : yField;
-    const cf = hasColor ? next?.colorField : colorField;
+    let cf = hasColor ? next?.colorField : colorField;
+
+    if (ct === "heatmap") {
+      if (!cf || fieldTypesState[cf] !== "quantitative") {
+        cf = defaultHeatColor;
+      }
+    } else {
+      // Clear color when leaving heatmap unless explicitly set
+      if (!hasColor) cf = undefined;
+    }
 
     form.append("dataset", ds);
     form.append("chartType", ct);
@@ -73,6 +89,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
       buildChart(form).then((res) => {
         setSpec(res.spec);
         setAvailableFields(res.fields);
+        if (res.fieldTypes) setFieldTypesState(res.fieldTypes);
       });
     });
   };
@@ -181,8 +198,13 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
                   const fallback = fieldOptions.find((f) => f !== xField) ?? fieldOptions[0] ?? "";
                   setYField(fallback || undefined);
                   sendUpdate({ chartType: ct, yField: fallback || undefined });
+                } else if (ct === "heatmap") {
+                  const nextY = yField || "con_model_id";
+                  setYField(nextY);
+                  sendUpdate({ chartType: ct, yField: nextY, colorField: colorField ?? defaultHeatColor });
                 } else {
-                  sendUpdate({ chartType: ct });
+                  // force color default for heatmap, clear for others handled in sendUpdate
+                  sendUpdate({ chartType: ct, colorField: undefined });
                 }
               }}
             >
@@ -239,7 +261,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Color (optional)</span>
+            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Color {chartType === "heatmap" ? "(required)" : "(optional)"}</span>
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={colorField ?? ""}
@@ -249,8 +271,8 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
                 sendUpdate({ colorField: v });
               }}
             >
-              <option value="">None</option>
-              {fieldOptions.map((f) => (
+              {chartType !== "heatmap" && <option value="">None</option>}
+              {quantitativeFields.map((f) => (
                 <option key={f} value={f}>
                   {f}
                 </option>

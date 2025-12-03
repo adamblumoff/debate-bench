@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { getMetrics } from "@/lib/server/metrics";
-import { buildChartSpec, buildFields, ChartRequest, DatasetKey } from "@/lib/server/chartSpec";
+import { buildChartSpec, buildFields, buildFieldTypes, ChartRequest, DatasetKey } from "@/lib/server/chartSpec";
 import { parseCompareParam, chooseModels, filterRowsByModels } from "./shared";
 import BuilderClient from "./BuilderClient";
 import Link from "next/link";
@@ -22,6 +22,7 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
   const dataset: DatasetKey = "debates";
   const rows = filterRowsByModels(derived, selectedModels, dataset);
   const fields = buildFields(derived, dataset);
+  const fieldTypes = buildFieldTypes(rows);
 
   const initialRequest: ChartRequest = {
     dataset,
@@ -57,6 +58,7 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
           allModels={derived.models}
           selectedModels={selectedModels}
           fields={fields}
+          fieldTypes={fieldTypes}
           initialSpec={initialSpec}
           initialRequest={initialRequest}
         />
