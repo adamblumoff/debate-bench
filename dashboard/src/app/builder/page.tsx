@@ -4,6 +4,7 @@ import { getMetrics } from "@/lib/server/metrics";
 import { buildChartSpec, buildFields, ChartRequest, DatasetKey } from "@/lib/server/chartSpec";
 import { parseCompareParam, chooseModels, filterRowsByModels } from "./shared";
 import BuilderClient from "./BuilderClient";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,14 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
             <p className="text-slate-400 text-sm">
               Preloaded with your current compares ({selectedModels.length} models). Adjust fields and chart type; data and specs are built on the server.
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="btn-ghost px-4 py-2 border border-[var(--border)] rounded-md text-sm text-slate-200"
+            >
+              ← Back to dashboard
+            </Link>
           </div>
         </div>
         <BuilderClient
