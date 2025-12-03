@@ -85,6 +85,15 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
         ? { field: colorField, type: "quantitative", aggregate: "mean", title: colorField }
         : { aggregate: "count", type: "quantitative" };
 
+    // Tooltips for heatmap
+    enc.tooltip = [
+      { field: req.xField, type: xType, title: req.xField },
+      { field: req.yField || req.xField, type: yType, title: req.yField || req.xField },
+      colorType === "quantitative"
+        ? { field: colorField, type: "quantitative", title: colorField, aggregate: "mean" }
+        : { aggregate: "count", type: "quantitative", title: "count" },
+    ];
+
     dataRows = workingRows;
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
@@ -102,6 +111,26 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
       enc.y = { aggregate: "count", type: "quantitative" };
     }
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
+
+    // Tooltips for bar
+    const barTips: Array<Record<string, unknown>> = [
+      { field: req.xField, type: xType, title: req.xField },
+    ];
+    const encY = enc.y as { field?: string; aggregate?: string } | undefined;
+    if (encY && encY.field) {
+      barTips.push({
+        field: encY.field,
+        type: yType,
+        title: encY.field,
+        aggregate: encY.aggregate,
+      });
+    } else {
+      barTips.push({ aggregate: "count", type: "quantitative", title: "count" });
+    }
+    if (req.colorField) {
+      barTips.push({ field: req.colorField, type: inferType(rows, req.colorField), title: req.colorField });
+    }
+    enc.tooltip = barTips;
   }
 
   const baseSpec: VisualizationSpec = {

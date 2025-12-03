@@ -199,9 +199,11 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
                   setYField(fallback || undefined);
                   sendUpdate({ chartType: ct, yField: fallback || undefined });
                 } else if (ct === "heatmap") {
-                  const nextY = yField || "con_model_id";
+                  const nextX = xField || "con_model_id";
+                  const nextY = yField || "pro_model_id";
+                  setXField(nextX);
                   setYField(nextY);
-                  sendUpdate({ chartType: ct, yField: nextY, colorField: colorField ?? defaultHeatColor });
+                  sendUpdate({ chartType: ct, xField: nextX, yField: nextY, colorField: colorField ?? defaultHeatColor });
                 } else {
                   // force color default for heatmap, clear for others handled in sendUpdate
                   sendUpdate({ chartType: ct, colorField: undefined });
@@ -323,7 +325,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
               className="text-xs px-3 py-2 rounded-md border border-[var(--border)] text-slate-200"
               onClick={() => selected.forEach((m) => removeModel(m))}
             >
-              Clear
+              Reset
             </button>
           </div>
           <div className="max-h-52 overflow-auto border border-[var(--border)] rounded-md p-2 space-y-1">
