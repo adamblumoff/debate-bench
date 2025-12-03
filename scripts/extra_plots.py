@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from debatebench.plot_style import apply_dark_theme, style_axes
 
 def load_debates(path: Path) -> List[dict]:
     with path.open() as f:
@@ -143,13 +144,30 @@ def compute_volatility(debates: Iterable[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["model", "dimension", "mean", "std", "n"])
 
 
-def plot_heatmap(df: pd.DataFrame, out_path: Path, cmap: str, title: str, fmt: str = ".2f") -> None:
-    plt.figure(figsize=(10, 7))
-    sns.heatmap(df, annot=True, fmt=fmt, cmap=cmap, vmin=0, vmax=1)
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(out_path, bbox_inches="tight")
-    plt.close()
+def plot_heatmap(
+    df: pd.DataFrame,
+    out_path: Path,
+    cmap,
+    title: str,
+    fmt: str = ".2f",
+    vmin=None,
+    vmax=None,
+) -> None:
+    fig, ax = plt.subplots(figsize=(10, 7))
+    sns.heatmap(
+        df,
+        annot=True,
+        fmt=fmt,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        ax=ax,
+        annot_kws={"color": "#e9eef7", "fontsize": 9},
+    )
+    ax.set_title(title)
+    style_axes(ax)
+    fig.savefig(out_path, bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> None:
@@ -161,7 +179,7 @@ def main() -> None:
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    sns.set_theme(style="whitegrid")
+    palettes = apply_dark_theme()
 
     debates = load_debates(args.debates)
 
@@ -169,7 +187,14 @@ def main() -> None:
     h2h = compute_head_to_head(debates)
     h2h.to_csv(args.out_dir / "head_to_head_table.csv", index=False)
     matrix = h2h.pivot(index="model_a", columns="model_b", values="winrate_a")
-    plot_heatmap(matrix, args.out_dir / "head_to_head_winrate.png", cmap="Blues", title="Head-to-Head Winrate (row beats column)")
+    plot_heatmap(
+        matrix,
+        args.out_dir / "head_to_head_winrate.png",
+        cmap=palettes["seq_cmap"],
+        title="Head-to-Head Winrate (row beats column)",
+        vmin=0,
+        vmax=1,
+    )
 
     # Side bias
     side = compute_side_bias(debates).sort_values("gap", ascending=False)
@@ -180,13 +205,14 @@ def main() -> None:
         x="gap",
         y="model",
         hue="gap",
-        palette="coolwarm",
+        palette=palettes["seq"],
         legend=False,
         order=side["model"],
     )
     plt.axvline(0, color="black", linewidth=1)
     plt.title("Pro vs Con Winrate Gap (positive = better as PRO)")
     plt.xlabel("Pro winrate - Con winrate")
+    style_axes(plt.gca())
     plt.tight_layout()
     plt.savefig(args.out_dir / "side_bias_gap.png", bbox_inches="tight")
     plt.close()
@@ -195,7 +221,14 @@ def main() -> None:
     cat = compute_category_winrate(debates, args.topics)
     cat.to_csv(args.out_dir / "category_winrate.csv", index=False)
     pivot = cat.pivot(index="model", columns="category", values="winrate")
-    plot_heatmap(pivot, args.out_dir / "category_winrate_heatmap.png", cmap="YlGnBu", title="Winrate by Topic Category")
+    plot_heatmap(
+        pivot,
+        args.out_dir / "category_winrate_heatmap.png",
+        cmap=palettes["seq_cmap"],
+        title="Winrate by Topic Category",
+        vmin=0,
+        vmax=1,
+    )
 
     # Judge effects
     agree_path = args.viz_dir / "judge_agreement.csv"
@@ -210,7 +243,15 @@ def main() -> None:
         mat.loc[a, b] = rate
         mat.loc[b, a] = rate
     np.fill_diagonal(mat.values, 1.0)
-    plot_heatmap(mat, args.out_dir / "judge_agreement_heatmap.png", cmap="Purples", title="Judge Winner Agreement", fmt=".2f")
+    plot_heatmap(
+        mat,
+        args.out_dir / "judge_agreement_heatmap.png",
+        cmap=palettes["seq_cmap"],
+        title="Judge Winner Agreement",
+        fmt=".2f",
+        vmin=0,
+        vmax=1,
+    )
 
     align_df = align_df.sort_values("alignment_rate", ascending=False)
     plt.figure(figsize=(8, 5))
@@ -219,11 +260,12 @@ def main() -> None:
         x="alignment_rate",
         y="judge_id",
         hue="alignment_rate",
-        palette="crest",
+        palette=palettes["seq"],
         legend=False,
     )
     plt.title("Judge Alignment with Panel Majority")
     plt.xlabel("Alignment rate")
+    style_axes(plt.gca())
     plt.tight_layout()
     plt.savefig(args.out_dir / "judge_alignment.png", bbox_inches="tight")
     plt.close()
@@ -232,14 +274,21 @@ def main() -> None:
     gap_df = pd.read_csv(args.viz_dir / "dimension_score_gaps.csv")
     pivot_gap = gap_df.pivot(index="debate_id", columns="dimension", values="gap")
     corr = pivot_gap.corr()
-    plot_heatmap(corr, args.out_dir / "dimension_gap_corr.png", cmap="coolwarm", title="Dimension Gap Correlations")
+    plot_heatmap(
+        corr,
+        args.out_dir / "dimension_gap_corr.png",
+        cmap=palettes["div_cmap"],
+        title="Dimension Gap Correlations",
+        fmt=".2f",
+    )
 
     scatter_df = pivot_gap.reset_index()
     plt.figure(figsize=(6, 5))
-    sns.scatterplot(data=scatter_df, x="persuasiveness", y="factuality", alpha=0.5)
+    sns.scatterplot(data=scatter_df, x="persuasiveness", y="factuality", alpha=0.5, color=palettes["seq"][0])
     plt.axhline(0, color="black", linewidth=1)
     plt.axvline(0, color="black", linewidth=1)
     plt.title("Debate-Level Gaps: Persuasiveness vs Factuality")
+    style_axes(plt.gca())
     plt.tight_layout()
     plt.savefig(args.out_dir / "persuasiveness_vs_factuality.png", bbox_inches="tight")
     plt.close()
@@ -247,7 +296,13 @@ def main() -> None:
     vol_df = compute_volatility(debates)
     vol_df.to_csv(args.out_dir / "model_dimension_volatility.csv", index=False)
     vol_pivot = vol_df.pivot(index="model", columns="dimension", values="std")
-    plot_heatmap(vol_pivot, args.out_dir / "model_dimension_volatility.png", cmap="Oranges", title="Score Volatility (Std Dev)", fmt=".2f")
+    plot_heatmap(
+        vol_pivot,
+        args.out_dir / "model_dimension_volatility.png",
+        cmap=palettes["seq_cmap"],
+        title="Score Volatility (Std Dev)",
+        fmt=".2f",
+    )
 
     print(f"Wrote plots to {args.out_dir}")
 

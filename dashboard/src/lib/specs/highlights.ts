@@ -1,5 +1,6 @@
 import { DerivedData } from "@/lib/types";
 import { VisualizationSpec } from "vega-embed";
+import { accentRange, heatRange } from "@/lib/vegaTheme";
 
 export function buildLeaderboardSpec(derived: DerivedData, limit: number): VisualizationSpec {
   const topStats = derived.modelStats.slice(0, limit);
@@ -11,7 +12,7 @@ export function buildLeaderboardSpec(derived: DerivedData, limit: number): Visua
     encoding: {
       y: { field: "model_id", type: "nominal", sort: "-x" },
       x: { field: "rating", type: "quantitative", axis: { title: "Elo" } },
-      color: { field: "rating", type: "quantitative", scale: { scheme: "blues" } },
+      color: { field: "rating", type: "quantitative", scale: { range: accentRange } },
       tooltip: [
         { field: "model_id", title: "Model" },
         { field: "rating", title: "Elo", format: ".0f" },
@@ -31,7 +32,7 @@ export function buildWinrateSpec(derived: DerivedData, limit: number): Visualiza
     encoding: {
       y: { field: "model_id", type: "nominal", sort: "-x" },
       x: { field: "win_rate", type: "quantitative", axis: { format: ".0%", title: "Win rate" } },
-      color: { field: "win_rate", type: "quantitative", scale: { scheme: "purples" } },
+      color: { field: "win_rate", type: "quantitative", scale: { range: accentRange } },
     },
   } satisfies VisualizationSpec;
 }
@@ -49,7 +50,7 @@ export function buildTokenStackSpec(derived: DerivedData, limit: number): Visual
     encoding: {
       y: { field: "model", type: "nominal", sort: "-x" },
       x: { field: "tokens", type: "quantitative", axis: { title: "Mean tokens" } },
-      color: { field: "kind", type: "nominal", scale: { scheme: "teals" } },
+      color: { field: "kind", type: "nominal", scale: { range: accentRange.slice(0, 2) } },
     },
   } satisfies VisualizationSpec;
 }
@@ -63,7 +64,7 @@ export function buildRatingVsWinSpec(derived: DerivedData): VisualizationSpec {
     encoding: {
       x: { field: "rating", type: "quantitative", axis: { title: "Elo" } },
       y: { field: "win_rate", type: "quantitative", axis: { title: "Win rate", format: ".0%" } },
-      color: { field: "mean_total_tokens", type: "quantitative", scale: { scheme: "oranges" }, legend: { title: "Mean tokens" } },
+      color: { field: "mean_total_tokens", type: "quantitative", scale: { range: heatRange }, legend: { title: "Mean tokens" } },
       tooltip: [
         { field: "model_id", title: "Model" },
         { field: "rating", title: "Elo", format: ".0f" },
