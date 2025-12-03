@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,6 +74,14 @@ function buildSnapshot(rows: PricingSnapshot["rows"], source: "live" | "snapshot
 }
 
 export async function GET(request: Request) {
+  const limit = rateLimit(request, "pricing", {
+    capacity: Number(process.env.RL_PRICING_CAPACITY || 60),
+    refillMs: Number(process.env.RL_PRICING_REFILL_MS || 60_000),
+  });
+  if (!limit.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}` } });
+  }
+
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids");
 

@@ -5,6 +5,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { parseJsonlStream } from "@/lib/jsonl";
 import { DebateRecord, DerivedData } from "@/lib/types";
 import { buildDerived } from "@/lib/metrics";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,6 +62,14 @@ async function getMetricsWithTtl(refresh: boolean, ttlMs: number) {
 }
 
 export async function GET(request: Request) {
+  const limit = rateLimit(request, "metrics", {
+    capacity: Number(process.env.RL_METRICS_CAPACITY || 20),
+    refillMs: Number(process.env.RL_METRICS_REFILL_MS || 60_000),
+  });
+  if (!limit.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}` } });
+  }
+
   const ttl = Number(process.env.METRICS_CACHE_MS || defaultTtl);
   const refresh = new URL(request.url).searchParams.get("refresh") === "1";
   const payload = await getMetricsWithTtl(refresh, ttl);

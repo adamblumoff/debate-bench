@@ -33,6 +33,7 @@
 
 ## Security & Configuration Notes
 - Secrets live in `.env` (`OPENROUTER_API_KEY`, optional `OPENROUTER_SITE_URL`/`OPENROUTER_SITE_NAME`). Never commit `.env` or embed keys in configs/notebooks.
-- Dashboard (Next.js) also reads `dashboard/.env` (not `.env.local`); place pricing gate and OpenRouter keys there when running locally.
+- Dashboard (Next.js) reads `dashboard/.env` (not `.env.local`); place OpenRouter keys there when running locally.
+- Rate limiting for dashboard APIs is in-memory and tunable via env (`RL_*` vars in `dashboard/.env`).
 - Use `provider: openrouter` in `models.yaml`/`judges.yaml`; endpoint defaults to `https://openrouter.ai/api/v1/chat/completions` unless overridden.
 - Endpoints come from `models.yaml`; prefer HTTPS, set reasonable timeouts, and avoid logging full prompts/responses if they may contain sensitive data.

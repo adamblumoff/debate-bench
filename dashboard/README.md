@@ -44,6 +44,11 @@ Open http://localhost:3000. The app calls `/api/metrics` (server parses + derive
 - Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL.
 - Pricing: live when `OPENROUTER_API_KEY` is set; otherwise snapshot bundled in `src/lib/pricing.ts`.
 
+### Rate limiting
+- Built-in, in-memory per-IP token bucket.
+- Defaults: pricing 60 req/min; metrics 20 req/min.
+- Override via env: `RL_PRICING_CAPACITY`, `RL_PRICING_REFILL_MS`, `RL_METRICS_CAPACITY`, `RL_METRICS_REFILL_MS`.
+
 ## Code structure (dashboard)
 - `src/app/page.tsx`: orchestration—loads derived data from `/api/metrics`, wires hooks, renders modular sections.
 - `src/hooks/`: `useHighlightsState`, `useCompareQuery` (URL-synced compare), `usePricingData`.
@@ -55,9 +60,7 @@ Open http://localhost:3000. The app calls `/api/metrics` (server parses + derive
 - Extend `/api/manifest` to return multiple keys and add a run selector in the UI.
 
 ## Optional live pricing
-- `PRICING_GATE_TOKEN` gates the live OpenRouter call. The client must send header `x-pricing-token: <PRICING_GATE_TOKEN>`; otherwise `/api/pricing` always returns the bundled snapshot.
-- Set `OPENROUTER_API_KEY` only when you intend to allow live pricing.
-- If unset or a gate token is missing/invalid, the dashboard falls back to the built-in snapshot in `src/lib/pricing.ts`.
+- Set `OPENROUTER_API_KEY` to enable live pricing; if unset, the dashboard falls back to the built-in snapshot in `src/lib/pricing.ts`.
 
 ## Deploy
 - Set the same env vars on Vercel (or your host). Ensure the deploy role can sign `GetObject` on the configured key.
