@@ -56,7 +56,24 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     enc.y = { field: req.yField || req.xField, type: yType };
     enc.color = { aggregate: "count", type: "quantitative" };
   } else if (req.chartType === "boxplot") {
-    enc.y = { field: req.yField, type: yType };
+    // Boxplot needs a quantitative axis; prefer y, otherwise swap.
+    let boxX = req.xField;
+    let boxY = req.yField ?? req.xField;
+    let boxXType = xType;
+    let boxYType = yType;
+    if (boxYType !== "quantitative" && boxXType === "quantitative") {
+      // swap to put quantitative on Y
+      boxY = req.xField;
+      boxYType = "quantitative";
+      boxX = req.yField ?? req.xField;
+      boxXType = inferType(rows, boxX);
+    }
+    if (boxYType !== "quantitative" || boxXType === "quantitative") {
+      // still invalid: no quantitative axis or both axes quantitative
+      return null;
+    }
+    enc.x = { field: boxX, type: boxXType, axis: boxXType === "nominal" ? { labelAngle: -25 } : undefined };
+    enc.y = { field: boxY, type: "quantitative" };
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
