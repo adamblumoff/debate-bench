@@ -21,9 +21,6 @@ OPENROUTER_API_KEY=...
 
 # Optional: cache metrics API responses (ms); defaults to 300000 (5 minutes)
 METRICS_CACHE_MS=300000
-# Optional: switch metrics caching to Next.js Cache Components ('use cache'); requires ENABLE_CACHE_COMPONENTS=true
-# METRICS_CACHE_STRATEGY=next
-# ENABLE_CACHE_COMPONENTS=true
 ```
 
 2) Install deps (pnpm):
@@ -47,7 +44,7 @@ Open http://localhost:3000. The app calls `/api/metrics` (server parses + derive
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
 - Cost snapshot table (per‑1M tokens) with optional live pricing override (gated by `PRICING_GATE_TOKEN`).
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.
-- Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL; optionally switch to Next.js Cache Components with `METRICS_CACHE_STRATEGY=next` + `ENABLE_CACHE_COMPONENTS=true`.
+- Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL.
 
 ## Code structure (dashboard)
 - `src/app/page.tsx`: orchestration—loads derived data from `/api/metrics`, wires hooks, renders modular sections.

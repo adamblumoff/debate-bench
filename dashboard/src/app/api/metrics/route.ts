@@ -50,7 +50,7 @@ async function computeMetrics(): Promise<MetricsPayload> {
   };
 }
 
-// Manual in-process TTL cache (default strategy)
+// Manual in-process TTL cache
 async function getMetricsWithTtl(refresh: boolean, ttlMs: number) {
   if (!refresh && cache && Date.now() - cache.ts < ttlMs) {
     return cache.payload;
@@ -60,19 +60,10 @@ async function getMetricsWithTtl(refresh: boolean, ttlMs: number) {
   return payload;
 }
 
-// Optional Next.js cache directive strategy; only used when enabled via env + config.
-async function getMetricsWithNextCache() {
-  "use cache";
-  return computeMetrics();
-}
-
 export async function GET(request: Request) {
-  const strategy = process.env.METRICS_CACHE_STRATEGY || "ttl"; // "ttl" | "next"
   const ttl = Number(process.env.METRICS_CACHE_MS || defaultTtl);
   const refresh = new URL(request.url).searchParams.get("refresh") === "1";
-  const useNextCache = strategy === "next" && process.env.ENABLE_CACHE_COMPONENTS === "true";
-
-  const payload = useNextCache && !refresh ? await getMetricsWithNextCache() : await getMetricsWithTtl(refresh, ttl);
+  const payload = await getMetricsWithTtl(refresh, ttl);
 
   return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
 }
