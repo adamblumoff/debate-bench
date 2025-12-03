@@ -23,7 +23,10 @@ export function inferType(values: DataRow[], field: string): "quantitative" | "n
 export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
   const rows = dataset === "debates" ? data.debateRows : data.judgeRows;
   if (!rows?.length) return [];
-  return Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  const base = new Set(rows.flatMap((r) => Object.keys(r)));
+  // ensure derived quantitative helper fields are available
+  base.add("win_rate");
+  return Array.from(base);
 }
 
 export function buildFieldTypes(rows: DataRow[]): Record<string, "quantitative" | "nominal"> {
@@ -32,6 +35,8 @@ export function buildFieldTypes(rows: DataRow[]): Record<string, "quantitative" 
   for (const field of Object.keys(rows[0])) {
     types[field] = inferType(rows, field);
   }
+  // force helper fields
+  types["win_rate"] = "quantitative";
   return types;
 }
 
@@ -60,13 +65,27 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     enc.x = xEnc;
   }
 
+  let dataRows: DataRow[] = rows;
+
   if (req.chartType === "heatmap") {
     enc.y = { field: req.yField || req.xField, type: yType };
     const colorField = req.colorField || req.yField || req.xField;
-    const colorType = inferType(rows, colorField);
-    enc.color = colorType === "quantitative"
-      ? { field: colorField, type: "quantitative", title: colorField }
-      : { aggregate: "count", type: "quantitative" };
+    let workingRows = rows;
+    // Derive win_rate if requested and missing
+    if (colorField === "win_rate") {
+      workingRows = rows.map((r) => {
+        const winner = r.winner as string | null;
+        const winRate = winner === "pro" ? 1 : winner === "con" ? 0 : 0.5;
+        return { ...r, win_rate: winRate };
+      });
+    }
+    const colorType = inferType(workingRows, colorField);
+    enc.color =
+      colorType === "quantitative"
+        ? { field: colorField, type: "quantitative", aggregate: "mean", title: colorField }
+        : { aggregate: "count", type: "quantitative" };
+
+    dataRows = workingRows;
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
@@ -88,7 +107,7 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
   const baseSpec: VisualizationSpec = {
     width: "container",
     height: 360,
-    data: { values: rows },
+    data: { values: dataRows },
     mark: markByType[req.chartType],
     encoding: enc,
     autosize: { type: "fit", contains: "padding" },
