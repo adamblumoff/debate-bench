@@ -12,8 +12,7 @@ export function Hero({ debateCount, modelCount }: { debateCount: number; modelCo
         </div>
       </div>
       <div className="hero-cta">
-        <a href="#highlights" className="btn-primary">Explore evaluations</a>
-        <a href="#builder" className="btn-ghost">Open builder</a>
+        <a href="#builder" className="btn-primary">Custom chart</a>
       </div>
     </header>
   );
