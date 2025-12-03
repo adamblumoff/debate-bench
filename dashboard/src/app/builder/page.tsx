@@ -1,5 +1,3 @@
-"use server";
-
 import { Suspense } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { getMetrics } from "@/lib/server/metrics";
