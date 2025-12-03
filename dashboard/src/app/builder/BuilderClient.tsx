@@ -199,8 +199,9 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
                   setYField(fallback || undefined);
                   sendUpdate({ chartType: ct, yField: fallback || undefined });
                 } else if (ct === "heatmap") {
-                  const nextX = xField || "con_model_id";
-                  const nextY = yField || "pro_model_id";
+                  // Default axes for heatmap: X=con_model_id, Y=pro_model_id
+                  const nextX = "con_model_id";
+                  const nextY = "pro_model_id";
                   setXField(nextX);
                   setYField(nextY);
                   sendUpdate({ chartType: ct, xField: nextX, yField: nextY, colorField: colorField ?? defaultHeatColor });
@@ -208,7 +209,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
                   // force color default for heatmap, clear for others handled in sendUpdate
                   sendUpdate({ chartType: ct, colorField: undefined });
                 }
-              }}
+             }}
             >
               <option value="bar">bar</option>
               <option value="scatter">scatter</option>
