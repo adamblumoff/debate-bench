@@ -75,9 +75,19 @@ function buildSnapshot(rows: PricingSnapshot["rows"], source: "live" | "snapshot
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids");
+  const gateToken = process.env.PRICING_GATE_TOKEN;
+  const providedToken = request.headers.get("x-pricing-token");
+  const allowLive = Boolean(gateToken && providedToken === gateToken);
+
   if (!idsParam) {
     return NextResponse.json({ ...pricingSnapshot, source: "snapshot" });
   }
+
+  // If the caller is not explicitly authorized, never attempt live pricing.
+  if (!allowLive) {
+    return NextResponse.json({ ...pricingSnapshot, source: "snapshot" });
+  }
+
   const ids = idsParam
     .split(",")
     .map((s) => s.trim())
