@@ -8,13 +8,14 @@ import BuilderClient from "./BuilderClient";
 export const dynamic = "force-dynamic";
 
 type BuilderPageProps = {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 export default async function BuilderPage({ searchParams }: BuilderPageProps) {
+  const resolvedParams = await searchParams;
   const metrics = await getMetrics(false);
   const derived = metrics.derived;
-  const requested = parseCompareParam(searchParams.compare);
+  const requested = parseCompareParam(resolvedParams.compare);
   const selectedModels = chooseModels(derived, requested);
 
   const dataset: DatasetKey = "debates";
