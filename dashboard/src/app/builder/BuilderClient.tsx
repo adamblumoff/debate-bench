@@ -154,7 +154,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           <label className="flex flex-col gap-1">
             <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Dataset</span>
             <select
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={dataset}
               onChange={(e) => {
                 const ds = e.target.value as DatasetKey;
@@ -172,7 +172,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           <label className="flex flex-col gap-1">
             <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Chart type</span>
             <select
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={chartType}
               onChange={(e) => {
                 const ct = e.target.value as ChartType;

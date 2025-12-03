@@ -100,6 +100,8 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     mark: markByType[req.chartType],
     encoding: enc,
     autosize: { type: "fit", contains: "padding" },
+    background: "transparent",
+    view: { stroke: "transparent", fill: "transparent" },
   };
 
   // Add value labels for bar charts

@@ -35,7 +35,7 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
 
   return (
     <Suspense fallback={<div className="container-page text-slate-400">Loading builder…</div>}>
-      <div className="container-page space-y-6 bg-[rgba(12,17,27,0.4)] border border-[var(--border)] rounded-2xl shadow-[0_18px_55px_rgba(0,0,0,0.35)]">
+      <div className="container-page space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Custom charts</p>

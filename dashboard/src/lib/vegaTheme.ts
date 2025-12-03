@@ -11,7 +11,7 @@ export const divergingRange = ["#f9706d", "#f6b44f", "#e9eef7", "#63c7ff", "#3b9
 
 const baseConfig: Config = {
   background: "transparent",
-  view: { stroke: "transparent" },
+  view: { stroke: "transparent", fill: "transparent" },
   axis: {
     labelColor: MUTED,
     titleColor: TEXT,
