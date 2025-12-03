@@ -30,6 +30,7 @@
 - Match history style: short imperative sentences, no trailing period (e.g., "Add auto-tagged runs", "Update judge parsing").
 - Group related changes (code + docs + sample configs). Avoid committing large result files or secrets.
 - PRs: include a brief summary, commands/tests run, and links to key plots/CSVs. Call out config/schema changes so reviewers can regenerate templates.
+- Only commit when explicitly instructed by the user; otherwise leave changes uncommitted.
 
 ## Security & Configuration Notes
 - Secrets live in `.env` (`OPENROUTER_API_KEY`, optional `OPENROUTER_SITE_URL`/`OPENROUTER_SITE_NAME`). Never commit `.env` or embed keys in configs/notebooks.

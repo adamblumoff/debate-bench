@@ -49,13 +49,17 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
     }
   }, [selected.length, allModels, addModel, selectedModels]);
 
-  const sendUpdate = (next?: Partial<{ dataset: DatasetKey; chartType: ChartType; xField: string; yField?: string; colorField?: string }>) => {
+  const sendUpdate = (
+    next?: Partial<{ dataset: DatasetKey; chartType: ChartType; xField: string; yField?: string; colorField?: string }>
+  ) => {
     const form = new FormData();
     const ds = next?.dataset ?? dataset;
     const ct = next?.chartType ?? chartType;
     const xf = next?.xField ?? xField;
-    const yf = next?.yField ?? yField;
-    const cf = next?.colorField ?? colorField;
+    const hasY = next && Object.prototype.hasOwnProperty.call(next, "yField");
+    const hasColor = next && Object.prototype.hasOwnProperty.call(next, "colorField");
+    const yf = hasY ? next?.yField : yField;
+    const cf = hasColor ? next?.colorField : colorField;
 
     form.append("dataset", ds);
     form.append("chartType", ct);
