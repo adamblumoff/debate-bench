@@ -58,9 +58,11 @@ function mergeConfig(base: Config, extra?: Config): Config {
 }
 
 export function withVizTheme(spec: VisualizationSpec): VisualizationSpec {
+  // Relax config typing to tolerate partial Config objects from callers.
+  const nextConfig = mergeConfig(baseConfig, spec.config as Config | undefined);
   return {
-    ...(spec as unknown as Record<string, unknown>),
+    ...(spec as VisualizationSpec),
     background: "transparent",
-    config: mergeConfig(baseConfig, spec.config),
-  } as VisualizationSpec;
+    config: nextConfig,
+  } satisfies VisualizationSpec;
 }
