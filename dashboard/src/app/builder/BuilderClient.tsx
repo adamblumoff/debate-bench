@@ -7,7 +7,7 @@ import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 
 type DatasetKey = "debates" | "judges";
-type ChartType = "bar" | "scatter" | "heatmap" | "boxplot";
+type ChartType = "bar" | "scatter" | "heatmap";
 
 type Props = {
   allModels: string[];
@@ -177,7 +177,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
               onChange={(e) => {
                 const ct = e.target.value as ChartType;
                 setChartType(ct);
-                if ((ct === "scatter" || ct === "boxplot") && !yField) {
+                if (ct === "scatter" && !yField) {
                   const fallback = fieldOptions.find((f) => f !== xField) ?? fieldOptions[0] ?? "";
                   setYField(fallback || undefined);
                   sendUpdate({ chartType: ct, yField: fallback || undefined });
@@ -189,7 +189,6 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
               <option value="bar">bar</option>
               <option value="scatter">scatter</option>
               <option value="heatmap">heatmap</option>
-              <option value="boxplot">boxplot</option>
             </select>
           </label>
         </div>
@@ -217,7 +216,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           <label className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Y field</span>
-              {(chartType === "scatter" || chartType === "boxplot") && (
+              {chartType === "scatter" && (
                 <span className="text-[10px] text-slate-400 border border-[var(--border)] rounded px-2 py-0.5">Required</span>
               )}
             </div>

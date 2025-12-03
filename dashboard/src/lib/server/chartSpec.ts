@@ -2,7 +2,7 @@ import { VisualizationSpec } from "vega-embed";
 import { DerivedData } from "@/lib/types";
 
 export type DatasetKey = "debates" | "judges";
-export type ChartType = "bar" | "scatter" | "heatmap" | "boxplot";
+export type ChartType = "bar" | "scatter" | "heatmap";
 
 export type DataRow = Record<string, string | number | null | undefined>;
 
@@ -28,15 +28,14 @@ export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
 
 export function buildChartSpec(rows: DataRow[], req: ChartRequest): VisualizationSpec | null {
   if (!rows.length || !req.xField) return null;
-  if ((req.chartType === "scatter" || req.chartType === "boxplot") && !req.yField) return null;
+  if (req.chartType === "scatter" && !req.yField) return null;
   const xType = inferType(rows, req.xField);
   const yType = req.yField ? inferType(rows, req.yField) : "nominal";
 
-  const markByType: Record<ChartType, { type: "bar" | "point" | "rect" | "boxplot" }> = {
+  const markByType: Record<ChartType, { type: "bar" | "point" | "rect" }> = {
     bar: { type: "bar" },
     scatter: { type: "point" },
     heatmap: { type: "rect" },
-    boxplot: { type: "boxplot" },
   };
 
   const enc: Record<string, unknown> = {
@@ -55,26 +54,6 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
   if (req.chartType === "heatmap") {
     enc.y = { field: req.yField || req.xField, type: yType };
     enc.color = { aggregate: "count", type: "quantitative" };
-  } else if (req.chartType === "boxplot") {
-    // Boxplot needs a quantitative axis; prefer y, otherwise swap.
-    let boxX = req.xField;
-    let boxY = req.yField ?? req.xField;
-    let boxXType = xType;
-    let boxYType = yType;
-    if (boxYType !== "quantitative" && boxXType === "quantitative") {
-      // swap to put quantitative on Y
-      boxY = req.xField;
-      boxYType = "quantitative";
-      boxX = req.yField ?? req.xField;
-      boxXType = inferType(rows, boxX);
-    }
-    if (boxYType !== "quantitative" || boxXType === "quantitative") {
-      // still invalid: no quantitative axis or both axes quantitative
-      return null;
-    }
-    enc.x = { field: boxX, type: boxXType, axis: boxXType === "nominal" ? { labelAngle: -25 } : undefined };
-    enc.y = { field: boxY, type: "quantitative" };
-    if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
     if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
