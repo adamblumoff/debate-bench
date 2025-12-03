@@ -59,8 +59,8 @@ function mergeConfig(base: Config, extra?: Config): Config {
 
 export function withVizTheme(spec: VisualizationSpec): VisualizationSpec {
   return {
-    ...spec,
+    ...(spec as unknown as Record<string, unknown>),
     background: "transparent",
     config: mergeConfig(baseConfig, spec.config),
-  };
+  } as VisualizationSpec;
 }
