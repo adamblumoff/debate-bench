@@ -240,13 +240,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
           </label>
 
           <label className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Color</span>
-              <span className="inline-flex items-center gap-2 text-[11px] text-slate-400">
-                <span className="h-3 w-3 rounded-full border border-[var(--border)] bg-[var(--bg-surface)]" />
-                {colorField ? "Encoding" : "None"}
-              </span>
-            </div>
+            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">Color (optional)</span>
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={colorField ?? ""}
