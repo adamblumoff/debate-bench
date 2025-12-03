@@ -15,7 +15,11 @@ export function usePricingData(modelIds: string[]): PricingSnapshot {
     fetch(`/api/pricing?ids=${idsParam}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`pricing http ${res.status}`);
-        return res.json();
+        const json = await res.json();
+        if (!json || typeof json !== 'object' || !Array.isArray(json.rows)) {
+          throw new Error('Invalid pricing response format');
+        }
+        return json;
       })
       .then((next) => setData(next as PricingSnapshot))
       .catch((err) => {
