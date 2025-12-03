@@ -13,6 +13,11 @@ S3_KEY=sample5/balanced-2025-11-30/results_sample5/debates_sample5-11-30-2025_ba
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 S3_URL_EXPIRY_SECONDS=900
+# Optional: gate live OpenRouter pricing; snapshot is always available
+PRICING_GATE_TOKEN=dev-local-token
+
+# Set OPENROUTER_API_KEY only when you want live pricing and the caller supplies the gate token
+OPENROUTER_API_KEY=...
 ```
 
 2) Install deps (pnpm):
@@ -29,16 +34,17 @@ PNPM_HOME=../.pnpm-home PNPM_STORE_PATH=../.pnpm-store pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000. The app calls `/api/manifest` → `/api/sign` to fetch a signed URL, streams the JSONL, and computes metrics on the client.
+Open http://localhost:3000. The app calls `/api/metrics` (server parses + derives metrics from the signed JSONL) and hydrates the UI with pre-computed data; the client no longer parses the full debates file.
 
 ## What’s implemented
 - Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky filter bar (Top N + category), discovery tiles, and shareable compare drawer (state synced to URL).
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
-- Cost snapshot table (per‑1M tokens) with optional live pricing override.
+- Cost snapshot table (per‑1M tokens) with optional live pricing override (gated by `PRICING_GATE_TOKEN`).
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.
+- Server computes all derived metrics via `/api/metrics`; client only renders.
 
 ## Code structure (dashboard)
-- `src/app/page.tsx`: light orchestration—loads data, wires hooks, renders modular sections.
+- `src/app/page.tsx`: orchestration—loads derived data from `/api/metrics`, wires hooks, renders modular sections.
 - `src/hooks/`: `useHighlightsState`, `useCompareQuery` (URL-synced compare), `usePricingData`.
 - `src/lib/specs/`: pure Vega specs (`core.ts`, `highlights.ts`); `src/lib/format.ts` for small formatters.
 - `src/components/dashboard/`: layout pieces (Hero, FilterBar, DiscoveryTiles, HighlightLists, PricingTable, CompareDrawer).
@@ -48,8 +54,9 @@ Open http://localhost:3000. The app calls `/api/manifest` → `/api/sign` to fet
 - Extend `/api/manifest` to return multiple keys and add a run selector in the UI.
 
 ## Optional live pricing
-- Set `NEXT_PUBLIC_PRICING_URL` to a JSON endpoint matching `{ updated, currency, rows: [{ model_id, provider, input_per_million, output_per_million }] }`.
-- If unset or fetch fails, the dashboard falls back to the built-in snapshot in `src/lib/pricing.ts`.
+- `PRICING_GATE_TOKEN` gates the live OpenRouter call. The client must send header `x-pricing-token: <PRICING_GATE_TOKEN>`; otherwise `/api/pricing` always returns the bundled snapshot.
+- Set `OPENROUTER_API_KEY` only when you intend to allow live pricing.
+- If unset or a gate token is missing/invalid, the dashboard falls back to the built-in snapshot in `src/lib/pricing.ts`.
 
 ## Deploy
 - Set the same env vars on Vercel (or your host). Ensure the deploy role can sign `GetObject` on the configured key.

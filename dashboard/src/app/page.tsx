@@ -68,7 +68,9 @@ function DashboardContent() {
     const tokens = highlightDerived.modelStats
       .slice(0, topN)
       .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
+    const allowedModels = new Set(highlightDerived.modelStats.map((m) => m.model_id));
     const cost = [...pricing.rows]
+      .filter((r) => !allowedModels.size || allowedModels.has(r.model_id))
       .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
       .slice(0, 6)
       .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));

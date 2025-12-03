@@ -14,13 +14,37 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     };
   }
 
-  const dimensions = Object.keys(debates[0].aggregate.mean_pro || {});
+  // Union all score dimensions to avoid depending on the first record's shape.
+  const dimSet = new Set<string>();
+  for (const d of debates) {
+    Object.keys(d.aggregate.mean_pro || {}).forEach((k) => dimSet.add(k));
+    Object.keys(d.aggregate.mean_con || {}).forEach((k) => dimSet.add(k));
+  }
+  const dimensions = Array.from(dimSet).sort();
 
   const models = Array.from(
     new Set(
       debates.flatMap((d) => [d.transcript.pro_model_id, d.transcript.con_model_id])
     )
   ).sort();
+
+  // Deterministic ordering: created_at if present, then debate_id, then original index.
+  const withIndex = debates.map((d, idx) => ({ d, idx }));
+  const parseTs = (v?: string) => {
+    const t = v ? Date.parse(v) : NaN;
+    return Number.isFinite(t) ? t : NaN;
+  };
+  withIndex.sort((a, b) => {
+    const ta = parseTs(a.d.created_at);
+    const tb = parseTs(b.d.created_at);
+    if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+    if (!Number.isNaN(ta) && Number.isNaN(tb)) return -1;
+    if (Number.isNaN(ta) && !Number.isNaN(tb)) return 1;
+    const ida = a.d.transcript.debate_id || "";
+    const idb = b.d.transcript.debate_id || "";
+    if (ida !== idb) return ida < idb ? -1 : 1;
+    return a.idx - b.idx;
+  });
 
   const statsMap = new Map<string, ModelStats>();
   const ratings = new Map<string, number>();
@@ -71,7 +95,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
 
   const kFactor = 24;
 
-  for (const d of debates) {
+  for (const { d } of withIndex) {
     const { pro_model_id: pro, con_model_id: con, topic } = d.transcript;
     const winner = d.aggregate.winner;
 

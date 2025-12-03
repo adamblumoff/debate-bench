@@ -33,6 +33,6 @@ export const useDataStore = create<DataState>((set, get) => ({
 export const useEnsureData = () => {
   const load = useDataStore((s) => s.load);
   const status = useDataStore((s) => s.status);
-  useSWR(status === "idle" ? "debates" : null, () => load());
+  useSWR(status === "idle" ? "metrics" : null, () => load());
   return useDataStore();
 };
