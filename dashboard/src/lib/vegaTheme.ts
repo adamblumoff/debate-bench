@@ -58,11 +58,12 @@ function mergeConfig(base: Config, extra?: Config): Config {
 }
 
 export function withVizTheme(spec: VisualizationSpec): VisualizationSpec {
-  // Relax config typing to tolerate partial Config objects from callers.
+  // Avoid strict autosize typing clashes by treating autosize as passthrough.
+  const cleaned = { ...(spec as Record<string, unknown>) };
   const nextConfig = mergeConfig(baseConfig, spec.config as Config | undefined);
   return {
-    ...(spec as VisualizationSpec),
+    ...cleaned,
     background: "transparent",
     config: nextConfig,
-  } satisfies VisualizationSpec;
+  } as VisualizationSpec;
 }
