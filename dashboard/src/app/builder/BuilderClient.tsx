@@ -128,7 +128,14 @@ export default function BuilderClient({ allModels, selectedModels, fields, initi
             onChange={(e) => {
               const ct = e.target.value as ChartType;
               setChartType(ct);
-              sendUpdate({ chartType: ct });
+              // Ensure y is set for types that need it
+              if ((ct === "scatter" || ct === "boxplot") && !yField) {
+                const fallback = fieldOptions.find((f) => f !== xField) ?? fieldOptions[0] ?? "";
+                setYField(fallback || undefined);
+                sendUpdate({ chartType: ct, yField: fallback || undefined });
+              } else {
+                sendUpdate({ chartType: ct });
+              }
             }}
           >
             <option value="bar">bar</option>

@@ -28,6 +28,7 @@ export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
 
 export function buildChartSpec(rows: DataRow[], req: ChartRequest): VisualizationSpec | null {
   if (!rows.length || !req.xField) return null;
+  if ((req.chartType === "scatter" || req.chartType === "boxplot") && !req.yField) return null;
   const xType = inferType(rows, req.xField);
   const yType = req.yField ? inferType(rows, req.yField) : "nominal";
 
@@ -39,8 +40,13 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
   };
 
   const enc: Record<string, unknown> = {
-    x: { field: req.xField, type: xType, sort: "-y" },
+    x: { field: req.xField, type: xType },
   };
+  if (req.yField) {
+    const xEnc = enc.x as { field: string; type: string; sort?: string };
+    xEnc.sort = "-y";
+    enc.x = xEnc;
+  }
 
   if (req.chartType === "heatmap") {
     enc.y = { field: req.yField || req.xField, type: yType };
