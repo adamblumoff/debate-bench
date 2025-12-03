@@ -262,6 +262,11 @@ a {
   color: var(--text-muted);
 }
 
+.tab-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tab-switch button.active {
   color: var(--text-primary);
   background: rgba(77, 211, 255, 0.12);
