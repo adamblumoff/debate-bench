@@ -1,149 +1,106 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo, useCallback, useState } from "react";
 import { ChartCard } from "@/components/ChartCard";
 import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { ChartBuilder } from "@/components/ChartBuilder";
 import { useEnsureData } from "@/store/useDataStore";
-import { DerivedData } from "@/lib/types";
-// no-op imports removed
-import { VisualizationSpec } from "vega-embed";
+import { useHighlightsState } from "@/hooks/useHighlightsState";
+import { useCompareQuery } from "@/hooks/useCompareQuery";
+import { usePricingData } from "@/hooks/usePricingData";
+import { Hero } from "@/components/dashboard/Hero";
+import { FilterBar } from "@/components/dashboard/FilterBar";
+import { CompareDrawer } from "@/components/dashboard/CompareDrawer";
+import { PricingTable } from "@/components/dashboard/PricingTable";
+import { HighlightsTabs, MiniBarList, TokenBarList } from "@/components/dashboard/HighlightLists";
+import { buildCategoryHeatSpec, buildH2HSpec, buildJudgeHeatSpec, buildSideBiasSpec } from "@/lib/specs/core";
+import { buildLeaderboardSpec, buildRatingVsWinSpec, buildTokenStackSpec, buildWinrateSpec } from "@/lib/specs/highlights";
+import { toPercent } from "@/lib/format";
+import { buildDerived } from "@/lib/metrics";
 
-const toPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
-
-
-type Specs = {
-  leaderboard?: VisualizationSpec;
-  sideBias?: VisualizationSpec;
-  h2h?: VisualizationSpec;
-  judgeHeat?: VisualizationSpec;
-  categoryHeat?: VisualizationSpec;
-};
-
-function useSpecs(derived?: DerivedData): Specs {
-  return useMemo<Specs>(() => {
-    if (!derived) return {};
-    const top = derived.modelStats.slice(0, 6).map((m) => ({
-      model: m.model_id,
-      win_rate: m.win_rate,
-    }));
-
-    const leaderboard = {
-      width: "container",
-      height: 280,
-      data: { values: top },
-      mark: { type: "bar" },
-      encoding: {
-        y: { field: "model", type: "nominal", sort: "-x" },
-        x: { field: "win_rate", type: "quantitative", axis: { format: ".0%" } },
-        color: { field: "win_rate", type: "quantitative", scale: { scheme: "blues" } },
-      },
-    } satisfies VisualizationSpec;
-
-    const side = derived.modelStats.map((m) => ({
-      model: m.model_id,
-      gap: m.pro_win_rate - m.con_win_rate,
-      pro: m.pro_win_rate,
-      con: m.con_win_rate,
-    }));
-    side.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
-    const sideBias = {
-      width: "container",
-      height: 280,
-      data: { values: side },
-      mark: { type: "bar" },
-      encoding: {
-        x: { field: "gap", type: "quantitative", axis: { format: ".0%" } },
-        y: { field: "model", type: "nominal", sort: "-x" },
-        color: { field: "gap", type: "quantitative", scale: { scheme: "purpleorange" } },
-      },
-    } satisfies VisualizationSpec;
-
-    const h2h = {
-      width: "container",
-      height: 320,
-      data: { values: derived.headToHead },
-      mark: { type: "rect" },
-      encoding: {
-        x: { field: "col", type: "nominal" },
-        y: { field: "row", type: "nominal" },
-        color: { field: "win_rate", type: "quantitative", scale: { scheme: "blues" }, legend: { format: ".0%" } },
-        tooltip: [
-          { field: "row", type: "nominal", title: "row" },
-          { field: "col", type: "nominal", title: "col" },
-          { field: "win_rate", type: "quantitative", title: "win %", format: ".1%" },
-          { field: "samples", type: "quantitative", title: "n" },
-        ],
-      },
-      config: { axis: { labelAngle: -45 } },
-    } satisfies VisualizationSpec;
-
-    const judgeHeat = {
-      width: "container",
-      height: 260,
-      data: { values: derived.judgeAgreement },
-      mark: { type: "rect" },
-      encoding: {
-        x: { field: "judge_a", type: "nominal" },
-        y: { field: "judge_b", type: "nominal" },
-        color: { field: "agreement_rate", type: "quantitative", scale: { scheme: "tealblues" }, legend: { format: ".0%" } },
-        tooltip: [
-          { field: "judge_a", type: "nominal" },
-          { field: "judge_b", type: "nominal" },
-          { field: "agreement_rate", type: "quantitative", format: ".1%" },
-          { field: "samples", type: "quantitative" },
-        ],
-      },
-      config: { axis: { labelAngle: -30 } },
-    } satisfies VisualizationSpec;
-
-    const categoryHeat = (() => {
-      const rows = derived.topicWinrates.map((t) => ({
-        category: t.category || t.topic_id,
-        model: t.model_id,
-        win_rate: t.win_rate,
-        wins: t.wins,
-        samples: t.samples,
-      }));
-      return {
-        width: "container",
-        height: 320,
-        data: { values: rows },
-        mark: { type: "rect" },
-        encoding: {
-          x: { field: "category", type: "nominal", sort: "-y" },
-          y: { field: "model", type: "nominal" },
-          color: { field: "win_rate", type: "quantitative", scale: { scheme: "greens" }, legend: { format: ".0%" } },
-          tooltip: [
-            { field: "model", type: "nominal" },
-            { field: "category", type: "nominal" },
-            { field: "win_rate", type: "quantitative", format: ".1%" },
-            { field: "wins", type: "quantitative" },
-            { field: "samples", type: "quantitative" },
-          ],
-        },
-        config: { axis: { labelAngle: -40 } },
-      } satisfies VisualizationSpec;
-    })();
-
-    return { leaderboard, sideBias, h2h, judgeHeat, categoryHeat };
-  }, [derived]);
-}
-
-function NavTabs() {
-  return (
-    <div className="nav-tabs mb-5">
-      <a href="#overview" className="nav-tab active">
-        Overview
-      </a>
-    </div>
+function DashboardContent() {
+  const { status, error, derived, debates } = useEnsureData();
+  const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
+  const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
+  const filteredDebates = useMemo(
+    () => (category === "all" ? debates : debates.filter((d) => (d.transcript.topic.category || "") === category)),
+    [debates, category]
   );
-}
+  // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
+  const highlightDerived = useMemo(() => {
+    if (!derived) return undefined;
+    if (category === "all") return derived;
+    return buildDerived(filteredDebates);
+  }, [derived, category, filteredDebates]);
 
-export default function Home() {
-  const { status, error, derived } = useEnsureData();
-  const specs = useSpecs(derived);
+  const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
+  const pricing = usePricingData(modelIds);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [lastAdded, setLastAdded] = useState<number>();
+
+  const addModel = useCallback(
+    (id: string) => {
+      addCompareModel(id);
+      setCompareOpen(true);
+      setLastAdded(Date.now());
+    },
+    [addCompareModel]
+  );
+
+  const categories = useMemo(() => {
+    if (!derived) return [];
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const t of derived.topicWinrates) {
+      if (!t.category) continue;
+      if (seen.has(t.category)) continue;
+      seen.add(t.category);
+      list.push(t.category);
+    }
+    return list;
+  }, [derived]);
+
+  const specs = useMemo(() => {
+    if (!highlightDerived || !derived) return {};
+    return {
+      // Highlights + category heatmap respect category filter
+      leaderboard: buildLeaderboardSpec(highlightDerived, topN),
+      winrate: buildWinrateSpec(highlightDerived, topN),
+      sideBias: buildSideBiasSpec(highlightDerived, topN),
+      categoryHeat: buildCategoryHeatSpec(highlightDerived, category),
+      tokens: buildTokenStackSpec(highlightDerived, topN),
+      ratingVsWin: buildRatingVsWinSpec(highlightDerived),
+      // Global charts use full dataset
+      h2h: buildH2HSpec(derived),
+      judgeHeat: buildJudgeHeatSpec(derived),
+    };
+  }, [highlightDerived, topN, category, derived]);
+
+  const highlightData = useMemo(() => {
+    if (!highlightDerived) return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
+    const elo = highlightDerived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
+    const win = [...highlightDerived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
+    const tokens = highlightDerived.modelStats
+      .slice(0, topN)
+      .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
+    const cost = [...pricing.rows]
+      .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
+      .slice(0, 6)
+      .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
+    const sideBias = [...highlightDerived.modelStats]
+      .map((m) => {
+        const gap = (m.pro_win_rate || 0) - (m.con_win_rate || 0);
+        return {
+          label: m.model_id,
+          value: Math.abs(gap),
+          hint: `${gap >= 0 ? "+" : ""}${toPercent(gap)} • Pro ${toPercent(m.pro_win_rate)} / Con ${toPercent(m.con_win_rate)}`,
+        };
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, topN);
+    return { elo, win, tokens, cost, sideBias };
+  }, [highlightDerived, topN, pricing]);
 
   const kpi = useMemo(() => {
     if (!derived || !derived.modelStats.length) return null;
@@ -165,24 +122,61 @@ export default function Home() {
   }, [derived]);
 
   return (
-    <main className="min-h-screen text-slate-50">
-      <div className="container-page">
-        <div className="nav-bar">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-sm font-bold text-[var(--accent)]">DB</div>
-            <div>
-              <p className="text-xs tracking-[0.28em] text-slate-400">DEBATEBENCH</p>
-              <h1 className="text-3xl font-semibold text-white">Interactive Results Dashboard</h1>
-              <p className="text-slate-400 text-sm">Balanced sample5 run • private S3 JSONL</p>
-            </div>
-          </div>
-          <div className="pill">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
-            <span>{status === "ready" ? "Live" : status === "loading" ? "Loading" : "Idle"}</span>
-          </div>
-        </div>
+    <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
+      <div className="container-page space-y-8 pb-28">
+        <Hero debateCount={debates.length} modelCount={derived?.models.length || 0} />
 
-        <NavTabs />
+        <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
+
+        <section id="highlights" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Highlights</p>
+              <h2 className="text-2xl font-semibold text-white">Performance at a glance</h2>
+            </div>
+            <HighlightsTabs active={activeTab} onChange={setActiveTab} />
+          </div>
+          {status === "ready" && derived ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {activeTab === "performance" && (
+                <>
+                  <MiniBarList title="Elo leaderboard" items={highlightData.elo} formatter={(v) => v.toFixed(0)} onAdd={addModel} />
+                  <MiniBarList title="Win rate" items={highlightData.win} formatter={(v) => toPercent(v)} onAdd={addModel} />
+                  <ChartCard title="Elo vs win rate">{specs.ratingVsWin && <VegaLiteChart spec={specs.ratingVsWin} />}</ChartCard>
+                </>
+              )}
+              {activeTab === "efficiency" && (
+                <>
+                  <TokenBarList title="Mean tokens (prompt/output)" items={highlightData.tokens} onAdd={addModel} />
+                  <ChartCard title="Token stack (top N)">{specs.tokens && <VegaLiteChart spec={specs.tokens} />}</ChartCard>
+                  <MiniBarList title="Side bias spread" items={highlightData.sideBias} formatter={(v) => toPercent(v)} onAdd={addModel} />
+                </>
+              )}
+              {activeTab === "cost" && (
+                <>
+                  <MiniBarList title="Cheapest blended cost" items={highlightData.cost} formatter={(v) => `$${v.toFixed(2)}`} onAdd={addModel} />
+                  <div className="card col-span-2 flex flex-col justify-between">
+                    <div>
+                      <p className="text-sm text-slate-300 mb-1">Pricing snapshot</p>
+                      <p className="text-xs text-slate-500">
+                        Updated {pricing.updated} • {pricing.currency} per 1M tokens
+                      </p>
+                    </div>
+                    <div className="mt-3">
+                      <a href="#pricing" className="btn-ghost inline-block">
+                        View pricing table
+                      </a>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="card">
+              <LoadState status={status} error={error} />
+            </div>
+          )}
+        </section>
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
@@ -206,12 +200,8 @@ export default function Home() {
             </section>
 
             <section id="models" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Leaderboard (win rate)">
-                {specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}
-              </ChartCard>
-              <ChartCard title="Side bias (pro minus con win rate)">
-                {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
-              </ChartCard>
+              <ChartCard title="Elo leaderboard">{specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}</ChartCard>
+              <ChartCard title="Win rate (top N)">{specs.winrate && <VegaLiteChart spec={specs.winrate} />}</ChartCard>
             </section>
 
             <section id="topics" className="grid gap-4 md:grid-cols-2">
@@ -224,14 +214,23 @@ export default function Home() {
             </section>
 
             <section id="judges" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Judge agreement">
-                {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
-              </ChartCard>
-              <div className="hidden md:block" />
+              <ChartCard title="Judge agreement">{specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}</ChartCard>
+              <ChartCard title="Side bias (pro minus con win rate)">{specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}</ChartCard>
+            </section>
+
+            <section id="pricing" className="space-y-3">
+              <PricingTable pricing={pricing} onAdd={addModel} />
             </section>
 
             <section id="builder" className="grid gap-4 md:grid-cols-2">
-              <div className="hidden md:block" />
+              <div className="card">
+                <h3 className="text-lg font-semibold text-white mb-2">Notes</h3>
+                <ul className="text-sm text-slate-300 list-disc pl-4 space-y-1">
+                  <li>Highlights respect Top N and category filters for topic heatmaps.</li>
+                  <li>Compare drawer is shareable (see URL query).</li>
+                  <li>Token metrics use mean per-turn prompt and completion tokens.</li>
+                </ul>
+              </div>
               <ChartCard title="Custom chart builder" subtitle="Pick fields and chart type">
                 <ChartBuilder data={derived} />
               </ChartCard>
@@ -245,6 +244,16 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      <CompareDrawer models={compareModels} onRemove={removeModel} derived={derived} open={compareOpen} setOpen={setCompareOpen} lastAdded={lastAdded} />
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="container-page text-slate-400">Loading dashboard…</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

@@ -23,6 +23,11 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
   ).sort();
 
   const statsMap = new Map<string, ModelStats>();
+  const ratings = new Map<string, number>();
+  const tokenAgg = new Map<
+    string,
+    { prompt: number; completion: number; promptTurns: number; completionTurns: number }
+  >();
   const headWin = new Map<string, number>();
   const headTot = new Map<string, number>();
   const topicStats = new Map<string, TopicWinrate>();
@@ -34,6 +39,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     if (!statsMap.has(id)) {
       statsMap.set(id, {
         model_id: id,
+        rating: 1500,
         wins: 0,
         losses: 0,
         ties: 0,
@@ -43,12 +49,27 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         con_games: 0,
         pro_win_rate: 0,
         con_win_rate: 0,
+        mean_prompt_tokens: 0,
+        mean_completion_tokens: 0,
+        mean_total_tokens: 0,
       });
     }
     return statsMap.get(id)!;
   };
 
+  const ensureRating = (id: string) => {
+    if (!ratings.has(id)) ratings.set(id, 1500);
+    return ratings.get(id)!;
+  };
+
+  const ensureTokens = (id: string) => {
+    if (!tokenAgg.has(id)) tokenAgg.set(id, { prompt: 0, completion: 0, promptTurns: 0, completionTurns: 0 });
+    return tokenAgg.get(id)!;
+  };
+
   const hkey = (a: string, b: string) => `${a}|||${b}`;
+
+  const kFactor = 24;
 
   for (const d of debates) {
     const { pro_model_id: pro, con_model_id: con, topic } = d.transcript;
@@ -60,6 +81,15 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     conStats.games += 1;
     proStats.pro_games += 1;
     conStats.con_games += 1;
+
+    // Elo update
+    const proRating = ensureRating(pro);
+    const conRating = ensureRating(con);
+    const expectedPro = 1 / (1 + Math.pow(10, (conRating - proRating) / 400));
+    const scorePro = winner === "pro" ? 1 : winner === "con" ? 0 : 0.5;
+    const scoreCon = 1 - scorePro;
+    ratings.set(pro, proRating + kFactor * (scorePro - expectedPro));
+    ratings.set(con, conRating + kFactor * (scoreCon - (1 - expectedPro)));
 
     if (winner === "pro") {
       proStats.wins += 1;
@@ -161,6 +191,20 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         judgeAgreementPairs.set(key, entry);
       }
     }
+
+    // token accumulation per turn
+    for (const turn of d.transcript.turns) {
+      const modelId = turn.speaker === "pro" ? pro : con;
+      const agg = ensureTokens(modelId);
+      if (typeof turn.prompt_tokens === "number") {
+        agg.prompt += turn.prompt_tokens;
+        agg.promptTurns += 1;
+      }
+      if (typeof turn.completion_tokens === "number") {
+        agg.completion += turn.completion_tokens;
+        agg.completionTurns += 1;
+      }
+    }
   }
 
   // finalize stats
@@ -168,9 +212,16 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     s.win_rate = (s.wins + 0.5 * s.ties) / (s.games || 1);
     s.pro_win_rate = s.pro_games ? s.pro_win_rate / s.pro_games : 0;
     s.con_win_rate = s.con_games ? s.con_win_rate / s.con_games : 0;
+    s.rating = ratings.get(s.model_id) ?? 1500;
+    const t = tokenAgg.get(s.model_id);
+    if (t) {
+      s.mean_prompt_tokens = t.promptTurns ? t.prompt / t.promptTurns : 0;
+      s.mean_completion_tokens = t.completionTurns ? t.completion / t.completionTurns : 0;
+      s.mean_total_tokens = s.mean_prompt_tokens + s.mean_completion_tokens;
+    }
   });
 
-  const modelStats = Array.from(statsMap.values()).sort((a, b) => b.win_rate - a.win_rate);
+  const modelStats = Array.from(statsMap.values()).sort((a, b) => b.rating - a.rating);
 
   const headToHead: HeadToHeadCell[] = [];
   for (const m of models) {

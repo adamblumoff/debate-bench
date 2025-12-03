@@ -58,8 +58,7 @@
 - Accessibility pass (contrast, focus, aria-labels on charts, keyboard paths).
 - Responsive QA across breakpoints; performance checks on chart load.
 
-## Open Questions
-- Which 3–5 metrics are core for the Highlights tabs?
-- Do we need a “live pricing” badge sourced externally, or will we ingest snapshots?
-- Should compare drawer sync with URL query params for shareable states?
-
+## Decisions (answered)
+- Highlights metrics: Leaderboard/Elo, Win rate, Mean tokens (prompt + output; stacked/paired).
+- Pricing: Attempt live fetch; if unavailable, fall back to snapshot dataset with “Last updated” badge and make source swappable.
+- Sharing: Compare drawer state (selected models/filters) will sync to URL query params to enable shareable links.
