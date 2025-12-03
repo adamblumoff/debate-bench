@@ -32,11 +32,11 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
   const xType = inferType(rows, req.xField);
   const yType = req.yField ? inferType(rows, req.yField) : "nominal";
 
-  const markByType: Record<ChartType, string> = {
-    bar: "bar",
-    scatter: "point",
-    heatmap: "rect",
-    boxplot: "boxplot",
+  const markByType: Record<ChartType, { type: "bar" | "point" | "rect" | "boxplot" }> = {
+    bar: { type: "bar" },
+    scatter: { type: "point" },
+    heatmap: { type: "rect" },
+    boxplot: { type: "boxplot" },
   };
 
   const enc: Record<string, unknown> = {
