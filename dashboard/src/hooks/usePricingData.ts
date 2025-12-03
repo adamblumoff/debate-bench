@@ -12,7 +12,9 @@ export function usePricingData(modelIds: string[]): PricingSnapshot {
     if (!idsKey) return;
     const controller = new AbortController();
     const idsParam = encodeURIComponent(idsKey);
-    fetch(`/api/pricing?ids=${idsParam}`, { signal: controller.signal })
+    const gate = process.env.NEXT_PUBLIC_PRICING_GATE_TOKEN;
+    const headers = gate ? { "x-pricing-token": gate } : undefined;
+    fetch(`/api/pricing?ids=${idsParam}`, { signal: controller.signal, headers })
       .then(async (res) => {
         if (!res.ok) throw new Error(`pricing http ${res.status}`);
         const json = await res.json();
