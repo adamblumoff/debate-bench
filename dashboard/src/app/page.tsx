@@ -17,22 +17,17 @@ import { HighlightsTabs, MiniBarList, TokenBarList } from "@/components/dashboar
 import { buildCategoryHeatSpec, buildH2HSpec, buildJudgeHeatSpec, buildSideBiasSpec } from "@/lib/specs/core";
 import { buildLeaderboardSpec, buildRatingVsWinSpec, buildTokenStackSpec, buildWinrateSpec } from "@/lib/specs/highlights";
 import { toPercent } from "@/lib/format";
-import { buildDerived } from "@/lib/metrics";
 
 function DashboardContent() {
-  const { status, error, derived, debates } = useEnsureData();
+  const { status, error, derived, derivedByCategory, meta } = useEnsureData();
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
   const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
-  const filteredDebates = useMemo(
-    () => (category === "all" ? debates : debates.filter((d) => (d.transcript.topic.category || "") === category)),
-    [debates, category]
-  );
   // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
   const highlightDerived = useMemo(() => {
     if (!derived) return undefined;
     if (category === "all") return derived;
-    return buildDerived(filteredDebates);
-  }, [derived, category, filteredDebates]);
+    return derivedByCategory?.[category] || derived;
+  }, [derived, derivedByCategory, category]);
 
   const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
   const pricing = usePricingData(modelIds);
@@ -48,18 +43,7 @@ function DashboardContent() {
     [addCompareModel]
   );
 
-  const categories = useMemo(() => {
-    if (!derived) return [];
-    const seen = new Set<string>();
-    const list: string[] = [];
-    for (const t of derived.topicWinrates) {
-      if (!t.category) continue;
-      if (seen.has(t.category)) continue;
-      seen.add(t.category);
-      list.push(t.category);
-    }
-    return list;
-  }, [derived]);
+  const categories = useMemo(() => meta?.categories || [], [meta]);
 
   const specs = useMemo(() => {
     if (!highlightDerived || !derived) return {};
@@ -124,7 +108,7 @@ function DashboardContent() {
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
       <div className="container-page space-y-8 pb-28">
-        <Hero debateCount={debates.length} modelCount={derived?.models.length || 0} />
+        <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
 
         <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
 
