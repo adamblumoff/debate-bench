@@ -18,8 +18,10 @@ export function usePricingData(modelIds: string[]): PricingSnapshot {
         return res.json();
       })
       .then((next) => setData(next as PricingSnapshot))
-      .catch(() => {
-        setData({ ...pricingSnapshot, source: "snapshot" });
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          setData({ ...pricingSnapshot, source: "snapshot" });
+        }
       });
     return () => controller.abort();
   }, [idsKey]);
