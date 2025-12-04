@@ -1,5 +1,6 @@
 import { DerivedData } from "@/lib/types";
 import { DatasetKey, DataRow } from "@/lib/server/chartSpec";
+import { MIN_COMPARE, MAX_COMPARE } from "@/lib/compareLimits";
 
 export function parseCompareParam(raw: string | string[] | undefined): string[] {
   if (!raw) return [];
@@ -9,8 +10,15 @@ export function parseCompareParam(raw: string | string[] | undefined): string[] 
 
 export function chooseModels(derived: DerivedData, requested: string[]): string[] {
   const valid = requested.filter((m) => derived.models.includes(m));
-  if (valid.length) return Array.from(new Set(valid));
-  return derived.modelStats.slice(0, 6).map((m) => m.model_id);
+  const unique = Array.from(new Set(valid)).slice(0, MAX_COMPARE);
+  if (unique.length >= MIN_COMPARE) return unique;
+
+  const fill = derived.modelStats
+    .map((m) => m.model_id)
+    .filter((m) => !unique.includes(m))
+    .slice(0, MAX_COMPARE - unique.length);
+
+  return [...unique, ...fill].slice(0, MAX_COMPARE);
 }
 
 export function filterRowsByModels(derived: DerivedData, models: string[], dataset: DatasetKey): DataRow[] {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { useCompareQuery } from "@/hooks/useCompareQuery";
+import { MAX_COMPARE } from "@/lib/compareLimits";
 import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 
@@ -35,7 +36,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
   const [fieldTypesState, setFieldTypesState] = useState<Record<string, "quantitative" | "nominal">>(fieldTypes);
   const [spec, setSpec] = useState<VisualizationSpec | null>(initialSpec);
 
-  const { selected, addModel, removeModel } = useCompareQuery(6);
+  const { selected, addModel, removeModel } = useCompareQuery(MAX_COMPARE);
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const quantitativeFields = useMemo(

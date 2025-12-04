@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { MAX_COMPARE } from "@/lib/compareLimits";
 
-export function useCompareQuery(max = 4) {
+export function useCompareQuery(max = MAX_COMPARE) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const searchString = useMemo(() => searchParams.toString(), [searchParams]);
@@ -12,10 +13,10 @@ export function useCompareQuery(max = 4) {
     const params = searchParams;
     const values = params.getAll("compare");
     if (values.length === 1 && values[0].includes(",")) {
-      return values[0].split(",").filter(Boolean);
+      return Array.from(new Set(values[0].split(",").filter(Boolean))).slice(0, max);
     }
-    return values;
-  }, [searchParams]);
+    return Array.from(new Set(values)).slice(0, max);
+  }, [searchParams, max]);
 
   const [selected, setSelected] = useState<string[]>(parseParams);
 

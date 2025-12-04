@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
+import { MIN_COMPARE, MAX_COMPARE } from "@/lib/compareLimits";
 import { DerivedData } from "@/lib/types";
 import { toPercent, toTokens } from "@/lib/format";
 
@@ -14,15 +16,19 @@ type Props = {
 };
 
 export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAdded }: Props) {
-  const hasData = models.length > 0 && derived;
+  const hasAny = models.length > 0 && derived;
+  const meetsMin = models.length >= MIN_COMPARE && derived;
 
   const rows =
-    hasData && derived
+    derived && hasAny
       ? models
           .map((m) => derived.modelStats.find((s) => s.model_id === m))
           .filter(Boolean)
-          .slice(0, 6)
+          .slice(0, MAX_COMPARE)
       : [];
+
+  const compareHref =
+    models.length > 0 ? `/builder?${models.map((m) => `compare=${encodeURIComponent(m)}`).join("&")}` : "/builder";
 
   useEffect(() => {
     if (lastAdded) setOpen(true);
@@ -30,21 +36,38 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
 
   return (
     <div
-      className={`compare-drawer-left ${open && hasData ? "open" : ""}`}
+      className={`compare-drawer-left ${open && derived ? "open" : ""}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
       <div className="compare-tab">Compare {rows.length ? `(${rows.length})` : ""}</div>
-      {hasData && (
+      {derived && (
         <div className="compare-body">
           <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Compare</p>
+              <Link
+                href={compareHref}
+                aria-disabled={!meetsMin}
+                tabIndex={!meetsMin ? -1 : 0}
+                onClick={(e) => {
+                  if (!meetsMin) e.preventDefault();
+                }}
+                className={`text-[12.5px] uppercase tracking-[0.18em] font-semibold underline-offset-4 transition-colors ${
+                  meetsMin
+                    ? "text-cyan-100 hover:text-white hover:underline"
+                    : "text-slate-500 cursor-not-allowed"
+                }`}
+              >
+                Compare
+              </Link>
             </div>
             <div className="text-[10px] text-slate-400 text-right leading-tight min-w-0 overflow-wrap:anywhere">
-              Max 4 models
+              Pick 2–6 models
             </div>
           </div>
+          {!meetsMin && (
+            <p className="text-[10.5px] text-amber-200 mb-2">Add at least two models to open custom charts.</p>
+          )}
           <div className="grid gap-2">
             {rows.map((r) => (
               <div key={r!.model_id} className="compare-card">
