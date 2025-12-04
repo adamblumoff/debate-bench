@@ -59,6 +59,8 @@ function DashboardContent() {
   const pricing = usePricingData(modelIds, runId);
   const [compareOpen, setCompareOpen] = useState(false);
   const [lastAdded, setLastAdded] = useState<number>();
+  const [refreshingRuns, setRefreshingRuns] = useState(false);
+  const [refreshRunsError, setRefreshRunsError] = useState<string | null>(null);
 
   const addModel = useCallback(
     (id: string) => {
@@ -85,7 +87,11 @@ function DashboardContent() {
   );
 
   const onRefreshRuns = useCallback(() => {
-    refreshManifest(fetcher("/api/manifest?refresh=1"), { revalidate: false });
+    setRefreshingRuns(true);
+    setRefreshRunsError(null);
+    refreshManifest(fetcher("/api/manifest?refresh=1"), { revalidate: false })
+      .catch((err) => setRefreshRunsError(err?.message || "Refresh failed"))
+      .finally(() => setRefreshingRuns(false));
   }, [refreshManifest]);
 
   const onRefreshData = useCallback(() => {
@@ -166,7 +172,7 @@ function DashboardContent() {
                   className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2 py-1 text-sm text-slate-100"
                   value={runId || ""}
                   onChange={(e) => onRunChange(e.target.value)}
-                  disabled={manifestLoading || !!manifestError || !manifest}
+                  disabled={manifestLoading || refreshingRuns || !!manifestError || !manifest}
                 >
                   {runOptions.length === 0 && <option value="">Loading runs…</option>}
                   {runOptions.map((r) => (
@@ -177,13 +183,18 @@ function DashboardContent() {
                 </select>
               </div>
               {selectedRun?.updated && <span className="text-xs text-slate-500">Updated {selectedRun.updated}</span>}
-              <button className="text-xs text-slate-300 underline-offset-4 underline" onClick={onRefreshRuns} disabled={manifestLoading}>
-                Refresh runs
+              <button
+                className="text-xs text-slate-300 underline-offset-4 underline disabled:text-slate-500"
+                onClick={onRefreshRuns}
+                disabled={manifestLoading || refreshingRuns}
+              >
+                {refreshingRuns ? "Refreshing…" : "Refresh runs"}
               </button>
               <button className="text-xs text-slate-300 underline-offset-4 underline" onClick={onRefreshData} disabled={status === "loading"}>
                 Refresh data
               </button>
             </div>
+            {refreshRunsError && <span className="text-xs text-red-300">Refresh failed: {refreshRunsError}</span>}
             {manifestError && <span className="text-xs text-red-300">Runs load failed; using default env run.</span>}
           </div>
           <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
