@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { serverEnv } from "@/lib/env";
+import { getRuns } from "@/lib/server/runs";
 
-export async function GET() {
-  return NextResponse.json({
-    runs: [
-      {
-        id: "default",
-        label: "Balanced sample5 (2025-11-30)",
-        key: serverEnv.key,
-        bucket: serverEnv.bucket,
-        region: serverEnv.region,
-      },
-    ],
-  });
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
+  const payload = await getRuns(refresh);
+  return NextResponse.json(payload);
 }

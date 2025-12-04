@@ -22,9 +22,10 @@ type Props = {
     yField?: string;
     colorField?: string;
   };
+  runId?: string;
 };
 
-export default function BuilderClient({ allModels, selectedModels, fields, fieldTypes, initialSpec, initialRequest }: Props) {
+export default function BuilderClient({ allModels, selectedModels, fields, fieldTypes, initialSpec, initialRequest, runId }: Props) {
   const [dataset, setDataset] = useState<DatasetKey>(initialRequest.dataset);
   const [chartType, setChartType] = useState<ChartType>(initialRequest.chartType);
   const [xField, setXField] = useState<string>(initialRequest.xField);
@@ -83,6 +84,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
     form.append("xField", xf);
     if (yf) form.append("yField", yf);
     if (cf) form.append("colorField", cf);
+    if (runId) form.append("run", runId);
     selected.forEach((m) => form.append("models", m));
 
     startTransition(() => {

@@ -10,19 +10,24 @@ interface DataState {
   derived?: DerivedData;
   derivedByCategory?: Record<string, DerivedData>;
   meta?: { debateCount: number; modelCount: number; categories: string[] };
-  load: () => Promise<void>;
+  currentRun?: string;
+  load: (runId?: string, refresh?: boolean) => Promise<void>;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
   status: "idle",
-  load: async () => {
-    if (get().status === "loading" || get().status === "ready") return;
+  load: async (runId, refresh = false) => {
+    if (!refresh && (get().status === "loading" || get().status === "ready") && get().currentRun === runId) return;
     try {
-      set({ status: "loading", error: undefined });
-      const res = await fetch("/api/metrics");
+      set({ status: "loading", error: undefined, derived: undefined, derivedByCategory: undefined, meta: undefined });
+      const qsParts = [] as string[];
+      if (runId) qsParts.push(`run=${encodeURIComponent(runId)}`);
+      if (refresh) qsParts.push("refresh=1");
+      const qs = qsParts.length ? `?${qsParts.join("&")}` : "";
+      const res = await fetch(`/api/metrics${qs}`);
       if (!res.ok) throw new Error(`Failed fetch /api/metrics: ${res.status}`);
       const json = await res.json();
-      set({ status: "ready", derived: json.derived, derivedByCategory: json.derivedByCategory, meta: json.meta });
+      set({ status: "ready", derived: json.derived, derivedByCategory: json.derivedByCategory, meta: json.meta, currentRun: runId });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       set({ status: "error", error: message });
@@ -30,9 +35,10 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 }));
 
-export const useEnsureData = () => {
+export const useEnsureData = (runId?: string) => {
   const load = useDataStore((s) => s.load);
   const status = useDataStore((s) => s.status);
-  useSWR(status === "idle" ? "metrics" : null, () => load());
+  const key = runId ? `metrics-${runId}` : "metrics-default";
+  useSWR(status === "idle" || useDataStore.getState().currentRun !== runId ? key : null, () => load(runId));
   return useDataStore();
 };

@@ -18,11 +18,12 @@ export async function buildChart(formData: FormData): Promise<BuildChartResponse
   const xField = (formData.get("xField") as string) || "";
   const yField = (formData.get("yField") as string) || undefined;
   const colorField = (formData.get("colorField") as string) || undefined;
+  const runId = (formData.get("run") as string) || undefined;
 
   const modelsRaw = formData.getAll("models");
   const requested = parseCompareParam(modelsRaw as string[]);
 
-  const metrics = await getMetrics(false);
+  const metrics = await getMetrics(false, runId);
   const derived = metrics.derived;
   const selectedModels = chooseModels(derived, requested);
   const rows = filterRowsByModels(derived, selectedModels, dataset);

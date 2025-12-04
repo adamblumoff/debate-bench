@@ -4,8 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { parseJsonlStream } from "@/lib/jsonl";
 import { DebateRecord, DerivedData } from "@/lib/types";
 import { buildDerived } from "@/lib/metrics";
-
-const s3 = new S3Client({ region: serverEnv.region });
+import { resolveRun, RunConfig } from "@/lib/server/runs";
 
 type MetricsPayload = {
   derived: DerivedData;
@@ -13,11 +12,12 @@ type MetricsPayload = {
   meta: { debateCount: number; modelCount: number; categories: string[] };
 };
 
-let cache: { ts: number; payload: MetricsPayload } | null = null;
+const cache = new Map<string, { ts: number; payload: MetricsPayload }>();
 const defaultTtl = 5 * 60 * 1000;
 
-async function computeMetrics(): Promise<MetricsPayload> {
-  const command = new GetObjectCommand({ Bucket: serverEnv.bucket, Key: serverEnv.key });
+async function computeMetrics(run: RunConfig): Promise<MetricsPayload> {
+  const s3 = new S3Client({ region: run.region });
+  const command = new GetObjectCommand({ Bucket: run.bucket, Key: run.key });
   const url = await getSignedUrl(s3, command, { expiresIn: serverEnv.urlExpirySeconds });
 
   const debates = await parseJsonlStream<DebateRecord>(url);
@@ -46,16 +46,19 @@ async function computeMetrics(): Promise<MetricsPayload> {
   };
 }
 
-async function getMetricsWithTtl(refresh: boolean, ttlMs: number) {
-  if (!refresh && cache && Date.now() - cache.ts < ttlMs) {
-    return cache.payload;
+async function getMetricsWithTtl(refresh: boolean, ttlMs: number, run: RunConfig) {
+  const key = run.id;
+  const entry = cache.get(key);
+  if (!refresh && entry && Date.now() - entry.ts < ttlMs) {
+    return entry.payload;
   }
-  const payload = await computeMetrics();
-  cache = { ts: Date.now(), payload };
+  const payload = await computeMetrics(run);
+  cache.set(key, { ts: Date.now(), payload });
   return payload;
 }
 
-export async function getMetrics(refresh = false, ttlMs?: number): Promise<MetricsPayload> {
+export async function getMetrics(refresh = false, runId?: string, ttlMs?: number): Promise<MetricsPayload> {
   const ttl = typeof ttlMs === "number" ? ttlMs : Number(process.env.METRICS_CACHE_MS || defaultTtl);
-  return getMetricsWithTtl(refresh, ttl);
+  const run = await resolveRun(runId, refresh);
+  return getMetricsWithTtl(refresh, ttl, run);
 }

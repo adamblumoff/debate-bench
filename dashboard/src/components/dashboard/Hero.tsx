@@ -9,6 +9,8 @@ export function Hero({ debateCount, modelCount }: { debateCount: number; modelCo
   const builderHref = useMemo(() => {
     const params = new URLSearchParams();
     searchParams.getAll("compare").forEach((v) => params.append("compare", v));
+    const run = searchParams.get("run");
+    if (run) params.set("run", run);
     const qs = params.toString();
     return qs ? `/builder?${qs}` : "/builder";
   }, [searchParams]);

@@ -14,8 +14,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}` } });
   }
 
-  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
-  const payload = await getMetrics(refresh);
-
-  return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+  const url = new URL(request.url);
+  const refresh = url.searchParams.get("refresh") === "1";
+  const runId = url.searchParams.get("run") || undefined;
+  try {
+    const payload = await getMetrics(refresh, runId);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+  } catch (err) {
+    if (err instanceof Error && err.message === "unknown_run") {
+      return NextResponse.json({ error: "unknown_run" }, { status: 400 });
+    }
+    throw err;
+  }
 }

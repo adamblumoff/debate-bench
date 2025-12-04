@@ -1,6 +1,8 @@
 "use client";
 
-import { Suspense, useMemo, useCallback, useState } from "react";
+import { Suspense, useMemo, useCallback, useState, useEffect } from "react";
+import useSWR from "swr";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChartCard } from "@/components/ChartCard";
 import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
@@ -17,8 +19,33 @@ import { buildCategoryHeatSpec, buildH2HSpec, buildJudgeHeatSpec, buildSideBiasS
 import { buildLeaderboardSpec, buildRatingVsWinSpec, buildTokenStackSpec, buildWinrateSpec } from "@/lib/specs/highlights";
 import { toPercent } from "@/lib/format";
 
+type RunOption = { id: string; label: string; bucket: string; region: string; key: string; updated?: string };
+
+const fetcher = (url: string) => fetch(url).then((res) => {
+  if (!res.ok) throw new Error(`Fetch failed ${res.status}`);
+  return res.json();
+});
+
 function DashboardContent() {
-  const { status, error, derived, derivedByCategory, meta } = useEnsureData();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<{ runs: RunOption[]; defaultRunId: string }>("/api/manifest", fetcher, { revalidateOnFocus: false });
+
+  const runFromUrl = searchParams.get("run") || undefined;
+  const runId = useMemo(() => {
+    if (!manifest) return runFromUrl;
+    if (runFromUrl && manifest.runs.some((r) => r.id === runFromUrl)) return runFromUrl;
+    return manifest.defaultRunId;
+  }, [manifest, runFromUrl]);
+
+  useEffect(() => {
+    if (!manifest || !runId || runId === runFromUrl) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("run", runId);
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [manifest, runId, runFromUrl, router, searchParams]);
+
+  const { status, error, derived, derivedByCategory, meta, load } = useEnsureData(runId);
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
   const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
   // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
@@ -29,7 +56,7 @@ function DashboardContent() {
   }, [derived, derivedByCategory, category]);
 
   const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
-  const pricing = usePricingData(modelIds);
+  const pricing = usePricingData(modelIds, runId);
   const [compareOpen, setCompareOpen] = useState(false);
   const [lastAdded, setLastAdded] = useState<number>();
 
@@ -43,6 +70,27 @@ function DashboardContent() {
   );
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
+
+  const runOptions = manifest?.runs || [];
+  const selectedRun = runOptions.find((r) => r.id === runId) || (manifest && runOptions.find((r) => r.id === manifest.defaultRunId));
+
+  const onRunChange = useCallback(
+    (id: string) => {
+      if (!id) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("run", id);
+      router.replace(`/?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  const onRefreshRuns = useCallback(() => {
+    refreshManifest(fetcher("/api/manifest?refresh=1"), { revalidate: false });
+  }, [refreshManifest]);
+
+  const onRefreshData = useCallback(() => {
+    load(runId, true);
+  }, [load, runId]);
 
   const specs = useMemo(() => {
     if (!highlightDerived || !derived) return {};
@@ -109,7 +157,37 @@ function DashboardContent() {
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
       <div className="container-page space-y-8 pb-28">
-        <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3 justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Run</span>
+                <select
+                  className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2 py-1 text-sm text-slate-100"
+                  value={runId || ""}
+                  onChange={(e) => onRunChange(e.target.value)}
+                  disabled={manifestLoading || !!manifestError || !manifest}
+                >
+                  {runOptions.length === 0 && <option value="">Loading runs…</option>}
+                  {runOptions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedRun?.updated && <span className="text-xs text-slate-500">Updated {selectedRun.updated}</span>}
+              <button className="text-xs text-slate-300 underline-offset-4 underline" onClick={onRefreshRuns} disabled={manifestLoading}>
+                Refresh runs
+              </button>
+              <button className="text-xs text-slate-300 underline-offset-4 underline" onClick={onRefreshData} disabled={status === "loading"}>
+                Refresh data
+              </button>
+            </div>
+            {manifestError && <span className="text-xs text-red-300">Runs load failed; using default env run.</span>}
+          </div>
+          <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
+        </div>
 
         <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
 
