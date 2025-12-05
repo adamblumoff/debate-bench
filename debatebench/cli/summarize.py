@@ -170,10 +170,10 @@ def summarize(
         winner = d.aggregate.winner
         if winner == "pro":
             side_stats[pro]["pro_w"] += 1
-            side_stats[con]["con_w"] += 1
+            side_stats[con]["con_l"] += 1
         elif winner == "con":
             side_stats[pro]["pro_l"] += 1
-            side_stats[con]["con_l"] += 1
+            side_stats[con]["con_w"] += 1
         else:
             side_stats[pro]["pro_t"] += 1
             side_stats[con]["con_t"] += 1
