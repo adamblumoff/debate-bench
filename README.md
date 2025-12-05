@@ -29,10 +29,12 @@ debatebench inspect-debate <debate_uuid>
 - `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from last 4 months), `high_tokens` stage limits (3200/2200/1400) with per-model token bumps, seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note:
   - `--dry-run` (plan only, shows cost using live OpenRouter pricing and writes `dryrun_schedule.json`)
   - `--resume` (skip already-written debates), `--skip-on-empty`
+  - `--balanced-judges/--random-judges` (default balanced: least-used-first to even judge usage across the run)
+  - `--retry-failed/--no-retry-failed` (default retry once at end for any failed debates)
   - `--run-tag`, `--sample-topics`, `--debates-per-pair`, `--balanced-sides/--no-balanced-sides`, `--swap-sides`
   - `--topic-select/--no-topic-select`, `--openrouter-months`, `--openrouter-max-tokens`
-  - `--openrouter-judge-max-tokens` (base value; effective judge limit is 5× this to keep JSON judges from truncating)
-  - Stage limits: with `high_tokens` (default) all stages are 3200 tokens; without, 900/600/400.
+- `--openrouter-judge-max-tokens` (max tokens per judge completion; default None = uncapped). Prompts still ask for concise (~400-token) JSON.
+- Stage limits: no enforced cap unless you pass `--apply-stage-token-limits`; prompts still nudge ~700 tokens (3–5 short paragraphs) for brevity.
   - `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`
   - `--estimate-time/--no-estimate-time` (default on): prints estimated wall-clock time using the median per-debate duration from recent runs; adds a 15% buffer.
   After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).
@@ -45,6 +47,8 @@ debatebench inspect-debate <debate_uuid>
 
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings. Judge prompt expects scores-only JSON; winner is derived by DebateBench.
+  - Debater prompts now include concise side-anchored guidance (claim→warrant→evidence, token-aware, no meta, <END_OF_TURN> required) with stage-specific focus for opening/rebuttal/closing.
+  - Judge prompt remains JSON-only, now explicitly ignores meta/thinking text and penalizes unsupported claims.
 - `topics.json` -- list of 25 topics `{id, motion, category}`; picked interactively by default before models.
 - `models.yaml` -- debater model entries `{id, provider, model, endpoint, token_limit, parameters}`. Use `provider: openrouter`; the interactive picker builds these for you at run time if `--openrouter-select` is on (default).
 - `judges.yaml` -- judge model entries (same shape) plus optional `prompt_style`; provider must be `openrouter`.

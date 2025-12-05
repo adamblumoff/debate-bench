@@ -128,6 +128,22 @@ def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, sca
                         con[dim] = v
                 break
 
+    # Structured "PRO: dim X, dim Y" blocks
+    block_pro = re.search(r"\bPRO\b[:\-]\s*(.*?)(?:\n\n|\Z)", body, re.IGNORECASE | re.S)
+    block_con = re.search(r"\bCON\b[:\-]\s*(.*?)(?:\n\n|\Z)", body, re.IGNORECASE | re.S)
+    if block_pro and block_con:
+        for dim in dim_ids:
+            mpro = re.search(rf"{dim}[^0-9]{{0,10}}(\d+)", block_pro.group(1), re.IGNORECASE)
+            mcon = re.search(rf"{dim}[^0-9]{{0,10}}(\d+)", block_con.group(1), re.IGNORECASE)
+            if mpro:
+                v = clamp(mpro.group(1))
+                if v is not None:
+                    pro[dim] = v
+            if mcon:
+                v = clamp(mcon.group(1))
+                if v is not None:
+                    con[dim] = v
+
     # Only accept if every dimension was captured for both sides.
     if all(dim in pro for dim in dim_ids) and all(dim in con for dim in dim_ids):
         return pro, con
@@ -207,7 +223,6 @@ def run_single_judge(
     attempts = [
         {"structured": True, "reinforce_json": True, "format_hint": None, "template": template_hint},
         {"structured": True, "reinforce_json": True, "format_hint": "json_object", "template": template_hint},
-        {"structured": True, "reinforce_json": True, "format_hint": None, "template": template_hint},
     ]
 
     last_error: Optional[Exception] = None
@@ -239,17 +254,21 @@ def run_single_judge(
             except ValueError:
                 pro_scores = {}
                 con_scores = {}
-        if (not pro_scores or not con_scores) and raw:
-            fallback = _extract_scores_from_text(raw, dim_ids, config.scoring.scale_min, config.scoring.scale_max)
-            if fallback:
-                pro_scores, con_scores = fallback
         if pro_scores and con_scores:
+            # Drop degenerate all-minimum outputs (often from thinking-only replies).
+            all_min = all(v == config.scoring.scale_min for v in pro_scores.values()) and all(
+                v == config.scoring.scale_min for v in con_scores.values()
+            )
+            if all_min:
+                pro_scores, con_scores = {}, {}
+                last_error = RuntimeError("Judge returned all-min scores (likely no usable JSON).")
+                continue
             break
 
     if not pro_scores or not con_scores:
         if last_error:
-            raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}") from last_error
-        raise RuntimeError(f"Judge response did not contain usable scores. Raw: {raw}")
+            raise RuntimeError(f"Judge response did not contain usable JSON scores. Raw: {raw}") from last_error
+        raise RuntimeError(f"Judge response did not contain usable JSON scores. Raw: {raw}")
 
     # Derive winner from mean dimension scores
     pro_avg = sum(pro_scores.values()) / len(pro_scores)
@@ -309,6 +328,7 @@ def run_judge_panel(
     usage: Optional[Dict[str, int]] = None,
     seed: int | None = None,
     log=None,
+    failed_judges_sink=None,
 ) -> Tuple[List[JudgeResult], AggregatedResult]:
     """
     Try candidates in order until `expected` valid judge results are collected.
@@ -342,6 +362,13 @@ def run_judge_panel(
         except Exception as e:
             if log:
                 log(f"[yellow]Judge {adapter.config.id} dropped: {e}[/yellow]")
+            if failed_judges_sink:
+                failed_judges_sink(
+                    {
+                        "judge_id": adapter.config.id,
+                        "error": str(e),
+                    }
+                )
             continue
         if len(results) >= expected:
             break

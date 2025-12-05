@@ -41,7 +41,7 @@ Open http://localhost:3000. The app calls `/api/metrics` (server parses + derive
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
 - Cost snapshot table (per‑1M tokens) with live pricing override when `OPENROUTER_API_KEY` is set; falls back to bundled snapshot otherwise.
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.
-- Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL.
+- Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL. Elo now mirrors the config in the debates JSONL (falls back to the embedded `elo.initial_rating`/`k_factor` if present).
 - Pricing: live when `OPENROUTER_API_KEY` is set; otherwise snapshot bundled in `src/lib/pricing.ts`.
 
 ### Rate limiting

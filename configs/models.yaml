@@ -3,7 +3,7 @@ models:
     role: debater
     provider: openrouter
     model: anthropic/claude-opus-4.5
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
@@ -11,15 +11,15 @@ models:
     role: debater
     provider: openrouter
     model: anthropic/claude-sonnet-4.5
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
-  - id: deepseek-deepseek-v3.2-exp
+  - id: deepseek-deepseek-v3.2
     role: debater
     provider: openrouter
-    model: deepseek/deepseek-v3.2-exp
-    token_limit: 3072
+    model: deepseek/deepseek-v3.2
+    token_limit: null
     parameters:
       temperature: 0.7
 
@@ -27,15 +27,15 @@ models:
     role: debater
     provider: openrouter
     model: google/gemini-3-pro-preview
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
-  - id: moonshotai-kimi-k2-thinking
+  - id: moonshotai-kimi-k2
     role: debater
     provider: openrouter
-    model: moonshotai/kimi-k2-thinking
-    token_limit: 3072
+    model: moonshotai/kimi-k2
+    token_limit: null
     parameters:
       temperature: 0.7
 
@@ -43,7 +43,7 @@ models:
     role: debater
     provider: openrouter
     model: openai/gpt-5-mini
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
@@ -51,7 +51,7 @@ models:
     role: debater
     provider: openrouter
     model: openai/gpt-5.1
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
@@ -59,14 +59,14 @@ models:
     role: debater
     provider: openrouter
     model: qwen/qwen3-max
-    token_limit: 3072
+    token_limit: null
     parameters:
       temperature: 0.7
 
-  - id: x-ai-grok-4.1-fast:free
+  - id: x-ai-grok-4.1-fast
     role: debater
     provider: openrouter
-    model: x-ai/grok-4.1-fast:free
-    token_limit: 3072
+    model: x-ai/grok-4.1-fast
+    token_limit: null
     parameters:
       temperature: 0.7

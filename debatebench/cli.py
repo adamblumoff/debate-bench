@@ -476,8 +476,8 @@ def run_command(
     openrouter_temperature: float = typer.Option(
         0.7, help="Default temperature for OpenRouter debater adapters."
     ),
-    openrouter_max_tokens: int = typer.Option(
-        3200, help="Max tokens per debater completion when using OpenRouter models."
+    openrouter_max_tokens: Optional[int] = typer.Option(
+        None, help="Max tokens per debater completion when using OpenRouter models (None = no cap)."
     ),
     openrouter_probe: bool = typer.Option(
         True, help="Probe each selected OpenRouter model before running; drop any that fail."
@@ -490,8 +490,8 @@ def run_command(
         None,
         help="Lookback window in months for OpenRouter judge selection (defaults to openrouter-months).",
     ),
-    openrouter_judge_max_tokens: int = typer.Option(
-        256, help="Max tokens per judge completion when using OpenRouter models."
+    openrouter_judge_max_tokens: Optional[int] = typer.Option(
+        None, help="Max tokens per judge completion when using OpenRouter models (None = no cap)."
     ),
     topic_select: bool = typer.Option(
         True,
@@ -504,8 +504,8 @@ def run_command(
         help="Use a single curses wizard for topic/model/judge selection when available (default on).",
     ),
     apply_stage_token_limits: bool = typer.Option(
-        True,
-        help="Apply default per-stage token limits (opening=900, rebuttal=600, closing=400) to rounds before running.",
+        False,
+        help="Apply fixed per-stage token limits (disabled by default; leave off for uncapped turns).",
     ),
     skip_on_empty: bool = typer.Option(
         False,
@@ -521,7 +521,8 @@ def run_command(
     ),
     high_tokens: bool = typer.Option(
         True,
-        help="Generous token budgets for quality: opening=3200, rebuttal=3200, closing=3200; bump debater max_tokens to at least 3200 and judges to 512 (x5 safety).",
+        hidden=True,
+        help="Deprecated; token limits are fixed to 1000 (debaters) and 400 (judges).",
     ),
     resume: bool = typer.Option(
         False,
@@ -531,6 +532,10 @@ def run_command(
         True,
         "--retry-failed/--no-retry-failed",
         help="After completing the planned schedule, retry debates that failed (once).",
+    ),
+    log_failed_judges: bool = typer.Option(
+        False,
+        help="If set, write raw responses for dropped judges to run_<tag>/failed_judges.jsonl for debugging.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -553,12 +558,9 @@ def run_command(
         config_path, topics_path, models_path, judges_path
     )
 
-    # Apply per-stage token limits if enabled
+    # Apply per-stage token limits only if explicitly requested
     if apply_stage_token_limits:
-        if high_tokens:
-            stage_limits = {"opening": 3200, "rebuttal": 3200, "closing": 3200}
-        else:
-            stage_limits = {"opening": 900, "rebuttal": 600, "closing": 400}
+        stage_limits = {"opening": openrouter_max_tokens, "rebuttal": openrouter_max_tokens, "closing": openrouter_max_tokens}
         new_rounds = []
         for r in main_cfg.rounds:
             lim = stage_limits.get(r.stage, r.token_limit)
@@ -625,7 +627,7 @@ def run_command(
     settings = load_settings()
 
     topics_selected = topics
-    judge_output_max_tokens = int(openrouter_judge_max_tokens * 5)
+    judge_output_max_tokens = openrouter_judge_max_tokens
 
     def derive_debate_seed(tag: str, topic_id: str, pro_id: str, con_id: str, rep: int) -> int:
         """
@@ -666,7 +668,7 @@ def run_command(
                 model="google/gemini-3-pro-preview",
                 token_limit=openrouter_max_tokens,
                 endpoint=None,
-                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
+                parameters={"temperature": 0.35 if openrouter_temperature is None else openrouter_temperature},
             ),
             DebaterModelConfig(
                 id="openai-gpt-5.1",
@@ -674,18 +676,18 @@ def run_command(
                 model="openai/gpt-5.1",
                 token_limit=openrouter_max_tokens,
                 endpoint=None,
-                parameters={"temperature": 0.35 if high_tokens else openrouter_temperature},
+                parameters={"temperature": 0.35 if openrouter_temperature is None else openrouter_temperature},
             ),
         ]
         judge_models = [
             JudgeModelConfig(
-                id="moonshotai-kimi-k2-thinking",
+                id="moonshotai-kimi-k2",
                 provider="openrouter",
-                model="moonshotai/kimi-k2-thinking",
+                model="moonshotai/kimi-k2",
                 token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
-                parameters={"temperature": openrouter_temperature},
+                parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
             ),
             JudgeModelConfig(
                 id="anthropic-claude-opus-4.5",
@@ -694,16 +696,16 @@ def run_command(
                 token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
-                parameters={"temperature": openrouter_temperature},
+                parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
             ),
             JudgeModelConfig(
-                id="deepseek-deepseek-v3.2-exp",
+                id="deepseek-deepseek-v3.2",
                 provider="openrouter",
-                model="deepseek/deepseek-v3.2-exp",
+                model="deepseek/deepseek-v3.2",
                 token_limit=judge_output_max_tokens,
                 endpoint=None,
                 prompt_style=None,
-                parameters={"temperature": openrouter_temperature},
+                parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
             ),
         ]
         main_cfg.num_judges = 3
@@ -967,14 +969,7 @@ def run_command(
     if len(debater_models) < 2:
         raise typer.BadParameter("Need at least two debater models after selection.")
 
-    # If high_tokens, bump per-model token limits
-    if high_tokens:
-        for m in debater_models:
-            if m.token_limit is None or m.token_limit < 3072:
-                m.token_limit = 3072
-        for j in judge_models:
-            if j.token_limit is None or j.token_limit < 512:
-                j.token_limit = 512
+    # Leave token limits as provided (caps optional)
 
     selection_snapshot = {
         "main_config": main_cfg.dict(),
@@ -1026,9 +1021,12 @@ def run_command(
         live = _fetch_pricing(models_needed)
 
         def side_token_budget():
-            comp = sum(r.token_limit for r in rounds if r.speaker == "pro")  # same for con
-            # approximate prompt as history accumulation: roughly comp + (comp - first_turn)
-            first_turn = next(r.token_limit for r in rounds if r.speaker == "pro")
+            limits = [r.token_limit for r in rounds if r.speaker == "pro"]
+            limits = [l for l in limits if isinstance(l, (int, float))]
+            if not limits:
+                return 0, 0
+            comp = sum(limits)
+            first_turn = limits[0]
             prompt = comp + max(0, comp - first_turn)
             return prompt, comp
 
@@ -1047,7 +1045,7 @@ def run_command(
                 per_model_cost[model.id] = per_model_cost.get(model.id, 0.0) + cost * debates_per_pair_total
                 total_debater_cost += cost * debates_per_pair_total
 
-        transcript_tokens = sum(r.token_limit for r in rounds)
+        transcript_tokens = sum(r.token_limit for r in rounds if isinstance(r.token_limit, (int, float)))
         judge_output_tokens = 200
         per_judge_cost: Dict[str, float] = {}
         total_judge_cost = 0.0
@@ -1127,6 +1125,7 @@ def run_command(
             json.dump(payload, f, indent=2)
 
     write_progress()
+    failed_judges_path = run_dir / "failed_judges.jsonl" if log_failed_judges else None
 
     if dry_run:
         judge_calls = total_runs * main_cfg.num_judges
@@ -1265,6 +1264,28 @@ def run_command(
                     console.print(
                         f"  Judging with panel: {', '.join(j.id for j in panel_configs)}"
                     )
+                    # Optional sink to capture failed judges
+                    def sink_failed(payload):
+                        if not failed_judges_path:
+                            return
+                        failed_judges_path.parent.mkdir(parents=True, exist_ok=True)
+                        import json as _json
+
+                        with failed_judges_path.open("a", encoding="utf-8") as f:
+                            f.write(
+                                _json.dumps(
+                                    {
+                                        **payload,
+                                        "debate_id": transcript.debate_id,
+                                        "topic": topic.id,
+                                        "pro": pro_model.id,
+                                        "con": con_model.id,
+                                        "created_at": datetime.now(timezone.utc).isoformat(),
+                                    }
+                                )
+                            )
+                            f.write("\n")
+
                     judge_results, aggregate = run_judge_panel(
                         candidate_adapters=panel_adapters + remaining_adapters,
                         transcript=transcript,
@@ -1273,6 +1294,7 @@ def run_command(
                         usage=judge_usage,
                         seed=debate_seed,
                         log=log,
+                        failed_judges_sink=sink_failed if failed_judges_path else None,
                     )
 
                     panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)

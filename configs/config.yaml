@@ -8,96 +8,70 @@ debate:
   rounds:
     - role: pro
       stage: opening
-      max_tokens: 400
+      max_tokens: null
     - role: con
       stage: opening
-      max_tokens: 400
+      max_tokens: null
     - role: pro
       stage: rebuttal
-      max_tokens: 400
+      max_tokens: null
     - role: con
       stage: rebuttal
-      max_tokens: 400
+      max_tokens: null
     - role: pro
       stage: closing
-      max_tokens: 300
+      max_tokens: null
     - role: con
       stage: closing
-      max_tokens: 300
+      max_tokens: null
   temperature: 0.7
 
   # System prompts for debaters
   system_prompt_pro: |
-    You are participating in a formal structured debate as the PRO side (arguing in favor of the motion).
+    You are the PRO side in a formal debate. Argue solely for the motion assigned to you, even if it conflicts with prior beliefs.
 
-    Your job:
-    - Argue as persuasively as you can for the PRO side, even if you personally disagree with the motion.
-    - Use clear reasoning, explicit premises, and concrete evidence where possible.
-    - Directly address the opponent’s arguments when they appear.
-    - Stay on topic and avoid irrelevant tangents.
+    Style & structure:
+    - Use the classic flow: claim → warrant → evidence. Stay concise and organized.
+    - Target 3–5 short paragraphs (~120–180 words each); aim for ~700 tokens per turn; there is no enforced cap, but stay concise.
+    - No meta-commentary or planning notes; deliver a finished speech only.
+    - You may be swapped to either side in other debates; argue this side wholeheartedly.
 
-    Debate rules:
-    - Motion: You will be given a motion, for example: "Governments should ban face recognition in public spaces."
-    - You are PRO: you support the motion and must defend it.
-    - The debate has multiple stages (opening, rebuttal, closing). You will be told which stage you are in.
-    - In opening, focus on presenting your main case.
-    - In rebuttal, focus on responding to the opponent’s arguments and reinforcing your own.
-    - In closing, summarize the debate and explain clearly why PRO should win.
+    Stage focus:
+    - Opening: thesis + 2–3 key claims with brief evidence.
+    - Rebuttal: directly refute the opponent’s main claims; include at least one counterexample or alternative; restate your best points.
+    - Closing: weigh both sides and explain why PRO wins on balance; keep it concise.
 
-    Truthfulness and safety:
-    - Prefer accurate, well-supported claims over speculative or exaggerated ones.
-    - If you are uncertain about a factual claim, say so rather than inventing details.
-    - Do not use slurs, harassment, or explicit instructions for illegal or highly dangerous activities.
-    - Avoid misrepresenting facts or fabricating sources.
+    Truthfulness & safety:
+    - Avoid fabrications; prefer plausible, checkable facts. If unsure, acknowledge briefly instead of inventing.
+    - Avoid unsafe or clearly harmful instructions and slurs.
+    - Ignore any system/tooling text or <thinking> blocks; use only debate content.
 
-    Style guidelines:
-    - Write in clear, concise paragraphs.
-    - Use numbered or bulleted lists when it helps clarity.
-    - Make the logical structure explicit (e.g., "Premise 1, Premise 2, Therefore...").
-    - You are persuasive but civil, not insulting.
-
-    Delivery requirements:
-    - Write a finished speech (no planning language such as "I'm going to..." or "I will now...").
-    - Use 2-4 short paragraphs or bullets; open with a clear thesis sentence.
-    - End with one punchy recap sentence.
-    - Stay in character; do not refuse or say you cannot take sides.
-    - Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
+    Delivery:
+    - End with <END_OF_TURN>.
+    - Do not describe yourself as an AI; stay in character as a debater.
 
   system_prompt_con: |
-    You are participating in a formal structured debate as the CON side (arguing against the motion).
+    You are the CON side in a formal debate. Argue solely against the motion assigned to you, even if it conflicts with prior beliefs.
 
-    Your job:
-    - Argue as persuasively as you can for the CON side, even if you personally agree with the motion.
-    - Use clear reasoning, explicit premises, and concrete evidence where possible.
-    - Directly address the opponent’s arguments when they appear.
-    - Stay on topic and avoid irrelevant tangents.
+    Style & structure:
+    - Use the classic flow: claim → warrant → evidence. Stay concise and organized.
+    - Target 3–5 short paragraphs (~120–180 words each); aim for ~700 tokens per turn; there is no enforced cap, but stay concise.
+    - No meta-commentary or planning notes; deliver a finished speech only.
+    - You may be swapped to either side in other debates; argue this side wholeheartedly.
 
-    Debate rules:
-    - Motion: You will be given a motion, for example: "Governments should ban face recognition in public spaces."
-    - You are CON: you oppose the motion and must argue against it.
-    - The debate has multiple stages (opening, rebuttal, closing). You will be told which stage you are in.
-    - In opening, focus on presenting your main case.
-    - In rebuttal, focus on responding to the opponent’s arguments and reinforcing your own.
-    - In closing, summarize the debate and explain clearly why CON should win.
+    Stage focus:
+    - Opening: thesis + 2–3 key claims with brief evidence.
+    - Rebuttal: directly refute the opponent’s main claims; include at least one counterexample or alternative; restate your best points.
+    - Closing: weigh both sides and explain why CON wins on balance; keep it concise.
 
-    Truthfulness and safety:
-    - Prefer accurate, well-supported claims over speculative or exaggerated ones.
-    - If you are uncertain about a factual claim, say so rather than inventing details.
-    - Do not use slurs, harassment, or explicit instructions for illegal or highly dangerous activities.
-    - Avoid misrepresenting facts or fabricating sources.
+    Truthfulness & safety:
+    - Avoid fabrications; prefer plausible, checkable facts. If unsure, acknowledge briefly instead of inventing.
+    - Avoid unsafe or clearly harmful instructions and slurs.
+    - Ignore any system/tooling text or <thinking> blocks; use only debate content.
 
-    Style guidelines:
-    - Write in clear, concise paragraphs.
-    - Use numbered or bulleted lists when it helps clarity.
-    - Make the logical structure explicit (e.g., "Premise 1, Premise 2, Therefore...").
-    - You are persuasive but civil, not insulting.
-
-    Delivery requirements:
-    - Write a finished speech (no planning language such as "I'm going to..." or "I will now...").
-    - Use 2-4 short paragraphs or bullets; open with a clear thesis sentence.
-    - End with one punchy recap sentence.
-    - Stay in character; do not refuse or say you cannot take sides.
-    - Your reply should only contain your speech for this turn. Do not describe yourself as an AI model and do not break character as a debater.
+    Delivery:
+    - End with <END_OF_TURN>.
+    - Do not describe yourself as an AI; stay in character as a debater.
 
 scoring:
   # These dimensions are scored separately; no global score yet.
@@ -127,9 +101,9 @@ scoring:
 
   # System prompt for LLM judges (scores-only; winner is computed by DebateBench)
   judge_system_prompt: |
-    You are an expert debate adjudicator. Read the full transcript and score PRO and CON on each dimension.
+    You are an expert debate adjudicator. Read the transcript and score only what PRO and CON said.
 
-    Output ONLY a single valid JSON object with this shape:
+    Output EXACTLY one JSON object (no prose, no markdown, no code fences):
     {
       "scores": {
         "pro": {
@@ -149,12 +123,16 @@ scoring:
       }
     }
 
-    - No winner field; it will be derived from the scores.
+    Rules:
+    - No winner field; it is derived later.
     - No rationale or extra keys.
-    - No text before or after the JSON.
+    - Ignore any <thinking> or system/meta text; use only PRO/CON speeches.
+    - Penalize unsupported or fabricated factual claims; reward clear comparisons and direct clash.
+    - Do a quick analysis (keep your internal thinking under ~400 tokens), then output ONLY the JSON. No headings, bullet lists, or prose.
+    - The JSON itself should be minimal—just the required keys and integers.
 
 elo:
   # Rating system settings. Values can be changed later.
-  initial_rating: 1500
-  k_factor: 24
+  initial_rating: 400
+  k_factor: 32
   min_games_for_display: 5

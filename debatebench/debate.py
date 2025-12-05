@@ -53,6 +53,10 @@ def _build_prompt(topic: Topic, stage: str, speaker: str, turns: List[Turn], con
 
 
 def _strip_end_marker(text: str) -> str:
+    # Remove the explicit marker and any partial/truncated fragments of it.
+    idx = text.find("<END_OF_")
+    if idx != -1:
+        text = text[:idx]
     return text.replace("<END_OF_TURN>", "").strip()
 
 
