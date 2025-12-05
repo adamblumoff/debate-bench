@@ -45,6 +45,8 @@ debatebench inspect-debate <debate_uuid>
 - `debatebench plot` -- render PNGs from summary CSVs.
 - `debatebench upload-results` -- upload a file or directory tree to S3 (`--bucket`, optional `--prefix`, `--profile`, `--region`, `--dry-run`). Uses SSE-S3 by default; requires your AWS creds to allow List/Put/Get (and Delete if needed) on the target bucket.
 
+Results utilities (`rate`, `show-leaderboard`, `inspect-debate`, `summarize`, `plot`, `upload-results`) are also grouped under `debatebench results <command>`; flags are identical to the flat commands.
+
 ## Configuration Layout (`configs/`)
 - `config.yaml` -- benchmark metadata, rounds (speaker/stage/token limit), scoring dimensions and scale, judge count, Elo settings. Judge prompt expects scores-only JSON; winner is derived by DebateBench.
   - Debater prompts now include concise side-anchored guidance (claim→warrant→evidence, token-aware, no meta, <END_OF_TURN> required) with stage-specific focus for opening/rebuttal/closing.
