@@ -23,16 +23,16 @@ from rich.table import Table
 import boto3
 from botocore.exceptions import BotoCoreError, NoCredentialsError
 
-from . import config as cfg
-from .debate import run_debate, EmptyResponseError
-from .judge import run_judge_panel
-from .models import build_debater_adapter, build_judge_adapter, sample_judges
-from .openrouter import fetch_recent_openrouter_models, probe_model
-from .rating import recompute_ratings
-from .schema import DebateRecord, DebaterModelConfig, JudgeModelConfig
-from .storage import append_debate_record, load_debate_records, read_ratings, write_ratings
-from .settings import load_settings
-from .plot_style import apply_dark_theme, style_axes
+from .. import config as cfg
+from ..debate import run_debate, EmptyResponseError
+from ..judge import run_judge_panel
+from ..models import build_debater_adapter, build_judge_adapter, sample_judges
+from ..openrouter import fetch_recent_openrouter_models, probe_model
+from ..rating import recompute_ratings
+from ..schema import DebateRecord, DebaterModelConfig, JudgeModelConfig
+from ..storage import append_debate_record, load_debate_records, read_ratings, write_ratings
+from ..settings import load_settings
+from ..plot_style import apply_dark_theme, style_axes
 from collections import defaultdict
 import csv
 import pandas as pd
