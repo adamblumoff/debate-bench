@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   title: "DebateBench Dashboard",
   description: "Interactive, signed-S3-backed view of debate results",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
   },
 };
 
