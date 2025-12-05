@@ -79,6 +79,14 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
     if (fetched >= 5_000) break;
   } while (token);
 
+  // Sort newest-first for UI display
+  runs.sort((a, b) => {
+    const ta = a.updated ? Date.parse(a.updated) : 0;
+    const tb = b.updated ? Date.parse(b.updated) : 0;
+    if (tb !== ta) return tb - ta;
+    return a.key.localeCompare(b.key);
+  });
+
   return runs;
 }
 
