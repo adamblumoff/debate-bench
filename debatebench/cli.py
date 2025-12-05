@@ -1007,8 +1007,167 @@ def run_command(
             return {}
         return pricing
 
+    def _load_activity_pricing(activity_path: Optional[Path] = None) -> Tuple[Dict[str, Tuple[float, float]], Optional[Path]]:
+        """
+        Build per-model prompt/completion token rates from an OpenRouter activity JSON.
+        Uses a blended rate: usage / (prompt+completion+reasoning tokens).
+        """
+        if activity_path is None:
+            candidates = sorted(Path("results").glob("openrouter_activity_*.json"))
+            if not candidates:
+                return {}, None
+            activity_path = candidates[-1]
+        if not activity_path.exists():
+            return {}, None
+
+        try:
+            raw = json.loads(activity_path.read_text())
+            records = raw.get("data") if isinstance(raw, dict) else raw
+        except Exception:
+            return {}, None
+        if not isinstance(records, list):
+            return {}, None
+
+        agg: Dict[str, Dict[str, float]] = {}
+        for rec in records:
+            try:
+                model = rec.get("model") or rec.get("model_permaslug")
+                usage = float(rec.get("usage", 0) or 0.0)
+                pt = int(rec.get("prompt_tokens", 0) or 0)
+                ct = int(rec.get("completion_tokens", 0) or 0)
+                rt = int(rec.get("reasoning_tokens", 0) or 0)
+            except Exception:
+                continue
+            if not model or usage <= 0:
+                continue
+            bucket = agg.setdefault(model, {"usage": 0.0, "pt": 0, "ct": 0, "rt": 0})
+            bucket["usage"] += usage
+            bucket["pt"] += pt
+            bucket["ct"] += ct
+            bucket["rt"] += rt
+
+        pricing: Dict[str, Tuple[float, float]] = {}
+        for model, vals in agg.items():
+            total_tokens = vals["pt"] + vals["ct"] + vals["rt"]
+            if total_tokens <= 0:
+                continue
+            rate = vals["usage"] / total_tokens
+            pricing[model] = (rate, rate)
+        return pricing, activity_path
+
+    def _load_token_stats(debates_path: Optional[Path] = None):
+        """
+        Load historical average prompt/completion tokens per debater and judge from the
+        most recent debates_*.jsonl (or a specific path if provided).
+        Returns (debater_stats, judge_stats, source_path)
+        debater_stats: model_id -> {"prompt_avg": float, "completion_avg": float}
+        judge_stats: judge_id -> {"prompt_avg": float, "completion_avg": float}
+        """
+        if debates_path is None:
+            candidates = sorted(Path("results").glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime)
+            if not candidates:
+                return {}, {}, None
+            debates_path = candidates[-1]
+
+        debater_totals: Dict[str, Dict[str, float]] = {}
+        debater_counts: Dict[str, int] = {}
+        judge_totals: Dict[str, Dict[str, float]] = {}
+        judge_counts: Dict[str, int] = {}
+        judge_samples: Dict[str, Dict[str, list[float]]] = {}
+
+        try:
+            with debates_path.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rec = json.loads(line)
+                    tr = rec.get("transcript") or {}
+                    for turn in tr.get("turns", []):
+                        pt = turn.get("prompt_tokens")
+                        ct = turn.get("completion_tokens")
+                        if pt is None or ct is None:
+                            continue
+                        speaker = turn.get("speaker")
+                        mid = tr.get("pro_model_id") if speaker == "pro" else tr.get("con_model_id")
+                        if not mid:
+                            continue
+                        agg = debater_totals.setdefault(mid, {"pt": 0.0, "ct": 0.0})
+                        agg["pt"] += pt
+                        agg["ct"] += ct
+                        debater_counts[mid] = debater_counts.get(mid, 0) + 1
+                    for jres in rec.get("judges", []):
+                        pid = jres.get("judge_id")
+                        pt = jres.get("prompt_tokens")
+                        ct = jres.get("completion_tokens")
+                        if pid is None or pt is None or ct is None:
+                            continue
+                        agg = judge_totals.setdefault(pid, {"pt": 0.0, "ct": 0.0})
+                        agg["pt"] += pt
+                        agg["ct"] += ct
+                        judge_counts[pid] = judge_counts.get(pid, 0) + 1
+                        samples = judge_samples.setdefault(pid, {"pt": [], "ct": []})
+                        samples["pt"].append(pt)
+                        samples["ct"].append(ct)
+        except Exception:
+            return {}, {}, None
+
+        debater_stats = {}
+        for mid, totals in debater_totals.items():
+            n = debater_counts.get(mid, 0)
+            if n:
+                debater_stats[mid] = {
+                    "prompt_avg": totals["pt"] / n,
+                    "completion_avg": totals["ct"] / n,
+                }
+        judge_stats = {}
+        for pid, totals in judge_totals.items():
+            n = judge_counts.get(pid, 0)
+            if n:
+                # Use a low percentile (10th) to stay conservative for judges and cap prompts/completions.
+                def pct(vals: list[float], p: float) -> float:
+                    if not vals:
+                        return 0.0
+                    s = sorted(vals)
+                    if len(s) == 1:
+                        return s[0]
+                    idx = min(len(s) - 1, max(0, int(round(p * (len(s) - 1)))))
+                    return s[idx]
+
+                def median(vals: list[float]) -> float:
+                    if not vals:
+                        return 0.0
+                    s = sorted(vals)
+                    k = len(s)
+                    mid = k // 2
+                    if k % 2:
+                        return s[mid]
+                    return 0.5 * (s[mid - 1] + s[mid])
+
+                samples = judge_samples.get(pid, {"pt": [], "ct": []})
+                prompt_raw = pct(samples.get("pt", []), 0.10) if samples.get("pt") else totals["pt"] / n
+                completion_raw = pct(samples.get("ct", []), 0.10) if samples.get("ct") else totals["ct"] / n
+                prompt_med = median(samples.get("pt", [])) if samples.get("pt") else prompt_raw
+                completion_med = median(samples.get("ct", [])) if samples.get("ct") else completion_raw
+                # Cap with median and tightened ceilings to avoid overestimation from heavy judges.
+                prompt_capped = min(prompt_raw, prompt_med, 1500.0)
+                completion_capped = min(completion_raw, completion_med, 250.0)
+                judge_stats[pid] = {
+                    "prompt_avg": prompt_capped,
+                    "completion_avg": completion_capped,
+                }
+        return debater_stats, judge_stats, debates_path
+
     def _estimate_cost(
-        debaters, judges, rounds, num_topics, debates_per_pair, balanced, pairs
+        debaters,
+        judges,
+        rounds,
+        num_topics,
+        debates_per_pair,
+        balanced,
+        pairs,
+        pricing_override: Optional[Dict[str, Tuple[float, float]]] = None,
+        token_stats: Optional[Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, float]]]] = None,
     ) -> Tuple[float, Dict[str, float], float, Dict[str, float]]:
         """
         Rough cost estimator using live OpenRouter pricing (USD per token) when available.
@@ -1018,7 +1177,7 @@ def run_command(
           - Judge: prompt tokens = sum(token_limit for all turns); completion ~200 tokens JSON
         """
         models_needed = {m.model for m in debaters} | {j.model for j in judges}
-        live = _fetch_pricing(models_needed)
+        pricing = pricing_override or _fetch_pricing(models_needed)
 
         def side_token_budget():
             limits = [r.token_limit for r in rounds if r.speaker == "pro"]
@@ -1029,18 +1188,26 @@ def run_command(
             first_turn = limits[0]
             prompt = comp + max(0, comp - first_turn)
             return prompt, comp
+        turns_per_side = len([r for r in rounds if r.speaker == "pro"])
 
         prompt_side, comp_side = side_token_budget()
+        debater_stats = token_stats[0] if token_stats else {}
+        judge_stats = token_stats[1] if token_stats else {}
         per_model_cost: Dict[str, float] = {}
         total_debater_cost = 0.0
         debates_per_pair_total = debates_per_pair * num_topics
         for a, b in pairs:
             for model, tokens in ((a, (prompt_side, comp_side)), (b, (prompt_side, comp_side))):
-                rates = live.get(model.model)
+                if model.id in debater_stats:
+                    # Use historical per-turn averages instead of token limits
+                    prompt_tokens = debater_stats[model.id]["prompt_avg"] * turns_per_side
+                    comp_tokens = debater_stats[model.id]["completion_avg"] * turns_per_side
+                else:
+                    prompt_tokens, comp_tokens = tokens
+                rates = pricing.get(model.model)
                 if not rates:
                     continue
                 p_rate, c_rate = rates
-                prompt_tokens, comp_tokens = tokens
                 cost = prompt_tokens * p_rate + comp_tokens * c_rate
                 per_model_cost[model.id] = per_model_cost.get(model.id, 0.0) + cost * debates_per_pair_total
                 total_debater_cost += cost * debates_per_pair_total
@@ -1051,11 +1218,17 @@ def run_command(
         total_judge_cost = 0.0
         judge_calls = len(pairs) * debates_per_pair_total
         for j in judges:
-            rates = live.get(j.model)
+            if j.id in judge_stats:
+                prompt_tokens = judge_stats[j.id]["prompt_avg"]
+                comp_tokens = judge_stats[j.id]["completion_avg"]
+            else:
+                prompt_tokens = transcript_tokens
+                comp_tokens = judge_output_tokens
+            rates = pricing.get(j.model)
             if not rates:
                 continue
             p_rate, c_rate = rates
-            cost = transcript_tokens * p_rate + judge_output_tokens * c_rate
+            cost = prompt_tokens * p_rate + comp_tokens * c_rate
             per_judge_cost[j.id] = cost * judge_calls
             total_judge_cost += cost * judge_calls
 
@@ -1129,10 +1302,33 @@ def run_command(
 
     if dry_run:
         judge_calls = total_runs * main_cfg.num_judges
+        # Prefer activity-derived pricing (last 30 days) and fall back to live catalog for gaps.
+        activity_pricing, activity_path = _load_activity_pricing()
+        models_needed = {m.model for m in debater_models} | {j.model for j in judge_models}
+        pricing_map = _fetch_pricing(models_needed)
+        pricing_source_label = "live (OpenRouter catalog)"
+        if activity_pricing:
+            pricing_map.update(activity_pricing)  # activity overrides live for better empirical averages
+            if activity_path:
+                pricing_source_label = f"activity ({activity_path.name}) + live fallback"
+            else:
+                pricing_source_label = "activity + live fallback"
+        # Load historical token stats (latest debates_* file) to tighten cost estimates.
+        deb_stats, judge_stats, stats_path = _load_token_stats()
+        stats_label = f"turn averages from {stats_path.name}" if stats_path else "no historical token stats"
         total_debater_cost, per_model_cost, total_judge_cost, per_judge_cost = _estimate_cost(
-            debater_models, judge_models, main_cfg.rounds, len(topics_selected), debates_per_pair, balanced_sides, pairs
+            debater_models,
+            judge_models,
+            main_cfg.rounds,
+            len(topics_selected),
+            debates_per_pair,
+            balanced_sides,
+            pairs,
+            pricing_override=pricing_map,
+            token_stats=(deb_stats, judge_stats),
         )
         console.print("[green]Dry run (no debates executed).[/green]")
+        console.print(f"[cyan]Cost pricing source:[/cyan] {pricing_source_label} | {stats_label}")
         console.print(
             f"Topics={len(topics_selected)}, Debaters={len(debater_models)}, Judges={len(judge_models)}, "
             f"Debates planned={total_runs}, Judge calls={judge_calls}"
