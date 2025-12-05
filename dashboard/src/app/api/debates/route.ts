@@ -1,7 +1,5 @@
-import { serverEnv } from "@/lib/env";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { resolveRun } from "@/lib/server/runs";
+import { fetchObjectStream } from "@/lib/server/s3";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,20 +16,16 @@ export async function GET(request: Request) {
     throw err;
   }
 
-  const s3 = new S3Client({ region: run.region });
-  const command = new GetObjectCommand({ Bucket: run.bucket, Key: run.key });
-  const url = await getSignedUrl(s3, command, { expiresIn: serverEnv.urlExpirySeconds });
-
-  const res = await fetch(url);
-  if (!res.ok || !res.body) {
+  try {
+    const { body, contentType } = await fetchObjectStream(run);
+    return new Response(body, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch {
     return new Response("Failed to fetch object", { status: 502 });
   }
-
-  return new Response(res.body, {
-    status: 200,
-    headers: {
-      "Content-Type": res.headers.get("Content-Type") || "application/jsonl",
-      "Cache-Control": "no-store",
-    },
-  });
 }

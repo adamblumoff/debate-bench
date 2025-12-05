@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverEnv } from "@/lib/env";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { resolveRun } from "@/lib/server/runs";
+import { getSignedObjectUrl } from "@/lib/server/s3";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +23,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Key not allowed" }, { status: 400 });
   }
   const expiresIn = serverEnv.urlExpirySeconds;
-  const s3 = new S3Client({ region: run.region });
-  const command = new GetObjectCommand({ Bucket: run.bucket, Key: key });
-  const url = await getSignedUrl(s3, command, { expiresIn });
+  const url = await getSignedObjectUrl(run, key, expiresIn);
   return NextResponse.json({ url, expiresIn });
 }
