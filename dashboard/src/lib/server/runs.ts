@@ -8,7 +8,8 @@ export type RunConfig = {
   bucket: string;
   region: string;
   key: string;
-  updated?: string;
+  updated?: string; // ISO timestamp with date/time
+  updatedMs?: number;
 };
 
 type ManifestPayload = {
@@ -64,7 +65,8 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
       if (!/debates.*\.jsonl$/i.test(key)) continue;
       const id = deriveId(key, seen);
       seen.add(id);
-      const updated = obj.LastModified ? obj.LastModified.toISOString().slice(0, 10) : undefined;
+      const updated = obj.LastModified ? obj.LastModified.toISOString() : undefined;
+      const updatedMs = obj.LastModified ? obj.LastModified.getTime() : undefined;
       runs.push({
         id,
         label: deriveLabel(key),
@@ -72,6 +74,7 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
         region: serverEnv.region,
         key,
         updated,
+        updatedMs,
       });
     }
     fetched += res.KeyCount || 0;
@@ -81,8 +84,8 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
 
   // Sort newest-first for UI display
   runs.sort((a, b) => {
-    const ta = a.updated ? Date.parse(a.updated) : 0;
-    const tb = b.updated ? Date.parse(b.updated) : 0;
+    const ta = a.updatedMs ?? (a.updated ? Date.parse(a.updated) : 0);
+    const tb = b.updatedMs ?? (b.updated ? Date.parse(b.updated) : 0);
     if (tb !== ta) return tb - ta;
     return a.key.localeCompare(b.key);
   });
@@ -93,8 +96,8 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
 function pickDefaultRunId(runs: RunConfig[]): string {
   if (!runs.length) return "default";
   const sorted = [...runs].sort((a, b) => {
-    const ta = a.updated ? Date.parse(a.updated) : 0;
-    const tb = b.updated ? Date.parse(b.updated) : 0;
+    const ta = a.updatedMs ?? (a.updated ? Date.parse(a.updated) : 0);
+    const tb = b.updatedMs ?? (b.updated ? Date.parse(b.updated) : 0);
     return tb - ta;
   });
   return sorted[0].id;

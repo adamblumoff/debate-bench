@@ -71,8 +71,16 @@ function DashboardContent() {
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
 
-  const runOptions = manifest?.runs || [];
-  const selectedRun = runOptions.find((r) => r.id === runId) || (manifest && runOptions.find((r) => r.id === manifest.defaultRunId));
+  const sortedRunOptions = useMemo(() => {
+    const options = manifest?.runs || [];
+    return [...options].sort((a, b) => {
+      const ta = a.updated ? Date.parse(a.updated) : 0;
+      const tb = b.updated ? Date.parse(b.updated) : 0;
+      if (tb !== ta) return tb - ta;
+      return a.label.localeCompare(b.label);
+    });
+  }, [manifest?.runs]);
+  const selectedRun = sortedRunOptions.find((r) => r.id === runId) || (manifest && sortedRunOptions.find((r) => r.id === manifest.defaultRunId));
 
   const onRunChange = useCallback(
     (id: string) => {
@@ -105,7 +113,7 @@ function DashboardContent() {
       <div className="container-page space-y-8 pb-28">
         <div className="flex flex-col gap-3">
           <RunControls
-            runOptions={runOptions}
+            runOptions={sortedRunOptions}
             runId={runId}
             selectedRun={selectedRun}
             manifestLoading={manifestLoading}
