@@ -26,7 +26,7 @@ debatebench inspect-debate <debate_uuid>
 
 ## CLI Commands
 - `debatebench init` -- generate default config templates and create `results/`.
-- `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from last 4 months), `high_tokens` stage limits (3200/2200/1400) with per-model token bumps, seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note:
+- `debatebench run` -- execute debates for all model pairs/topics. Defaults: topic picker on, OpenRouter picker (text-in/text-out models from the last 4 months), **no fixed stage caps unless you pass `--apply-stage-token-limits`** (token limits otherwise come from the configs/model entries), seed=12345. Judges can come from the debater pool (`--judges-from-selection`, default off) and, when enabled, the two active debaters are excluded from the judge sampler. Flags of note:
   - `--dry-run` (plan only, shows cost using live OpenRouter pricing and writes `dryrun_schedule.json`)
   - `--resume` (skip already-written debates), `--skip-on-empty`
   - `--balanced-judges/--random-judges` (default balanced: least-used-first to even judge usage across the run)
@@ -66,7 +66,7 @@ OpenRouter example (`models.yaml`):
 ```
 
 ## Outputs (`results/`)
-- `debates_<tag>.jsonl` -- one `DebateRecord` per line (transcript, judges, aggregate scores, timings, token usage).
+- `debates_<tag>.jsonl` -- one `DebateRecord` per line (transcript, judges, aggregate scores, timings, token usage). If you omit `--run-tag`, the tag defaults to a UTC timestamp (`run-YYYYMMDD-HHMMSS`) and the debates file is auto-suffixed accordingly.
 - `ratings_<tag>.json` -- Elo ratings and per-dimension averages.
 - `viz_<tag>/` -- CSV summaries (winner counts, topic win rates, dimension averages, judge agreement, token usage, etc.).
 - `plots_<tag>/` -- PNGs generated from the CSVs.
