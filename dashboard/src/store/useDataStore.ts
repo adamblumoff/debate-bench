@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import useSWR from "swr";
 import { DerivedData } from "@/lib/types";
+import { MetricsResponse } from "@/lib/apiTypes";
 
 interface DataState {
   status: "idle" | "loading" | "ready" | "error";
@@ -26,7 +27,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       const qs = qsParts.length ? `?${qsParts.join("&")}` : "";
       const res = await fetch(`/api/metrics${qs}`);
       if (!res.ok) throw new Error(`Failed fetch /api/metrics: ${res.status}`);
-      const json = await res.json();
+      const json: MetricsResponse = await res.json();
       set({ status: "ready", derived: json.derived, derivedByCategory: json.derivedByCategory, meta: json.meta, currentRun: runId });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";

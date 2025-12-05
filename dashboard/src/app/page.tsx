@@ -18,7 +18,7 @@ import { buildHighlightLists, buildHighlightSpecs, buildKpis, selectHighlightDer
 import { ChartCard } from "@/components/ChartCard";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
-import { RunConfig } from "@/lib/server/runs";
+import { ManifestResponse } from "@/lib/apiTypes";
 
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) throw new Error(`Fetch failed ${res.status}`);
@@ -28,7 +28,7 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<{ runs: RunConfig[]; defaultRunId: string }>("/api/manifest", fetcher, { revalidateOnFocus: false });
+  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<ManifestResponse>("/api/manifest", fetcher, { revalidateOnFocus: false });
 
   const runFromUrl = searchParams.get("run") || undefined;
   const runId = useMemo(() => {
