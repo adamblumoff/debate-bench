@@ -52,6 +52,15 @@ export interface DebateRecord {
   aggregate: DebateAggregate;
   judges: JudgeDecision[];
   created_at?: string;
+  judges_expected?: number;
+  judges_actual?: number;
+  panel_complete?: boolean;
+  panel_latency_ms?: number;
+  debate_seed?: number;
+  elo?: {
+    initial_rating: number;
+    k_factor: number;
+  };
 }
 
 export interface ModelStats {

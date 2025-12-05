@@ -57,7 +57,7 @@ class DebaterModelConfig(BaseModel):
     model: str
     token_limit: Optional[int] = None
     endpoint: Optional[str] = None
-    parameters: Dict[str, str] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class JudgeModelConfig(BaseModel):
@@ -67,7 +67,7 @@ class JudgeModelConfig(BaseModel):
     endpoint: Optional[str] = None
     prompt_style: Optional[str] = None
     token_limit: Optional[int] = None
-    parameters: Dict[str, str] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Turn(BaseModel):
@@ -121,6 +121,12 @@ class DebateRecord(BaseModel):
     judges: List[JudgeResult]
     aggregate: AggregatedResult
     created_at: datetime
+    judges_expected: int | None = None
+    judges_actual: int | None = None
+    panel_complete: bool | None = None
+    panel_latency_ms: float | None = None
+    debate_seed: int | None = None
+    elo: EloConfig | None = None
 
 
 class RatingEntry(BaseModel):

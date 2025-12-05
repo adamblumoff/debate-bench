@@ -46,6 +46,15 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     return a.idx - b.idx;
   });
 
+  const defaultInitial = 400;
+  const defaultK = 32;
+  const eloInitial =
+    typeof debates[0]?.elo?.initial_rating === "number"
+      ? debates[0].elo!.initial_rating
+      : defaultInitial;
+  const kFactor =
+    typeof debates[0]?.elo?.k_factor === "number" ? debates[0].elo!.k_factor : defaultK;
+
   const statsMap = new Map<string, ModelStats>();
   const ratings = new Map<string, number>();
   const tokenAgg = new Map<
@@ -63,7 +72,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     if (!statsMap.has(id)) {
       statsMap.set(id, {
         model_id: id,
-        rating: 1500,
+        rating: eloInitial,
         wins: 0,
         losses: 0,
         ties: 0,
@@ -82,7 +91,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
   };
 
   const ensureRating = (id: string) => {
-    if (!ratings.has(id)) ratings.set(id, 1500);
+    if (!ratings.has(id)) ratings.set(id, eloInitial);
     return ratings.get(id)!;
   };
 
@@ -92,8 +101,6 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
   };
 
   const hkey = (a: string, b: string) => `${a}|||${b}`;
-
-  const kFactor = 24;
 
   for (const { d } of withIndex) {
     const { pro_model_id: pro, con_model_id: con, topic } = d.transcript;

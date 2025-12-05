@@ -128,11 +128,8 @@ def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, sca
                         con[dim] = v
                 break
 
-    if pro and con:
-        # fill missing
-        for dim in dim_ids:
-            pro.setdefault(dim, scale_min)
-            con.setdefault(dim, scale_min)
+    # Only accept if every dimension was captured for both sides.
+    if all(dim in pro for dim in dim_ids) and all(dim in con for dim in dim_ids):
         return pro, con
     return None
 
@@ -140,7 +137,7 @@ def _extract_scores_from_text(text: str, dim_ids: List[str], scale_min: int, sca
 def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_max: int) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
     Lenient parser: accepts ints/floats/strings, case-insensitive dim keys, clamps to range,
-    and fills missing dims with scale_min if absent.
+    and rejects responses that omit any required dimension.
     """
     if not isinstance(payload, dict):
         raise ValueError("Judge response is not a JSON object.")
@@ -161,8 +158,7 @@ def _parse_json_scores(payload: dict, dim_ids: List[str], scale_min: int, scale_
             elif dim.lower() in lower_map:
                 val = lower_map[dim.lower()]
             if val is None:
-                # Fill missing with minimum to avoid drop
-                val = scale_min
+                raise ValueError(f"Missing score for dimension '{dim}'.")
             # Coerce types
             if isinstance(val, str):
                 try:
@@ -209,9 +205,9 @@ def run_single_judge(
         template_hint = _json.dumps(template_obj, separators=(",", ":"))
 
     attempts = [
-        {"structured": True, "reinforce_json": True, "format_hint": None, "template": None},
-        {"structured": False, "reinforce_json": True, "format_hint": "json_object", "template": None},
-        {"structured": False, "reinforce_json": True, "format_hint": None, "template": template_hint},
+        {"structured": True, "reinforce_json": True, "format_hint": None, "template": template_hint},
+        {"structured": True, "reinforce_json": True, "format_hint": "json_object", "template": template_hint},
+        {"structured": True, "reinforce_json": True, "format_hint": None, "template": template_hint},
     ]
 
     last_error: Optional[Exception] = None
@@ -306,21 +302,52 @@ def aggregate_panel(results: List[JudgeResult]) -> AggregatedResult:
 
 
 def run_judge_panel(
-    judge_adapters: List[JudgeAdapter],
+    candidate_adapters: List[JudgeAdapter],
     transcript: Transcript,
     config: MainConfig,
+    expected: int,
+    usage: Optional[Dict[str, int]] = None,
     seed: int | None = None,
     log=None,
 ) -> Tuple[List[JudgeResult], AggregatedResult]:
+    """
+    Try candidates in order until `expected` valid judge results are collected.
+    Falls back through the remaining candidates; raises if we cannot reach the
+    target count.
+    """
+    rng = None
+    if seed is not None:
+        import random
+
+        rng = random.Random(seed)
+
+    def sort_key(adapter: JudgeAdapter):
+        count = usage.get(adapter.config.id, 0) if usage is not None else 0
+        tie = rng.random() if rng else 0.0
+        return (count, tie, adapter.config.id)
+
+    queue = sorted(candidate_adapters, key=sort_key)
     results: List[JudgeResult] = []
-    for adapter in judge_adapters:
+    tried: set[str] = set()
+
+    for adapter in queue:
+        if adapter.config.id in tried:
+            continue
+        tried.add(adapter.config.id)
         try:
-            results.append(run_single_judge(adapter, transcript, config))
+            res = run_single_judge(adapter, transcript, config)
+            results.append(res)
+            if usage is not None:
+                usage[adapter.config.id] = usage.get(adapter.config.id, 0) + 1
         except Exception as e:
             if log:
                 log(f"[yellow]Judge {adapter.config.id} dropped: {e}[/yellow]")
             continue
-    if not results:
-        raise RuntimeError("All judges failed to return valid JSON.")
+        if len(results) >= expected:
+            break
+
+    if len(results) < expected:
+        raise RuntimeError(f"Collected {len(results)} of {expected} judges.")
+
     aggregate = aggregate_panel(results)
     return results, aggregate

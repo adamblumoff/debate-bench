@@ -42,13 +42,13 @@ def _build_prompt(topic: Topic, stage: str, speaker: str, turns: List[Turn], con
     parts = []
     if role_prompt:
         parts.append(role_prompt.strip())
-    parts.append(f"Motion: {topic.motion}")
+    parts.append(f"Motion:\n{topic.motion}")
     parts.append(f"Role: {speaker.upper()}")
     parts.append(f"Stage: {stage}")
     parts.append(stage_guidance)
     parts.append(instructions)
     if history:
-        parts.append("History:\n" + history)
+        parts.append("BEGIN HISTORY\n" + history + "\nEND HISTORY")
     return "\n\n".join(parts)
 
 

@@ -4,6 +4,7 @@ CLI entrypoints for DebateBench.
 from __future__ import annotations
 
 import itertools
+import hashlib
 import json
 import shutil
 from typing import Dict, Tuple
@@ -459,6 +460,11 @@ def run_command(
     balanced_sides: bool = typer.Option(
         True, help="Ensure each model pair plays both sides (permutations). Disable for combinations."
     ),
+    balanced_judges: bool = typer.Option(
+        True,
+        "--balanced-judges/--random-judges",
+        help="Balance judge usage across the run (default). Disable to sample judges uniformly at random.",
+    ),
     openrouter_select: bool = typer.Option(
         True,
         "--openrouter-select/--no-openrouter-select",
@@ -520,6 +526,11 @@ def run_command(
     resume: bool = typer.Option(
         False,
         help="Resume a previous run: skip debates already present in the debates file for this run_tag.",
+    ),
+    retry_failed: bool = typer.Option(
+        True,
+        "--retry-failed/--no-retry-failed",
+        help="After completing the planned schedule, retry debates that failed (once).",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -583,6 +594,7 @@ def run_command(
         "seed": seed,
         "swap_sides": swap_sides,
         "balanced_sides": balanced_sides,
+        "balanced_judges": balanced_judges,
         "openrouter_select": openrouter_select,
         "openrouter_months": openrouter_months,
         "openrouter_temperature": openrouter_temperature,
@@ -599,6 +611,7 @@ def run_command(
         "judges_test": judges_test,
         "high_tokens": high_tokens,
         "resume": resume,
+        "retry_failed": retry_failed,
         "dry_run": dry_run,
         "postrate": postrate,
     }
@@ -613,6 +626,32 @@ def run_command(
 
     topics_selected = topics
     judge_output_max_tokens = int(openrouter_judge_max_tokens * 5)
+
+    def derive_debate_seed(tag: str, topic_id: str, pro_id: str, con_id: str, rep: int) -> int:
+        """
+        Deterministically derive a per-debate seed so resumes reproduce the same
+        side swaps and judge panels.
+        """
+        key = f"{tag}|{topic_id}|{pro_id}|{con_id}|{rep}".encode("utf-8")
+        digest = hashlib.blake2s(key, digest_size=8).digest()
+        # keep in 32-bit range for Random
+        return int.from_bytes(digest, "big") & 0x7FFFFFFF
+
+    def select_judges(
+        pool, expected: int, seed_val: int, usage_counts: dict[str, int]
+    ):
+        if len(pool) < expected:
+            raise typer.BadParameter(
+                f"Need at least {expected} judges after exclusions; found {len(pool)}."
+            )
+        rng = random.Random(seed_val)
+        if balanced_judges:
+            ordered = sorted(
+                pool,
+                key=lambda j: (usage_counts.get(j.id, 0), rng.random(), j.id),
+            )
+            return ordered[:expected]
+        return rng.sample(pool, expected)
 
     if quick_test and judges_test:
         raise typer.BadParameter("Choose only one of --quick-test or --judges-test.")
@@ -1034,11 +1073,14 @@ def run_command(
     else:
         pairs = list(itertools.combinations(debater_models, 2))
     completed_counts = defaultdict(int)
+    judge_usage = defaultdict(int)
     if resume and debates_path.exists():
         existing = load_debate_records(debates_path)
         for rec in existing:
             key = (rec.transcript.topic.id, rec.transcript.pro_model_id, rec.transcript.con_model_id)
             completed_counts[key] += 1
+            for jres in rec.judges:
+                judge_usage[jres.judge_id] += 1
         console.print(
             f"[cyan]Resume mode: found {len(existing)} completed debates in {debates_path}; will skip already-finished matchups.[/cyan]"
         )
@@ -1052,6 +1094,7 @@ def run_command(
     progress_path = run_dir / "progress.json"
     completed_new = 0
     banned_models = set()
+    failed_debates: list[tuple] = []
 
     if estimate_time:
         median_sec, hist_n = _historical_debate_durations(Path("results"))
@@ -1119,13 +1162,16 @@ def run_command(
         for jid, cost in sorted(per_judge_cost.items(), key=lambda kv: kv[1], reverse=True):
             console.print(f"  {jid}: ~${cost:.2f}")
         # Build a full schedule preview with per-debate judge sampling (matches run-time logic)
+        preview_usage = judge_usage.copy()
         schedule_preview = []
         for topic in topics_selected:
             for (model_a, model_b) in pairs:
                 for rep in range(debates_per_pair):
+                    debate_seed = derive_debate_seed(run_tag, topic.id, model_a.id, model_b.id, rep)
+                    debate_rng = random.Random(debate_seed)
                     pro_model = model_a
                     con_model = model_b
-                    if (not balanced_sides) and swap_sides and rng.random() < 0.5:
+                    if (not balanced_sides) and swap_sides and debate_rng.random() < 0.5:
                         pro_model, con_model = con_model, pro_model
                     judge_source_pool = list(judge_models)
                     if judges_from_selection:
@@ -1135,12 +1181,12 @@ def run_command(
                         if len(judge_source_pool) < main_cfg.num_judges:
                             judges_chosen = ["<insufficient judges after exclusion>"]
                         else:
-                            judges_chosen = [
-                                j.id
-                                for j in sample_judges(
-                                    judge_source_pool, main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
-                                )
-                            ]
+                            panel = select_judges(
+                                judge_source_pool, main_cfg.num_judges, debate_seed, preview_usage
+                            )
+                            judges_chosen = [j.id for j in panel]
+                            for j in panel:
+                                preview_usage[j.id] = preview_usage.get(j.id, 0) + 1
                     schedule_preview.append(
                         {
                             "topic": topic.id,
@@ -1173,9 +1219,11 @@ def run_command(
                 continue
             for rep in range(already_done, debates_per_pair):
                 run_index += 1
+                debate_seed = derive_debate_seed(run_tag, topic.id, model_a.id, model_b.id, rep)
+                debate_rng = random.Random(debate_seed)
                 pro_model = model_a
                 con_model = model_b
-                if (not balanced_sides) and swap_sides and rng.random() < 0.5:
+                if (not balanced_sides) and swap_sides and debate_rng.random() < 0.5:
                     pro_model, con_model = con_model, pro_model
 
                 pro_adapter = debater_adapters[pro_model.id]
@@ -1202,31 +1250,43 @@ def run_command(
                     # If judges are drawn from the debater set, exclude the two active debaters for this debate.
                     if judges_from_selection:
                         judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
-                    if len(judge_source_pool) < main_cfg.num_judges:
-                        raise typer.BadParameter(
-                            f"Need at least {main_cfg.num_judges} judges available after excluding debaters; "
-                            f"found {len(judge_source_pool)}. Increase model pool or lower num_judges."
-                        )
-                    judge_pool = sample_judges(
-                        judge_source_pool, main_cfg.num_judges, seed=rng.randint(0, 1_000_000)
+                    panel_configs = select_judges(
+                        judge_source_pool, main_cfg.num_judges, debate_seed, judge_usage
                     )
-                    judge_adapter_objs = [judge_adapters[j.id] for j in judge_pool]
+                    panel_adapters = [judge_adapters[j.id] for j in panel_configs]
+                    # Build candidate list: selected panel first, then remaining pool (balanced order)
+                    remaining_candidates = [
+                        j
+                        for j in judge_source_pool
+                        if j.id not in {cfg.id for cfg in panel_configs}
+                    ]
+                    remaining_adapters = [judge_adapters[j.id] for j in remaining_candidates]
+
                     console.print(
-                        f"  Judging with panel: {', '.join(j.id for j in judge_pool)}"
+                        f"  Judging with panel: {', '.join(j.id for j in panel_configs)}"
                     )
                     judge_results, aggregate = run_judge_panel(
-                        judge_adapter_objs,
-                        transcript,
-                        main_cfg,
-                        seed=rng.randint(0, 1_000_000),
+                        candidate_adapters=panel_adapters + remaining_adapters,
+                        transcript=transcript,
+                        config=main_cfg,
+                        expected=main_cfg.num_judges,
+                        usage=judge_usage,
+                        seed=debate_seed,
                         log=log,
                     )
 
+                    panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
                     record = DebateRecord(
                         transcript=transcript,
                         judges=judge_results,
                         aggregate=aggregate,
                         created_at=datetime.now(timezone.utc),
+                        judges_expected=main_cfg.num_judges,
+                        judges_actual=len(judge_results),
+                        panel_complete=len(judge_results) == main_cfg.num_judges,
+                        panel_latency_ms=panel_latency,
+                        debate_seed=debate_seed,
+                        elo=main_cfg.elo,
                     )
                     append_debate_record(debates_path, record)
                     completed_counts[key] = completed_counts.get(key, 0) + 1
@@ -1248,9 +1308,87 @@ def run_command(
                         console.print(f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]")
                         write_progress()
                     else:
-                        raise
+                        failed_debates.append((topic, pro_model, con_model, rep))
                 except Exception as e:
                     console.print(f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
+                    failed_debates.append((topic, pro_model, con_model, rep))
+
+    if retry_failed and failed_debates:
+        console.print(f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]")
+        retry_list = list(failed_debates)
+        failed_debates = []
+        for topic, model_a, model_b, rep in retry_list:
+            if model_a.id in banned_models or model_b.id in banned_models:
+                continue
+            key = (topic.id, model_a.id, model_b.id)
+            if completed_counts.get(key, 0) >= debates_per_pair:
+                continue
+            retry_seed = derive_debate_seed(run_tag, topic.id, model_a.id, model_b.id, rep) + 17
+            debate_rng = random.Random(retry_seed)
+            pro_model = model_a
+            con_model = model_b
+            if (not balanced_sides) and swap_sides and debate_rng.random() < 0.5:
+                pro_model, con_model = con_model, pro_model
+
+            pro_adapter = debater_adapters[pro_model.id]
+            con_adapter = debater_adapters[con_model.id]
+
+            try:
+                t0 = time.perf_counter()
+                transcript = run_debate(
+                    topic=topic,
+                    pro_adapter=pro_adapter,
+                    con_adapter=con_adapter,
+                    config=main_cfg,
+                    seed=seed,
+                    log=console.print,
+                )
+
+                judge_source_pool = list(judge_models)
+                if judges_from_selection:
+                    judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                panel_configs = select_judges(
+                    judge_source_pool, main_cfg.num_judges, retry_seed, judge_usage
+                )
+                remaining_candidates = [
+                    j for j in judge_source_pool if j.id not in {cfg.id for cfg in panel_configs}
+                ]
+                panel_adapters = [judge_adapters[j.id] for j in panel_configs]
+                remaining_adapters = [judge_adapters[j.id] for j in remaining_candidates]
+
+                judge_results, aggregate = run_judge_panel(
+                    candidate_adapters=panel_adapters + remaining_adapters,
+                    transcript=transcript,
+                    config=main_cfg,
+                    expected=main_cfg.num_judges,
+                    usage=judge_usage,
+                    seed=retry_seed,
+                    log=console.print,
+                )
+
+                panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
+                record = DebateRecord(
+                    transcript=transcript,
+                    judges=judge_results,
+                    aggregate=aggregate,
+                    created_at=datetime.now(timezone.utc),
+                    judges_expected=main_cfg.num_judges,
+                    judges_actual=len(judge_results),
+                    panel_complete=len(judge_results) == main_cfg.num_judges,
+                    panel_latency_ms=panel_latency,
+                    debate_seed=retry_seed,
+                    elo=main_cfg.elo,
+                )
+                append_debate_record(debates_path, record)
+                completed_counts[key] = completed_counts.get(key, 0) + 1
+                completed_new += 1
+                write_progress()
+                elapsed = (time.perf_counter() - t0) * 1000
+                console.print(
+                    f"[green]Retry success[/green] Topic '{topic.id}' {pro_model.id} vs {con_model.id} -> {aggregate.winner} ({elapsed:.0f} ms)"
+                )
+            except Exception as e:
+                console.print(f"[red]Retry failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
 
     console.print(f"[green]Run complete. Writing summaries to {viz_dir} and plots to {plots_dir}")
     summarize(debates_path=debates_path, out_dir=viz_dir)
