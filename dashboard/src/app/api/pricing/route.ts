@@ -77,6 +77,10 @@ export async function GET(request: Request) {
   const limit = rateLimit(request, "pricing", {
     capacity: Number(process.env.RL_PRICING_CAPACITY || 60),
     refillMs: Number(process.env.RL_PRICING_REFILL_MS || 60_000),
+  }, (info) => {
+    if (!info.ok) {
+      console.warn(`[rate-limit] pricing blocked ip=${info.ipHash} reset=${info.reset}`);
+    }
   });
   if (!limit.ok) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}` } });
