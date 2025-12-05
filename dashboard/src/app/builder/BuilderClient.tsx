@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { useCompareQuery } from "@/hooks/useCompareQuery";
 import { MAX_COMPARE } from "@/lib/compareLimits";
 import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
+import { useFieldGuards } from "./useFieldGuards";
 
 type DatasetKey = "debates" | "judges";
 type ChartType = "bar" | "scatter" | "heatmap";
@@ -59,7 +60,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
     }
   }, [selected.length, allModels, addModel, selectedModels]);
 
-  const sendUpdate = (
+  const sendUpdate = useCallback((
     next?: Partial<{ dataset: DatasetKey; chartType: ChartType; xField: string; yField?: string; colorField?: string }>
   ) => {
     const form = new FormData();
@@ -95,7 +96,7 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
         if (res.fieldTypes) setFieldTypesState(res.fieldTypes);
       });
     });
-  };
+  }, [dataset, chartType, xField, yField, colorField, defaultHeatColor, runId, selected, startTransition, fieldTypesState]);
 
   // Trigger refresh when selection changes.
   useEffect(() => {
@@ -105,23 +106,16 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
 
   const fieldOptions = useMemo(() => availableFields, [availableFields]);
 
-  useEffect(() => {
-    if (availableFields.length === 0) return;
-    if (!availableFields.includes(xField)) {
-      const next = availableFields[0];
-      setXField(next);
-      sendUpdate({ xField: next });
-    }
-    if (yField && !availableFields.includes(yField)) {
-      setYField(undefined);
-      sendUpdate({ yField: undefined });
-    }
-    if (colorField && !availableFields.includes(colorField)) {
-      setColorField(undefined);
-      sendUpdate({ colorField: undefined });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFields.join("|")]);
+  useFieldGuards({
+    availableFields,
+    xField,
+    yField,
+    colorField,
+    setXField,
+    setYField,
+    setColorField,
+    sendUpdate,
+  });
 
   const resetFields = () => {
     setDataset(initialRequest.dataset);
@@ -148,24 +142,6 @@ export default function BuilderClient({ allModels, selectedModels, fields, field
       return aSel ? -1 : 1;
     });
   }, [allModels, search, selected]);
-
-  useEffect(() => {
-    if (availableFields.length === 0) return;
-    if (!availableFields.includes(xField)) {
-      const next = availableFields[0];
-      setXField(next);
-      sendUpdate({ xField: next });
-    }
-    if (yField && !availableFields.includes(yField)) {
-      setYField(undefined);
-      sendUpdate({ yField: undefined });
-    }
-    if (colorField && !availableFields.includes(colorField)) {
-      setColorField(undefined);
-      sendUpdate({ colorField: undefined });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFields.join("|")]);
 
   return (
     <div className="grid gap-4 md:grid-cols-[340px_1fr] items-start">
