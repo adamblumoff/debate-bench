@@ -3,9 +3,6 @@
 import { Suspense, useMemo, useCallback, useState, useEffect } from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChartCard } from "@/components/ChartCard";
-import { LoadState } from "@/components/LoadState";
-import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { useEnsureData } from "@/store/useDataStore";
 import { useHighlightsState } from "@/hooks/useHighlightsState";
 import { useCompareQuery } from "@/hooks/useCompareQuery";
@@ -14,12 +11,14 @@ import { Hero } from "@/components/dashboard/Hero";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { CompareDrawer } from "@/components/dashboard/CompareDrawer";
 import { PricingTable } from "@/components/dashboard/PricingTable";
-import { HighlightsTabs, MiniBarList, TokenBarList } from "@/components/dashboard/HighlightLists";
-import { buildCategoryHeatSpec, buildH2HSpec, buildJudgeHeatSpec, buildSideBiasSpec } from "@/lib/specs/core";
-import { buildLeaderboardSpec, buildRatingVsWinSpec, buildTokenStackSpec, buildWinrateSpec } from "@/lib/specs/highlights";
-import { toPercent } from "@/lib/format";
-
-type RunOption = { id: string; label: string; bucket: string; region: string; key: string; updated?: string };
+import { RunControls } from "@/components/dashboard/RunControls";
+import { KpiStrip } from "@/components/dashboard/KpiStrip";
+import { HighlightsSection } from "@/components/dashboard/HighlightsSection";
+import { buildHighlightLists, buildHighlightSpecs, buildKpis, selectHighlightDerived } from "@/lib/highlights";
+import { ChartCard } from "@/components/ChartCard";
+import { VegaLiteChart } from "@/components/VegaLiteChart";
+import { LoadState } from "@/components/LoadState";
+import { RunConfig } from "@/lib/server/runs";
 
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) throw new Error(`Fetch failed ${res.status}`);
@@ -29,7 +28,7 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<{ runs: RunOption[]; defaultRunId: string }>("/api/manifest", fetcher, { revalidateOnFocus: false });
+  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<{ runs: RunConfig[]; defaultRunId: string }>("/api/manifest", fetcher, { revalidateOnFocus: false });
 
   const runFromUrl = searchParams.get("run") || undefined;
   const runId = useMemo(() => {
@@ -49,11 +48,10 @@ function DashboardContent() {
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
   const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
   // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
-  const highlightDerived = useMemo(() => {
-    if (!derived) return undefined;
-    if (category === "all") return derived;
-    return derivedByCategory?.[category] || derived;
-  }, [derived, derivedByCategory, category]);
+  const highlightDerived = useMemo(
+    () => selectHighlightDerived(derived, derivedByCategory, category),
+    [derived, derivedByCategory, category]
+  );
 
   const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
   const pricing = usePricingData(modelIds, runId);
@@ -98,180 +96,47 @@ function DashboardContent() {
     load(runId, true);
   }, [load, runId]);
 
-  const specs = useMemo(() => {
-    if (!highlightDerived || !derived) return {};
-    return {
-      // Highlights + category heatmap respect category filter
-      leaderboard: buildLeaderboardSpec(highlightDerived, topN),
-      winrate: buildWinrateSpec(highlightDerived, topN),
-      sideBias: buildSideBiasSpec(highlightDerived, topN),
-      categoryHeat: buildCategoryHeatSpec(highlightDerived, category),
-      tokens: buildTokenStackSpec(highlightDerived, topN),
-      ratingVsWin: buildRatingVsWinSpec(highlightDerived),
-      // Global charts use full dataset
-      h2h: buildH2HSpec(derived),
-      judgeHeat: buildJudgeHeatSpec(derived),
-    };
-  }, [highlightDerived, topN, category, derived]);
-
-  const highlightData = useMemo(() => {
-    if (!highlightDerived) return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
-    const elo = highlightDerived.modelStats.slice(0, topN).map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
-    const win = [...highlightDerived.modelStats].sort((a, b) => b.win_rate - a.win_rate).slice(0, topN).map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
-    const tokens = highlightDerived.modelStats
-      .slice(0, topN)
-      .map((m) => ({ label: m.model_id, prompt: m.mean_prompt_tokens, output: m.mean_completion_tokens }));
-    const allowedModels = new Set(highlightDerived.modelStats.map((m) => m.model_id));
-    const cost = [...pricing.rows]
-      .filter((r) => !allowedModels.size || allowedModels.has(r.model_id))
-      .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
-      .slice(0, 6)
-      .map((r) => ({ label: r.model_id, value: r.input_per_million + r.output_per_million, hint: `${pricing.currency} in/out` }));
-    const sideBias = [...highlightDerived.modelStats]
-      .map((m) => {
-        const gap = (m.pro_win_rate || 0) - (m.con_win_rate || 0);
-        return {
-          label: m.model_id,
-          value: Math.abs(gap),
-          hint: `${gap >= 0 ? "+" : ""}${toPercent(gap)} • Pro ${toPercent(m.pro_win_rate)} / Con ${toPercent(m.con_win_rate)}`,
-        };
-      })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, topN);
-    return { elo, win, tokens, cost, sideBias };
-  }, [highlightDerived, topN, pricing]);
-
-  const kpi = useMemo(() => {
-    if (!derived || !derived.modelStats.length) return null;
-    const top = derived.modelStats[0];
-    const widestGap = [...derived.modelStats].sort((a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate))[0];
-    const judgeRange = derived.judgeAgreement.reduce(
-      (acc, j) => {
-        acc.min = Math.min(acc.min, j.agreement_rate);
-        acc.max = Math.max(acc.max, j.agreement_rate);
-        return acc;
-      },
-      { min: derived.judgeAgreement.length ? 1 : 0, max: derived.judgeAgreement.length ? 0 : 0 }
-    );
-    return {
-      topModel: `${top.model_id} (${toPercent(top.win_rate)})`,
-      sideGap: `${widestGap.model_id}: ${toPercent(widestGap.pro_win_rate - widestGap.con_win_rate)}`,
-      judgeSpan: `${toPercent(judgeRange.min)} – ${toPercent(judgeRange.max)}`,
-    };
-  }, [derived]);
+  const specs = useMemo(() => buildHighlightSpecs(highlightDerived, derived, topN, category), [highlightDerived, derived, topN, category]);
+  const highlightData = useMemo(() => buildHighlightLists(highlightDerived, pricing, topN), [highlightDerived, pricing, topN]);
+  const kpi = useMemo(() => buildKpis(derived), [derived]);
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
       <div className="container-page space-y-8 pb-28">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3 justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Run</span>
-                <select
-                  className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2 py-1 text-sm text-slate-100"
-                  value={runId || ""}
-                  onChange={(e) => onRunChange(e.target.value)}
-                  disabled={manifestLoading || refreshingRuns || !!manifestError || !manifest}
-                >
-                  {runOptions.length === 0 && <option value="">Loading runs…</option>}
-                  {runOptions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {selectedRun?.updated && <span className="text-xs text-slate-500">Updated {selectedRun.updated}</span>}
-              <button
-                className="text-xs text-slate-300 underline-offset-4 underline disabled:text-slate-500"
-                onClick={onRefreshRuns}
-                disabled={manifestLoading || refreshingRuns}
-              >
-                {refreshingRuns ? "Refreshing…" : "Refresh runs"}
-              </button>
-              <button className="text-xs text-slate-300 underline-offset-4 underline" onClick={onRefreshData} disabled={status === "loading"}>
-                Refresh data
-              </button>
-            </div>
-            {refreshRunsError && <span className="text-xs text-red-300">Refresh failed: {refreshRunsError}</span>}
-            {manifestError && <span className="text-xs text-red-300">Runs load failed; using default env run.</span>}
-          </div>
+          <RunControls
+            runOptions={runOptions}
+            runId={runId}
+            selectedRun={selectedRun}
+            manifestLoading={manifestLoading}
+            manifestError={manifestError}
+            refreshingRuns={refreshingRuns}
+            refreshRunsError={refreshRunsError}
+            onRunChange={onRunChange}
+            onRefreshRuns={onRefreshRuns}
+            onRefreshData={onRefreshData}
+            disableDataRefresh={status === "loading"}
+          />
           <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
         </div>
 
         <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
 
-        <section id="highlights" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Highlights</p>
-              <h2 className="text-2xl font-semibold text-white">Performance at a glance</h2>
-            </div>
-            <HighlightsTabs active={activeTab} onChange={setActiveTab} />
-          </div>
-          {status === "ready" && derived ? (
-            <div className="grid gap-3 md:grid-cols-3">
-              {activeTab === "performance" && (
-                <>
-                  <MiniBarList title="Elo leaderboard" items={highlightData.elo} formatter={(v) => v.toFixed(0)} onAdd={addModel} />
-                  <MiniBarList title="Win rate" items={highlightData.win} formatter={(v) => toPercent(v)} onAdd={addModel} />
-                  <ChartCard title="Elo vs win rate">{specs.ratingVsWin && <VegaLiteChart spec={specs.ratingVsWin} />}</ChartCard>
-                </>
-              )}
-              {activeTab === "efficiency" && (
-                <>
-                  <TokenBarList title="Mean tokens (prompt/output)" items={highlightData.tokens} onAdd={addModel} />
-                  <ChartCard title="Token stack (top N)">{specs.tokens && <VegaLiteChart spec={specs.tokens} />}</ChartCard>
-                  <MiniBarList title="Side bias spread" items={highlightData.sideBias} formatter={(v) => toPercent(v)} onAdd={addModel} />
-                </>
-              )}
-              {activeTab === "cost" && (
-                <>
-                  <MiniBarList title="Cheapest blended cost" items={highlightData.cost} formatter={(v) => `$${v.toFixed(2)}`} onAdd={addModel} />
-                  <div className="card col-span-2 flex flex-col justify-between">
-                    <div>
-                      <p className="text-sm text-slate-300 mb-1">Pricing snapshot</p>
-                      <p className="text-xs text-slate-500">
-                        Updated {pricing.updated} • {pricing.currency} per 1M tokens
-                      </p>
-                    </div>
-                    <div className="mt-3">
-                      <a href="#pricing" className="btn-ghost inline-block">
-                        View pricing table
-                      </a>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="card">
-              <LoadState status={status} error={error} />
-            </div>
-          )}
-        </section>
+        <HighlightsSection
+          status={status}
+          error={error}
+          derived={derived}
+          specs={specs}
+          highlightData={highlightData}
+          activeTab={activeTab}
+          onTab={setActiveTab}
+          onAddModel={addModel}
+          pricing={pricing}
+        />
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
-            <section id="overview" className="space-y-4">
-              {kpi && (
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="kpi-tile">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">Top model</p>
-                    <p className="text-lg font-semibold text-white">{kpi.topModel}</p>
-                  </div>
-                  <div className="kpi-tile">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">Widest side gap</p>
-                    <p className="text-lg font-semibold text-white">{kpi.sideGap}</p>
-                  </div>
-                  <div className="kpi-tile">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">Judge agreement span</p>
-                    <p className="text-lg font-semibold text-white">{kpi.judgeSpan}</p>
-                  </div>
-                </div>
-              )}
-            </section>
+            <KpiStrip kpi={kpi} />
 
             <section id="models" className="grid gap-4 md:grid-cols-2">
               <ChartCard title="Elo leaderboard">{specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}</ChartCard>
