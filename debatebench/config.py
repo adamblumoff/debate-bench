@@ -107,7 +107,7 @@ def _parse_main_config(data: dict) -> MainConfig:
                 RoundConfig(
                     speaker=r.get("role") or r.get("speaker"),
                     stage=r.get("stage", "turn"),
-                    token_limit=r.get("max_tokens") or r.get("token_limit") or 4096,
+                    token_limit=r.get("max_tokens") or r.get("token_limit") or 5000,
                     language=r.get("language", language),
                 )
             )
