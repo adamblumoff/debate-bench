@@ -1,0 +1,41 @@
+num_judges: 3
+
+debaters:
+  - id: moonshotai-kimi-k2-thinking
+    provider: openrouter
+    model: moonshotai/kimi-k2-thinking
+    token_limit: null
+    parameters:
+      temperature: 0.35
+
+  - id: deepseek-deepseek-v3.2-speciale
+    provider: openrouter
+    model: deepseek/deepseek-v3.2-speciale
+    token_limit: null
+    parameters:
+      temperature: 0.35
+
+judges:
+  - id: moonshotai-kimi-k2-thinking
+    provider: openrouter
+    model: moonshotai/kimi-k2-thinking
+    token_limit: null
+    prompt_style: default
+    parameters:
+      temperature: 0.0
+
+  - id: deepseek-deepseek-v3.2-speciale
+    provider: openrouter
+    model: deepseek/deepseek-v3.2-speciale
+    token_limit: null
+    prompt_style: default
+    parameters:
+      temperature: 0.0
+
+  - id: openai-gpt-5.1
+    provider: openrouter
+    model: openai/gpt-5.1
+    token_limit: null
+    prompt_style: default
+    parameters:
+      temperature: 0.0

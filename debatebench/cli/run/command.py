@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import yaml
 from ... import config as cfg
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
@@ -46,6 +47,9 @@ from .selection import (
 def _slugify_model_id(model_id: str) -> str:
     """Filesystem-friendly identifier for snapshot artifacts."""
     return model_id.replace("/", "-").replace(" ", "_")
+
+
+QUICK_TEST_CONFIG_PATH = Path("configs/quick-test-models.yaml")
 
 
 def _infer_debates_per_pair(records: list[DebateRecord]):
@@ -342,55 +346,60 @@ def run_command(
         if quick_test:
             rng = random.Random(seed)
             topics_selected = [rng.choice(topics)]
-            debater_models = [
-                DebaterModelConfig(
-                    id="google-gemini-3-pro-preview",
-                    provider="openrouter",
-                    model="google/gemini-3-pro-preview",
-                    token_limit=openrouter_max_tokens,
-                    endpoint=None,
-                    parameters={"temperature": 0.35 if openrouter_temperature is None else openrouter_temperature},
-                ),
-                DebaterModelConfig(
-                    id="openai-gpt-5.1",
-                    provider="openrouter",
-                    model="openai/gpt-5.1",
-                    token_limit=openrouter_max_tokens,
-                    endpoint=None,
-                    parameters={"temperature": 0.35 if openrouter_temperature is None else openrouter_temperature},
-                ),
-            ]
-            judge_models = [
-                JudgeModelConfig(
-                    id="moonshotai-kimi-k2",
-                    provider="openrouter",
-                    model="moonshotai/kimi-k2",
-                    token_limit=judge_output_max_tokens,
-                    endpoint=None,
-                    prompt_style=None,
-                    parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
-                ),
-                JudgeModelConfig(
-                    id="anthropic-claude-opus-4.5",
-                    provider="openrouter",
-                    model="anthropic/claude-opus-4.5",
-                    token_limit=judge_output_max_tokens,
-                    endpoint=None,
-                    prompt_style=None,
-                    parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
-                ),
-                JudgeModelConfig(
-                    id="deepseek-deepseek-v3.2",
-                    provider="openrouter",
-                    model="deepseek/deepseek-v3.2",
-                    token_limit=judge_output_max_tokens,
-                    endpoint=None,
-                    prompt_style=None,
-                    parameters={"temperature": 0.0 if openrouter_temperature is None else openrouter_temperature},
-                ),
-            ]
-            main_cfg.num_judges = 3
-            console.print("[cyan]Quick test mode: 1 random topic, fixed debaters and judges.[/cyan]")
+            try:
+                quick_test_cfg = yaml.safe_load(QUICK_TEST_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            except FileNotFoundError as e:  # pragma: no cover - config is expected to exist
+                raise typer.BadParameter(f"Quick test config missing: {QUICK_TEST_CONFIG_PATH}") from e
+
+            debaters_cfg = quick_test_cfg.get("debaters") or quick_test_cfg.get("models") or []
+            judges_cfg = quick_test_cfg.get("judges") or []
+            if not isinstance(debaters_cfg, list) or not debaters_cfg:
+                raise typer.BadParameter(f"No debaters found in quick test config {QUICK_TEST_CONFIG_PATH}.")
+            if not isinstance(judges_cfg, list) or not judges_cfg:
+                raise typer.BadParameter(f"No judges found in quick test config {QUICK_TEST_CONFIG_PATH}.")
+
+            debater_models = []
+            for entry in debaters_cfg:
+                params = dict(entry.get("parameters") or {})
+                if openrouter_temperature is not None:
+                    params["temperature"] = openrouter_temperature
+                token_limit = openrouter_max_tokens if openrouter_max_tokens is not None else entry.get("token_limit")
+                debater_models.append(
+                    DebaterModelConfig(
+                        id=entry["id"],
+                        provider=entry.get("provider", "openrouter"),
+                        model=entry["model"],
+                        token_limit=token_limit,
+                        endpoint=entry.get("endpoint"),
+                        parameters=params,
+                    )
+                )
+
+            judge_models = []
+            for entry in judges_cfg:
+                params = dict(entry.get("parameters") or {})
+                if openrouter_temperature is not None:
+                    params["temperature"] = openrouter_temperature
+                token_limit = judge_output_max_tokens if judge_output_max_tokens is not None else entry.get("token_limit")
+                judge_models.append(
+                    JudgeModelConfig(
+                        id=entry["id"],
+                        provider=entry.get("provider", "openrouter"),
+                        model=entry["model"],
+                        token_limit=token_limit,
+                        endpoint=entry.get("endpoint"),
+                        prompt_style=entry.get("prompt_style"),
+                        parameters=params,
+                    )
+                )
+
+            configured_num_judges = quick_test_cfg.get("num_judges")
+            if configured_num_judges is not None:
+                main_cfg.num_judges = configured_num_judges
+            main_cfg.num_judges = main_cfg.num_judges or len(judge_models) or 3
+            console.print(
+                f"[cyan]Quick test mode: 1 random topic using models from {QUICK_TEST_CONFIG_PATH}.[/cyan]"
+            )
         elif judges_test:
             rng = random.Random(seed)
             topics_selected = [rng.choice(topics)]

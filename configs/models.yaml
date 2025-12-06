@@ -7,18 +7,10 @@ models:
     parameters:
       temperature: 0.7
 
-  - id: anthropic-claude-sonnet-4.5
+  - id: deepseek-deepseek-v3.2-speciale
     role: debater
     provider: openrouter
-    model: anthropic/claude-sonnet-4.5
-    token_limit: null
-    parameters:
-      temperature: 0.7
-
-  - id: deepseek-deepseek-v3.2
-    role: debater
-    provider: openrouter
-    model: deepseek/deepseek-v3.2
+    model: deepseek/deepseek-v3.2-speciale
     token_limit: null
     parameters:
       temperature: 0.7
@@ -31,18 +23,10 @@ models:
     parameters:
       temperature: 0.7
 
-  - id: moonshotai-kimi-k2
+  - id: moonshotai-kimi-k2-thinking
     role: debater
     provider: openrouter
-    model: moonshotai/kimi-k2
-    token_limit: null
-    parameters:
-      temperature: 0.7
-
-  - id: openai-gpt-5-mini
-    role: debater
-    provider: openrouter
-    model: openai/gpt-5-mini
+    model: moonshotai/kimi-k2-thinking
     token_limit: null
     parameters:
       temperature: 0.7
@@ -63,10 +47,3 @@ models:
     parameters:
       temperature: 0.7
 
-  - id: x-ai-grok-4.1-fast
-    role: debater
-    provider: openrouter
-    model: x-ai/grok-4.1-fast
-    token_limit: null
-    parameters:
-      temperature: 0.7
