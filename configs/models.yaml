@@ -47,3 +47,10 @@ models:
     parameters:
       temperature: 0.7
 
+  - id: x-ai-grok-4.1-fast
+    role: debater
+    provider: openrouter
+    model: x-ai/grok-4.1-fast
+    token_limit: null
+    parameters:
+      temperature: 0.7
