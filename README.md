@@ -38,6 +38,12 @@ debatebench inspect-debate <debate_uuid>
   - `--no-openrouter-select`, `--no-judges-from-selection`, `--no-tui-wizard`
   - `--estimate-time/--no-estimate-time` (default on): prints estimated wall-clock time using the median per-debate duration from recent runs; adds a 15% buffer.
   After a run, summaries/plots/ratings/leaderboard are generated automatically (disable with `--no-postrate`).
+- **Incremental new-model append** (no full rerun):
+  - `debatebench run --new-model <model_id> --run-tag <existing_tag> --dry-run`
+  - Requirements: `<model_id>` must exist in `configs/models.yaml`; `<existing_tag>` must have `results/debates_<tag>.jsonl` and `run_<tag>/config_snapshot/{cli_args,effective_selection}.json`.
+  - The command infers debates-per-pair and topic set from the existing debates file and schedules only pairings involving the new model (respecting the original `balanced-sides` orientation).
+  - Output is appended to the same debates file; use `--resume` to avoid duplicate planning/execution if interrupted.
+
 - `debatebench rate` -- recompute Elo ratings from a debates file.
 - `debatebench show-leaderboard` -- print rankings (optionally `--top N`).
 - `debatebench inspect-debate <uuid>` -- print one debate with judge outputs.
