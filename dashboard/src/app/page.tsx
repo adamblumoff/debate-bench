@@ -14,16 +14,22 @@ import { PricingTable } from "@/components/dashboard/PricingTable";
 import { RunControls } from "@/components/dashboard/RunControls";
 import { KpiStrip } from "@/components/dashboard/KpiStrip";
 import { HighlightsSection } from "@/components/dashboard/HighlightsSection";
-import { buildHighlightLists, buildHighlightSpecs, buildKpis, selectHighlightDerived } from "@/lib/highlights";
+import {
+  buildHighlightLists,
+  buildHighlightSpecs,
+  buildKpis,
+  selectHighlightDerived,
+} from "@/lib/highlights";
 import { ChartCard } from "@/components/ChartCard";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
 import { ManifestResponse } from "@/lib/apiTypes";
 
-const fetcher = (url: string) => fetch(url).then((res) => {
-  if (!res.ok) throw new Error(`Fetch failed ${res.status}`);
-  return res.json();
-});
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error(`Fetch failed ${res.status}`);
+    return res.json();
+  });
 
 function buildDownloadHref(runId?: string) {
   const params = new URLSearchParams();
@@ -35,12 +41,20 @@ function buildDownloadHref(runId?: string) {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: manifest, isLoading: manifestLoading, error: manifestError, mutate: refreshManifest } = useSWR<ManifestResponse>("/api/manifest", fetcher, { revalidateOnFocus: false });
+  const {
+    data: manifest,
+    isLoading: manifestLoading,
+    error: manifestError,
+    mutate: refreshManifest,
+  } = useSWR<ManifestResponse>("/api/manifest", fetcher, {
+    revalidateOnFocus: false,
+  });
 
   const runFromUrl = searchParams.get("run") || undefined;
   const runId = useMemo(() => {
     if (!manifest) return runFromUrl;
-    if (runFromUrl && manifest.runs.some((r) => r.id === runFromUrl)) return runFromUrl;
+    if (runFromUrl && manifest.runs.some((r) => r.id === runFromUrl))
+      return runFromUrl;
     return manifest.defaultRunId;
   }, [manifest, runFromUrl]);
 
@@ -51,13 +65,19 @@ function DashboardContent() {
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [manifest, runId, runFromUrl, router, searchParams]);
 
-  const { status, error, derived, derivedByCategory, meta, load } = useEnsureData(runId);
-  const { activeTab, setActiveTab, topN, setTopN, category, setCategory } = useHighlightsState();
-  const { selected: compareModels, addModel: addCompareModel, removeModel } = useCompareQuery();
+  const { status, error, derived, derivedByCategory, meta, load } =
+    useEnsureData(runId);
+  const { activeTab, setActiveTab, topN, setTopN, category, setCategory } =
+    useHighlightsState();
+  const {
+    selected: compareModels,
+    addModel: addCompareModel,
+    removeModel,
+  } = useCompareQuery();
   // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
   const highlightDerived = useMemo(
     () => selectHighlightDerived(derived, derivedByCategory, category),
-    [derived, derivedByCategory, category]
+    [derived, derivedByCategory, category],
   );
 
   const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
@@ -73,7 +93,7 @@ function DashboardContent() {
       setCompareOpen(true);
       setLastAdded(Date.now());
     },
-    [addCompareModel]
+    [addCompareModel],
   );
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
@@ -87,7 +107,9 @@ function DashboardContent() {
       return a.label.localeCompare(b.label);
     });
   }, [manifest?.runs]);
-  const selectedRun = sortedRunOptions.find((r) => r.id === runId) || (manifest && sortedRunOptions.find((r) => r.id === manifest.defaultRunId));
+  const selectedRun =
+    sortedRunOptions.find((r) => r.id === runId) ||
+    (manifest && sortedRunOptions.find((r) => r.id === manifest.defaultRunId));
 
   const onRunChange = useCallback(
     (id: string) => {
@@ -96,7 +118,7 @@ function DashboardContent() {
       params.set("run", id);
       router.replace(`/?${params.toString()}`, { scroll: false });
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   const onRefreshRuns = useCallback(() => {
@@ -121,8 +143,14 @@ function DashboardContent() {
 
   const downloadHref = useMemo(() => buildDownloadHref(runId), [runId]);
 
-  const specs = useMemo(() => buildHighlightSpecs(highlightDerived, derived, topN, category), [highlightDerived, derived, topN, category]);
-  const highlightData = useMemo(() => buildHighlightLists(highlightDerived, pricing, topN), [highlightDerived, pricing, topN]);
+  const specs = useMemo(
+    () => buildHighlightSpecs(highlightDerived, derived, topN, category),
+    [highlightDerived, derived, topN, category],
+  );
+  const highlightData = useMemo(
+    () => buildHighlightLists(highlightDerived, pricing, topN),
+    [highlightDerived, pricing, topN],
+  );
   const kpi = useMemo(() => buildKpis(derived), [derived]);
 
   return (
@@ -145,10 +173,19 @@ function DashboardContent() {
             disableDownloadData={status === "loading"}
             downloadHref={downloadHref}
           />
-          <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
+          <Hero
+            debateCount={meta?.debateCount || 0}
+            modelCount={derived?.models.length || 0}
+          />
         </div>
 
-        <FilterBar categories={categories} category={category} onCategory={setCategory} topN={topN} onTopN={setTopN} />
+        <FilterBar
+          categories={categories}
+          category={category}
+          onCategory={setCategory}
+          topN={topN}
+          onTopN={setTopN}
+        />
 
         <HighlightsSection
           status={status}
@@ -169,22 +206,40 @@ function DashboardContent() {
             <KpiStrip kpi={kpi} />
 
             <section id="models" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Elo leaderboard">{specs.leaderboard && <VegaLiteChart spec={specs.leaderboard} />}</ChartCard>
-              <ChartCard title="Win rate (top N)">{specs.winrate && <VegaLiteChart spec={specs.winrate} />}</ChartCard>
+              <ChartCard title="Elo leaderboard">
+                {specs.leaderboard && (
+                  <VegaLiteChart spec={specs.leaderboard} />
+                )}
+              </ChartCard>
+              <ChartCard title="Win rate (top N)">
+                {specs.winrate && <VegaLiteChart spec={specs.winrate} />}
+              </ChartCard>
             </section>
 
             <section id="topics" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Head-to-head win rate" subtitle="Row model vs column model">
+              <ChartCard
+                title="Head-to-head win rate"
+                subtitle="Row model vs column model"
+              >
                 {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
               </ChartCard>
-              <ChartCard title="Topic/category win rates" subtitle="Per model × category heatmap">
-                {specs.categoryHeat && <VegaLiteChart spec={specs.categoryHeat} />}
+              <ChartCard
+                title="Topic/category win rates"
+                subtitle="Per model × category heatmap"
+              >
+                {specs.categoryHeat && (
+                  <VegaLiteChart spec={specs.categoryHeat} />
+                )}
               </ChartCard>
             </section>
 
             <section id="judges" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Judge agreement">{specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}</ChartCard>
-              <ChartCard title="Side bias (pro minus con win rate)">{specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}</ChartCard>
+              <ChartCard title="Judge agreement">
+                {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
+              </ChartCard>
+              <ChartCard title="Side bias (pro minus con win rate)">
+                {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
+              </ChartCard>
             </section>
 
             <section id="pricing" className="space-y-3">
@@ -194,20 +249,35 @@ function DashboardContent() {
         ) : (
           <div className="card text-slate-200">
             <LoadState status={status} error={error} />
-            {status === "idle" && <p className="text-sm text-slate-400">Initializing data loader…</p>}
+            {status === "idle" && (
+              <p className="text-sm text-slate-400">
+                Initializing data loader…
+              </p>
+            )}
             {status === "loading" && <div className="mt-3 h-32 skeleton" />}
           </div>
         )}
       </div>
 
-      <CompareDrawer models={compareModels} onRemove={removeModel} derived={derived} open={compareOpen} setOpen={setCompareOpen} lastAdded={lastAdded} />
+      <CompareDrawer
+        models={compareModels}
+        onRemove={removeModel}
+        derived={derived}
+        open={compareOpen}
+        setOpen={setCompareOpen}
+        lastAdded={lastAdded}
+      />
     </main>
   );
 }
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="container-page text-slate-400">Loading dashboard…</div>}>
+    <Suspense
+      fallback={
+        <div className="container-page text-slate-400">Loading dashboard…</div>
+      }
+    >
       <DashboardContent />
     </Suspense>
   );

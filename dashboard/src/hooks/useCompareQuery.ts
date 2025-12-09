@@ -13,7 +13,10 @@ export function useCompareQuery(max = MAX_COMPARE) {
     const params = searchParams;
     const values = params.getAll("compare");
     if (values.length === 1 && values[0].includes(",")) {
-      return Array.from(new Set(values[0].split(",").filter(Boolean))).slice(0, max);
+      return Array.from(new Set(values[0].split(",").filter(Boolean))).slice(
+        0,
+        max,
+      );
     }
     return Array.from(new Set(values)).slice(0, max);
   }, [searchParams, max]);
@@ -31,17 +34,14 @@ export function useCompareQuery(max = MAX_COMPARE) {
         return [...prev, id].slice(-max);
       });
     },
-    [max]
+    [max],
   );
 
-  const removeModel = useCallback(
-    (id: string) => {
-      setSelected((prev) => {
-        return prev.filter((m) => m !== id);
-      });
-    },
-    []
-  );
+  const removeModel = useCallback((id: string) => {
+    setSelected((prev) => {
+      return prev.filter((m) => m !== id);
+    });
+  }, []);
 
   useEffect(() => {
     const current = searchString;

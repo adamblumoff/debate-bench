@@ -4,8 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
 import { PricingResponse } from "@/lib/apiTypes";
 
-export function usePricingData(modelIds: string[], runId?: string): PricingSnapshot {
-  const [data, setData] = useState<PricingSnapshot>({ ...pricingSnapshot, source: "snapshot" });
+export function usePricingData(
+  modelIds: string[],
+  runId?: string,
+): PricingSnapshot {
+  const [data, setData] = useState<PricingSnapshot>({
+    ...pricingSnapshot,
+    source: "snapshot",
+  });
 
   const idsKey = useMemo(() => modelIds.filter(Boolean).join(","), [modelIds]);
 
@@ -14,7 +20,9 @@ export function usePricingData(modelIds: string[], runId?: string): PricingSnaps
     const controller = new AbortController();
     const idsParam = encodeURIComponent(idsKey);
     const runParam = runId ? `&run=${encodeURIComponent(runId)}` : "";
-    fetch(`/api/pricing?ids=${idsParam}${runParam}`, { signal: controller.signal })
+    fetch(`/api/pricing?ids=${idsParam}${runParam}`, {
+      signal: controller.signal,
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error(`pricing http ${res.status}`);
         const json: PricingResponse = await res.json();

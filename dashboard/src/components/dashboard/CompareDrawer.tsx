@@ -15,7 +15,14 @@ type Props = {
   lastAdded?: number;
 };
 
-export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAdded }: Props) {
+export function CompareDrawer({
+  models,
+  onRemove,
+  derived,
+  open,
+  setOpen,
+  lastAdded,
+}: Props) {
   const hasAny = models.length > 0 && derived;
   const meetsMin = models.length >= MIN_COMPARE && derived;
 
@@ -28,7 +35,9 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
       : [];
 
   const compareHref =
-    models.length > 0 ? `/builder?${models.map((m) => `compare=${encodeURIComponent(m)}`).join("&")}` : "/builder";
+    models.length > 0
+      ? `/builder?${models.map((m) => `compare=${encodeURIComponent(m)}`).join("&")}`
+      : "/builder";
 
   useEffect(() => {
     if (lastAdded) setOpen(true);
@@ -40,7 +49,9 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <div className="compare-tab">Compare {rows.length ? `(${rows.length})` : ""}</div>
+      <div className="compare-tab">
+        Compare {rows.length ? `(${rows.length})` : ""}
+      </div>
       {derived && (
         <div className="compare-body">
           <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
@@ -66,7 +77,9 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
             </div>
           </div>
           {!meetsMin && (
-            <p className="text-[10.5px] text-amber-200 mb-2">Add at least two models to open custom charts.</p>
+            <p className="text-[10.5px] text-amber-200 mb-2">
+              Add at least two models to open custom charts.
+            </p>
           )}
           <div className="grid gap-2">
             {rows.map((r) => (
@@ -82,9 +95,12 @@ export function CompareDrawer({ models, onRemove, derived, open, setOpen, lastAd
                     remove
                   </button>
                 </div>
-                <p className="text-[12px] text-slate-300">Elo {r!.rating.toFixed(0)} • Win {toPercent(r!.win_rate)}</p>
+                <p className="text-[12px] text-slate-300">
+                  Elo {r!.rating.toFixed(0)} • Win {toPercent(r!.win_rate)}
+                </p>
                 <p className="text-[11px] text-slate-500">
-                  Tokens {toTokens(r!.mean_prompt_tokens)} / {toTokens(r!.mean_completion_tokens)}
+                  Tokens {toTokens(r!.mean_prompt_tokens)} /{" "}
+                  {toTokens(r!.mean_completion_tokens)}
                 </p>
               </div>
             ))}

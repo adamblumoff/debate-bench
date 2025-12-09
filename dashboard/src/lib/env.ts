@@ -1,12 +1,15 @@
-const required = (name: string): string => {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing required env var ${name}`);
-  return value;
-};
+import { readEnv, readEnvNumber } from "@/lib/server/validate";
 
 export const serverEnv = {
-  bucket: required("S3_BUCKET"),
-  region: required("S3_REGION"),
-  key: required("S3_KEY"),
-  urlExpirySeconds: Number(process.env.S3_URL_EXPIRY_SECONDS || 900),
+  bucket: readEnv("S3_BUCKET"),
+  region: readEnv("S3_REGION"),
+  key: readEnv("S3_KEY"),
+  urlExpirySeconds: readEnvNumber("S3_URL_EXPIRY_SECONDS", 900, {
+    min: 60,
+    max: 86_400,
+  }),
+  fetchTimeoutMs: readEnvNumber("FETCH_TIMEOUT_MS", 10_000, {
+    min: 1_000,
+    max: 60_000,
+  }),
 };

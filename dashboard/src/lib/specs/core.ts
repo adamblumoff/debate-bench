@@ -2,7 +2,10 @@ import { DerivedData } from "@/lib/types";
 import { VisualizationSpec } from "vega-embed";
 import { divergingRange, heatRange } from "@/lib/vegaTheme";
 
-export function buildSideBiasSpec(derived: DerivedData, limit: number): VisualizationSpec {
+export function buildSideBiasSpec(
+  derived: DerivedData,
+  limit: number,
+): VisualizationSpec {
   const side = derived.modelStats.map((m) => ({
     model: m.model_id,
     gap: m.pro_win_rate - m.con_win_rate,
@@ -18,7 +21,11 @@ export function buildSideBiasSpec(derived: DerivedData, limit: number): Visualiz
     encoding: {
       x: { field: "gap", type: "quantitative", axis: { format: ".0%" } },
       y: { field: "model", type: "nominal", sort: "-x" },
-      color: { field: "gap", type: "quantitative", scale: { range: divergingRange } },
+      color: {
+        field: "gap",
+        type: "quantitative",
+        scale: { range: divergingRange },
+      },
     },
   } satisfies VisualizationSpec;
 }
@@ -32,11 +39,21 @@ export function buildH2HSpec(derived: DerivedData): VisualizationSpec {
     encoding: {
       x: { field: "col", type: "nominal" },
       y: { field: "row", type: "nominal" },
-      color: { field: "win_rate", type: "quantitative", scale: { range: heatRange, domain: [0, 1] }, legend: { format: ".0%" } },
+      color: {
+        field: "win_rate",
+        type: "quantitative",
+        scale: { range: heatRange, domain: [0, 1] },
+        legend: { format: ".0%" },
+      },
       tooltip: [
         { field: "row", type: "nominal", title: "row" },
         { field: "col", type: "nominal", title: "col" },
-        { field: "win_rate", type: "quantitative", title: "win %", format: ".1%" },
+        {
+          field: "win_rate",
+          type: "quantitative",
+          title: "win %",
+          format: ".1%",
+        },
         { field: "samples", type: "quantitative", title: "n" },
       ],
     },
@@ -53,7 +70,12 @@ export function buildJudgeHeatSpec(derived: DerivedData): VisualizationSpec {
     encoding: {
       x: { field: "judge_a", type: "nominal" },
       y: { field: "judge_b", type: "nominal" },
-      color: { field: "agreement_rate", type: "quantitative", scale: { range: heatRange, domain: [0, 1] }, legend: { format: ".0%" } },
+      color: {
+        field: "agreement_rate",
+        type: "quantitative",
+        scale: { range: heatRange, domain: [0, 1] },
+        legend: { format: ".0%" },
+      },
       tooltip: [
         { field: "judge_a", type: "nominal" },
         { field: "judge_b", type: "nominal" },
@@ -65,7 +87,10 @@ export function buildJudgeHeatSpec(derived: DerivedData): VisualizationSpec {
   } satisfies VisualizationSpec;
 }
 
-export function buildCategoryHeatSpec(derived: DerivedData, category: string): VisualizationSpec {
+export function buildCategoryHeatSpec(
+  derived: DerivedData,
+  category: string,
+): VisualizationSpec {
   const rows = derived.topicWinrates
     .filter((t) => category === "all" || t.category === category)
     .map((t) => ({
@@ -83,7 +108,12 @@ export function buildCategoryHeatSpec(derived: DerivedData, category: string): V
     encoding: {
       x: { field: "category", type: "nominal", sort: "-y" },
       y: { field: "model", type: "nominal" },
-      color: { field: "win_rate", type: "quantitative", scale: { range: heatRange, domain: [0, 1] }, legend: { format: ".0%" } },
+      color: {
+        field: "win_rate",
+        type: "quantitative",
+        scale: { range: heatRange, domain: [0, 1] },
+        legend: { format: ".0%" },
+      },
       tooltip: [
         { field: "model", type: "nominal" },
         { field: "category", type: "nominal" },

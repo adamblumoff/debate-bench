@@ -2,8 +2,18 @@ import { VisualizationSpec } from "vega-embed";
 import { PricingSnapshot } from "@/lib/pricing";
 import { toPercent } from "@/lib/format";
 import { DerivedData } from "@/lib/types";
-import { buildCategoryHeatSpec, buildH2HSpec, buildJudgeHeatSpec, buildSideBiasSpec } from "@/lib/specs/core";
-import { buildLeaderboardSpec, buildRatingVsWinSpec, buildTokenStackSpec, buildWinrateSpec } from "@/lib/specs/highlights";
+import {
+  buildCategoryHeatSpec,
+  buildH2HSpec,
+  buildJudgeHeatSpec,
+  buildSideBiasSpec,
+} from "@/lib/specs/core";
+import {
+  buildLeaderboardSpec,
+  buildRatingVsWinSpec,
+  buildTokenStackSpec,
+  buildWinrateSpec,
+} from "@/lib/specs/highlights";
 
 export type HighlightSpecs = {
   leaderboard?: VisualizationSpec;
@@ -33,7 +43,7 @@ export type Kpi = {
 export function selectHighlightDerived(
   derived?: DerivedData,
   derivedByCategory?: Record<string, DerivedData>,
-  category: string = "all"
+  category: string = "all",
 ): DerivedData | undefined {
   if (!derived) return undefined;
   if (category === "all") return derived;
@@ -44,7 +54,7 @@ export function buildHighlightSpecs(
   highlightDerived?: DerivedData,
   fullDerived?: DerivedData,
   topN: number = 6,
-  category: string = "all"
+  category: string = "all",
 ): HighlightSpecs {
   if (!highlightDerived || !fullDerived) return {};
   return {
@@ -62,20 +72,26 @@ export function buildHighlightSpecs(
 export function buildHighlightLists(
   highlightDerived: DerivedData | undefined,
   pricing: PricingSnapshot,
-  topN: number = 6
+  topN: number = 6,
 ): HighlightLists {
   if (!highlightDerived) {
     return { elo: [], win: [], tokens: [], cost: [], sideBias: [] };
   }
 
-  const elo = highlightDerived.modelStats
-    .slice(0, topN)
-    .map((m) => ({ label: m.model_id, value: m.rating, hint: toPercent(m.win_rate) }));
+  const elo = highlightDerived.modelStats.slice(0, topN).map((m) => ({
+    label: m.model_id,
+    value: m.rating,
+    hint: toPercent(m.win_rate),
+  }));
 
   const win = [...highlightDerived.modelStats]
     .sort((a, b) => b.win_rate - a.win_rate)
     .slice(0, topN)
-    .map((m) => ({ label: m.model_id, value: m.win_rate, hint: `Games ${m.games}` }));
+    .map((m) => ({
+      label: m.model_id,
+      value: m.win_rate,
+      hint: `Games ${m.games}`,
+    }));
 
   const tokens = highlightDerived.modelStats.slice(0, topN).map((m) => ({
     label: m.model_id,
@@ -83,12 +99,19 @@ export function buildHighlightLists(
     output: m.mean_completion_tokens,
   }));
 
-  const allowedModels = new Set(highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id));
+  const allowedModels = new Set(
+    highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id),
+  );
   const pricingRows = [...pricing.rows];
   const costPool = pricingRows.filter((r) => allowedModels.has(r.model_id));
   const costSource = costPool.length ? costPool : pricingRows;
   const cost = costSource
-    .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
+    .sort(
+      (a, b) =>
+        a.input_per_million +
+        a.output_per_million -
+        (b.input_per_million + b.output_per_million),
+    )
     .slice(0, topN)
     .map((r) => ({
       label: r.model_id,
@@ -115,7 +138,9 @@ export function buildKpis(derived?: DerivedData): Kpi {
   if (!derived || !derived.modelStats.length) return null;
   const top = derived.modelStats[0];
   const widestGap = [...derived.modelStats].sort(
-    (a, b) => Math.abs(b.pro_win_rate - b.con_win_rate) - Math.abs(a.pro_win_rate - a.con_win_rate)
+    (a, b) =>
+      Math.abs(b.pro_win_rate - b.con_win_rate) -
+      Math.abs(a.pro_win_rate - a.con_win_rate),
   )[0];
   const judgeRange = derived.judgeAgreement.reduce(
     (acc, j) => {
@@ -123,7 +148,10 @@ export function buildKpis(derived?: DerivedData): Kpi {
       acc.max = Math.max(acc.max, j.agreement_rate);
       return acc;
     },
-    { min: derived.judgeAgreement.length ? 1 : 0, max: derived.judgeAgreement.length ? 0 : 0 }
+    {
+      min: derived.judgeAgreement.length ? 1 : 0,
+      max: derived.judgeAgreement.length ? 0 : 0,
+    },
   );
   return {
     topModel: `${top.model_id} (${toPercent(top.win_rate)})`,

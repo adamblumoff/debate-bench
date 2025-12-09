@@ -1,7 +1,13 @@
 import { Suspense } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { getMetrics } from "@/lib/server/metrics";
-import { buildChartSpec, buildFields, buildFieldTypes, ChartRequest, DatasetKey } from "@/lib/server/chartSpec";
+import {
+  buildChartSpec,
+  buildFields,
+  buildFieldTypes,
+  ChartRequest,
+  DatasetKey,
+} from "@/lib/server/chartSpec";
 import { parseCompareParam, chooseModels, filterRowsByModels } from "./shared";
 import BuilderClient from "./BuilderClient";
 import Link from "next/link";
@@ -14,7 +20,8 @@ type BuilderPageProps = {
 
 export default async function BuilderPage({ searchParams }: BuilderPageProps) {
   const resolvedParams = await searchParams;
-  const runId = typeof resolvedParams.run === "string" ? resolvedParams.run : undefined;
+  const runId =
+    typeof resolvedParams.run === "string" ? resolvedParams.run : undefined;
   const metrics = await getMetrics(false, runId);
   const derived = metrics.derived;
   const requested = parseCompareParam(resolvedParams.compare);
@@ -33,17 +40,30 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
     colorField: undefined,
   };
 
-  const initialSpec: VisualizationSpec | null = buildChartSpec(rows, initialRequest);
+  const initialSpec: VisualizationSpec | null = buildChartSpec(
+    rows,
+    initialRequest,
+  );
 
   return (
-    <Suspense fallback={<div className="container-page text-slate-400">Loading builder…</div>}>
+    <Suspense
+      fallback={
+        <div className="container-page text-slate-400">Loading builder…</div>
+      }
+    >
       <div className="container-page space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Custom charts</p>
-            <h1 className="text-3xl font-semibold text-white">Model comparisons your way</h1>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              Custom charts
+            </p>
+            <h1 className="text-3xl font-semibold text-white">
+              Model comparisons your way
+            </h1>
             <p className="text-slate-400 text-sm">
-              Preloaded with your current compares ({selectedModels.length} models). Adjust fields and chart type; data and specs are built on the server.
+              Preloaded with your current compares ({selectedModels.length}{" "}
+              models). Adjust fields and chart type; data and specs are built on
+              the server.
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { pricingSnapshot, PricingSnapshot } from "@/lib/pricing";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  fetchWithTimeout,
+  sanitizeIds,
+  readEnvNumber,
+} from "@/lib/server/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,23 +53,30 @@ function resolveId(id: string) {
   return id;
 }
 
-async function fetchOpenRouterModels(apiKey: string): Promise<OpenRouterModel[]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
-  const res = await fetch("https://openrouter.ai/api/v1/models", {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
+async function fetchOpenRouterModels(
+  apiKey: string,
+  timeoutMs: number,
+): Promise<OpenRouterModel[]> {
+  const res = await fetchWithTimeout(
+    "https://openrouter.ai/api/v1/models",
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-    signal: controller.signal,
-  });
-  clearTimeout(timeoutId);
+    timeoutMs,
+    "openrouter_models",
+  );
   if (!res.ok) throw new Error(`openrouter models failed: ${res.status}`);
   const json = await res.json();
   return json?.data ?? [];
 }
 
-function buildSnapshot(rows: PricingSnapshot["rows"], source: "live" | "snapshot"): PricingSnapshot {
+function buildSnapshot(
+  rows: PricingSnapshot["rows"],
+  source: "live" | "snapshot",
+): PricingSnapshot {
   return {
     updated: new Date().toISOString().slice(0, 10),
     currency: "USD",
@@ -74,16 +86,31 @@ function buildSnapshot(rows: PricingSnapshot["rows"], source: "live" | "snapshot
 }
 
 export async function GET(request: Request) {
-  const limit = rateLimit(request, "pricing", {
-    capacity: Number(process.env.RL_PRICING_CAPACITY || 60),
-    refillMs: Number(process.env.RL_PRICING_REFILL_MS || 60_000),
-  }, (info) => {
-    if (!info.ok) {
-      console.warn(`[rate-limit] pricing blocked ip=${info.ipHash} reset=${info.reset}`);
-    }
-  });
+  const limit = rateLimit(
+    request,
+    "pricing",
+    {
+      capacity: Number(process.env.RL_PRICING_CAPACITY || 60),
+      refillMs: Number(process.env.RL_PRICING_REFILL_MS || 60_000),
+    },
+    (info) => {
+      if (!info.ok) {
+        console.warn(
+          `[rate-limit] pricing blocked ip=${info.ipHash} reset=${info.reset}`,
+        );
+      }
+    },
+  );
   if (!limit.ok) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}` } });
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}`,
+        },
+      },
+    );
   }
 
   const url = new URL(request.url);
@@ -93,10 +120,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...pricingSnapshot, source: "snapshot" });
   }
 
-  const ids = idsParam
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  let ids: string[];
+  try {
+    ids = sanitizeIds(idsParam.split(","), 50);
+  } catch (err) {
+    const status =
+      err instanceof Error && "status" in err
+        ? (err as { status?: number }).status || 400
+        : 400;
+    const detail =
+      err instanceof Error && "detail" in err
+        ? (err as { detail?: string }).detail
+        : undefined;
+    return NextResponse.json(
+      { error: (err as Error).message, detail },
+      { status },
+    );
+  }
   const cacheKey = ids.sort().join(",");
 
   const now = Date.now();
@@ -112,8 +152,13 @@ export async function GET(request: Request) {
     return NextResponse.json(snap);
   }
 
+  const fetchTimeoutMs = readEnvNumber("FETCH_TIMEOUT_MS", 10_000, {
+    min: 1_000,
+    max: 60_000,
+  });
+
   try {
-    const models = await fetchOpenRouterModels(apiKey);
+    const models = await fetchOpenRouterModels(apiKey, fetchTimeoutMs);
     const map = new Map<string, OpenRouterModel>();
     for (const m of models) {
       map.set(m.id, m);
@@ -124,7 +169,11 @@ export async function GET(request: Request) {
     }
     const rows = ids.map((id) => {
       const resolved = resolveId(id);
-      const model = map.get(resolved) || map.get(resolved.toLowerCase()) || map.get(id) || map.get(id.toLowerCase());
+      const model =
+        map.get(resolved) ||
+        map.get(resolved.toLowerCase()) ||
+        map.get(id) ||
+        map.get(id.toLowerCase());
       if (!model || !model.pricing) {
         const fallback = pricingSnapshot.rows.find((r) => r.model_id === id);
         return (
@@ -137,7 +186,9 @@ export async function GET(request: Request) {
         );
       }
       const prompt = Number(model.pricing.prompt ?? model.pricing.cached ?? 0);
-      const completion = Number(model.pricing.completion ?? model.pricing.cached ?? 0);
+      const completion = Number(
+        model.pricing.completion ?? model.pricing.cached ?? 0,
+      );
       const input = prompt * 1_000_000;
       const output = completion * 1_000_000;
       return {
@@ -150,9 +201,11 @@ export async function GET(request: Request) {
     const payload = buildSnapshot(rows, "live");
     cache.set(cacheKey, { ts: now, data: payload });
     return NextResponse.json(payload);
-  } catch {
+  } catch (err) {
     const snap = { ...pricingSnapshot, source: "snapshot" as const };
     cache.set(cacheKey, { ts: now, data: snap });
-    return NextResponse.json(snap, { status: 200 });
+    const status =
+      err instanceof Error && /timeout/i.test(err.message) ? 504 : 200;
+    return NextResponse.json(snap, { status });
   }
 }

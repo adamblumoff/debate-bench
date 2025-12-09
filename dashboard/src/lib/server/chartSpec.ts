@@ -14,8 +14,13 @@ export interface ChartRequest {
   colorField?: string;
 }
 
-export function inferType(values: DataRow[], field: string): "quantitative" | "nominal" {
-  const sample = values.find((v) => v[field] !== undefined && v[field] !== null);
+export function inferType(
+  values: DataRow[],
+  field: string,
+): "quantitative" | "nominal" {
+  const sample = values.find(
+    (v) => v[field] !== undefined && v[field] !== null,
+  );
   if (!sample) return "nominal";
   return typeof sample[field] === "number" ? "quantitative" : "nominal";
 }
@@ -29,7 +34,9 @@ export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
   return Array.from(base);
 }
 
-export function buildFieldTypes(rows: DataRow[]): Record<string, "quantitative" | "nominal"> {
+export function buildFieldTypes(
+  rows: DataRow[],
+): Record<string, "quantitative" | "nominal"> {
   const types: Record<string, "quantitative" | "nominal"> = {};
   if (!rows.length) return types;
   for (const field of Object.keys(rows[0])) {
@@ -40,7 +47,10 @@ export function buildFieldTypes(rows: DataRow[]): Record<string, "quantitative" 
   return types;
 }
 
-export function buildChartSpec(rows: DataRow[], req: ChartRequest): VisualizationSpec | null {
+export function buildChartSpec(
+  rows: DataRow[],
+  req: ChartRequest,
+): VisualizationSpec | null {
   if (!rows.length || !req.xField) return null;
   if (req.chartType === "scatter" && !req.yField) return null;
   const xType = inferType(rows, req.xField);
@@ -60,7 +70,12 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     },
   };
   if (req.yField) {
-    const xEnc = enc.x as { field: string; type: string; sort?: string; axis?: unknown };
+    const xEnc = enc.x as {
+      field: string;
+      type: string;
+      sort?: string;
+      axis?: unknown;
+    };
     xEnc.sort = "-y";
     enc.x = xEnc;
   }
@@ -82,22 +97,40 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     const colorType = inferType(workingRows, colorField);
     enc.color =
       colorType === "quantitative"
-        ? { field: colorField, type: "quantitative", aggregate: "mean", title: colorField }
+        ? {
+            field: colorField,
+            type: "quantitative",
+            aggregate: "mean",
+            title: colorField,
+          }
         : { aggregate: "count", type: "quantitative" };
 
     // Tooltips for heatmap
     enc.tooltip = [
       { field: req.xField, type: xType, title: req.xField },
-      { field: req.yField || req.xField, type: yType, title: req.yField || req.xField },
+      {
+        field: req.yField || req.xField,
+        type: yType,
+        title: req.yField || req.xField,
+      },
       colorType === "quantitative"
-        ? { field: colorField, type: "quantitative", title: colorField, aggregate: "mean" }
+        ? {
+            field: colorField,
+            type: "quantitative",
+            title: colorField,
+            aggregate: "mean",
+          }
         : { aggregate: "count", type: "quantitative", title: "count" },
     ];
 
     dataRows = workingRows;
   } else if (req.chartType === "scatter") {
     enc.y = { field: req.yField, type: yType };
-    if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
+    if (req.colorField)
+      enc.color = {
+        field: req.colorField,
+        type: inferType(rows, req.colorField),
+      };
     enc.tooltip = [req.xField, req.yField, req.colorField]
       .filter(Boolean)
       .map((f) => ({ field: f!, type: inferType(rows, f!) }));
@@ -110,7 +143,11 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
     } else {
       enc.y = { aggregate: "count", type: "quantitative" };
     }
-    if (req.colorField) enc.color = { field: req.colorField, type: inferType(rows, req.colorField) };
+    if (req.colorField)
+      enc.color = {
+        field: req.colorField,
+        type: inferType(rows, req.colorField),
+      };
 
     // Tooltips for bar
     const barTips: Array<Record<string, unknown>> = [
@@ -125,10 +162,18 @@ export function buildChartSpec(rows: DataRow[], req: ChartRequest): Visualizatio
         aggregate: encY.aggregate,
       });
     } else {
-      barTips.push({ aggregate: "count", type: "quantitative", title: "count" });
+      barTips.push({
+        aggregate: "count",
+        type: "quantitative",
+        title: "count",
+      });
     }
     if (req.colorField) {
-      barTips.push({ field: req.colorField, type: inferType(rows, req.colorField), title: req.colorField });
+      barTips.push({
+        field: req.colorField,
+        type: inferType(rows, req.colorField),
+        title: req.colorField,
+      });
     }
     enc.tooltip = barTips;
   }

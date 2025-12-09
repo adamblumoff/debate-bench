@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from "react";
 
-type UpdateFn = (next: Partial<{ xField: string; yField?: string; colorField?: string }>) => void;
+type UpdateFn = (
+  next: Partial<{ xField: string; yField?: string; colorField?: string }>,
+) => void;
 
 type Params = {
   availableFields: string[];
@@ -52,5 +54,15 @@ export function useFieldGuards({
     if (changed) {
       sendUpdate({ xField: nextX, yField: nextY, colorField: nextColor });
     }
-  }, [fieldsKey, availableFields, xField, yField, colorField, setXField, setYField, setColorField, sendUpdate]);
+  }, [
+    fieldsKey,
+    availableFields,
+    xField,
+    yField,
+    colorField,
+    setXField,
+    setYField,
+    setColorField,
+    sendUpdate,
+  ]);
 }

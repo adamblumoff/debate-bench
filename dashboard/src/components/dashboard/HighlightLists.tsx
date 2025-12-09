@@ -39,7 +39,9 @@ export function MiniBarList({
                   style={{ width: `${Math.max((i.value / max) * 100, 4)}%` }}
                 />
               </div>
-              {i.hint && <p className="text-[11px] text-slate-500 mt-0.5">{i.hint}</p>}
+              {i.hint && (
+                <p className="text-[11px] text-slate-500 mt-0.5">{i.hint}</p>
+              )}
             </div>
             {onAdd && (
               <button
@@ -84,8 +86,14 @@ export function TokenBarList({
                   <span className="text-slate-200">{toTokens(total)}</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-slate-800/70 overflow-hidden flex">
-                  <div className="h-full bg-[var(--accent)]" style={{ width: `${(total / max) * 100}%` }}>
-                    <div className="h-full bg-[var(--accent)]" style={{ width: `${promptPct}%`, opacity: 0.65 }} />
+                  <div
+                    className="h-full bg-[var(--accent)]"
+                    style={{ width: `${(total / max) * 100}%` }}
+                  >
+                    <div
+                      className="h-full bg-[var(--accent)]"
+                      style={{ width: `${promptPct}%`, opacity: 0.65 }}
+                    />
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -118,8 +126,16 @@ export function HighlightsTabs({
   return (
     <div className="tab-switch">
       {(["performance", "efficiency", "cost"] as const).map((t) => (
-        <button key={t} className={active === t ? "active" : ""} onClick={() => onChange(t)}>
-          {t === "performance" ? "Performance" : t === "efficiency" ? "Efficiency" : "Cost"}
+        <button
+          key={t}
+          className={active === t ? "active" : ""}
+          onClick={() => onChange(t)}
+        >
+          {t === "performance"
+            ? "Performance"
+            : t === "efficiency"
+              ? "Efficiency"
+              : "Cost"}
         </button>
       ))}
     </div>

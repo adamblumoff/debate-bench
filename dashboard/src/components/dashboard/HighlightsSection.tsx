@@ -1,4 +1,8 @@
-import { HighlightsTabs, MiniBarList, TokenBarList } from "@/components/dashboard/HighlightLists";
+import {
+  HighlightsTabs,
+  MiniBarList,
+  TokenBarList,
+} from "@/components/dashboard/HighlightLists";
 import { ChartCard } from "@/components/ChartCard";
 import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
@@ -46,8 +50,12 @@ export function HighlightsSection({
     <section id="highlights" className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Highlights</p>
-          <h2 className="text-2xl font-semibold text-white">Performance at a glance</h2>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            Highlights
+          </p>
+          <h2 className="text-2xl font-semibold text-white">
+            Performance at a glance
+          </h2>
         </div>
         <HighlightsTabs active={activeTab} onChange={onTab} />
       </div>
@@ -69,14 +77,27 @@ export function HighlightsSection({
               onAdd={onAddModel}
               expected={Math.min(topN, modelCount || topN)}
             />
-            <ChartCard title="Elo vs win rate">{specs.ratingVsWin && <VegaLiteChart spec={specs.ratingVsWin} />}</ChartCard>
+            <ChartCard title="Elo vs win rate">
+              {specs.ratingVsWin && <VegaLiteChart spec={specs.ratingVsWin} />}
+            </ChartCard>
           </>
         )}
         {activeTab === "efficiency" && (
           <>
-            <TokenBarList title="Mean tokens (prompt/output)" items={highlightData.tokens} onAdd={onAddModel} />
-            <ChartCard title="Token stack (top N)">{specs.tokens && <VegaLiteChart spec={specs.tokens} />}</ChartCard>
-            <MiniBarList title="Side bias spread" items={highlightData.sideBias} formatter={(v) => `${(v * 100).toFixed(1)}%`} onAdd={onAddModel} />
+            <TokenBarList
+              title="Mean tokens (prompt/output)"
+              items={highlightData.tokens}
+              onAdd={onAddModel}
+            />
+            <ChartCard title="Token stack (top N)">
+              {specs.tokens && <VegaLiteChart spec={specs.tokens} />}
+            </ChartCard>
+            <MiniBarList
+              title="Side bias spread"
+              items={highlightData.sideBias}
+              formatter={(v) => `${(v * 100).toFixed(1)}%`}
+              onAdd={onAddModel}
+            />
           </>
         )}
         {activeTab === "cost" && (

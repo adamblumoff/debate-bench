@@ -7,7 +7,11 @@ export type ManifestResponse = {
   defaultRunId: string;
 };
 
-export type MetricsMeta = { debateCount: number; modelCount: number; categories: string[] };
+export type MetricsMeta = {
+  debateCount: number;
+  modelCount: number;
+  categories: string[];
+};
 
 export type MetricsResponse = {
   derived: DerivedData;

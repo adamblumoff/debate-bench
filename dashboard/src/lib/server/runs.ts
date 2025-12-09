@@ -65,8 +65,12 @@ async function listRunsFromS3(): Promise<RunConfig[]> {
       if (!/debates.*\.jsonl$/i.test(key)) continue;
       const id = deriveId(key, seen);
       seen.add(id);
-      const updated = obj.LastModified ? obj.LastModified.toISOString() : undefined;
-      const updatedMs = obj.LastModified ? obj.LastModified.getTime() : undefined;
+      const updated = obj.LastModified
+        ? obj.LastModified.toISOString()
+        : undefined;
+      const updatedMs = obj.LastModified
+        ? obj.LastModified.getTime()
+        : undefined;
       runs.push({
         id,
         label: deriveLabel(key),
@@ -135,9 +139,16 @@ export async function getRuns(refresh = false): Promise<ManifestPayload> {
   }
 }
 
-export async function resolveRun(runId?: string, refresh = false): Promise<RunConfig> {
+export async function resolveRun(
+  runId?: string,
+  refresh = false,
+): Promise<RunConfig> {
   const manifest = await getRuns(refresh);
-  if (!runId) return manifest.runs.find((r) => r.id === manifest.defaultRunId) || manifest.runs[0];
+  if (!runId)
+    return (
+      manifest.runs.find((r) => r.id === manifest.defaultRunId) ||
+      manifest.runs[0]
+    );
   const match = manifest.runs.find((r) => r.id === runId);
   if (!match) {
     throw new Error("unknown_run");

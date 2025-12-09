@@ -1,4 +1,14 @@
-import { DebateRecord, DerivedData, HeadToHeadCell, JudgeAgreementRow, JudgeRowForBuilder, ModelStats, TopicWinrate, DebateRowForBuilder, Winner } from "./types";
+import {
+  DebateRecord,
+  DerivedData,
+  HeadToHeadCell,
+  JudgeAgreementRow,
+  JudgeRowForBuilder,
+  ModelStats,
+  TopicWinrate,
+  DebateRowForBuilder,
+  Winner,
+} from "./types";
 
 export function buildDerived(debates: DebateRecord[]): DerivedData {
   if (!debates.length) {
@@ -24,8 +34,11 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
 
   const models = Array.from(
     new Set(
-      debates.flatMap((d) => [d.transcript.pro_model_id, d.transcript.con_model_id])
-    )
+      debates.flatMap((d) => [
+        d.transcript.pro_model_id,
+        d.transcript.con_model_id,
+      ]),
+    ),
   ).sort();
 
   // Deterministic ordering: created_at if present, then debate_id, then original index.
@@ -53,18 +66,28 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
       ? debates[0].elo!.initial_rating
       : defaultInitial;
   const kFactor =
-    typeof debates[0]?.elo?.k_factor === "number" ? debates[0].elo!.k_factor : defaultK;
+    typeof debates[0]?.elo?.k_factor === "number"
+      ? debates[0].elo!.k_factor
+      : defaultK;
 
   const statsMap = new Map<string, ModelStats>();
   const ratings = new Map<string, number>();
   const tokenAgg = new Map<
     string,
-    { prompt: number; completion: number; promptTurns: number; completionTurns: number }
+    {
+      prompt: number;
+      completion: number;
+      promptTurns: number;
+      completionTurns: number;
+    }
   >();
   const headWin = new Map<string, number>();
   const headTot = new Map<string, number>();
   const topicStats = new Map<string, TopicWinrate>();
-  const judgeAgreementPairs = new Map<string, { agree: number; total: number }>();
+  const judgeAgreementPairs = new Map<
+    string,
+    { agree: number; total: number }
+  >();
   const judgeRows: JudgeRowForBuilder[] = [];
   const debateRows: DebateRowForBuilder[] = [];
 
@@ -96,7 +119,13 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
   };
 
   const ensureTokens = (id: string) => {
-    if (!tokenAgg.has(id)) tokenAgg.set(id, { prompt: 0, completion: 0, promptTurns: 0, completionTurns: 0 });
+    if (!tokenAgg.has(id))
+      tokenAgg.set(id, {
+        prompt: 0,
+        completion: 0,
+        promptTurns: 0,
+        completionTurns: 0,
+      });
     return tokenAgg.get(id)!;
   };
 
@@ -142,7 +171,8 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     headTot.set(hk, (headTot.get(hk) ?? 0) + 1);
     headTot.set(hkRev, (headTot.get(hkRev) ?? 0) + 1);
     if (winner === "pro") headWin.set(hk, (headWin.get(hk) ?? 0) + 1);
-    if (winner === "con") headWin.set(hkey(con, pro), (headWin.get(hkey(con, pro)) ?? 0) + 1);
+    if (winner === "con")
+      headWin.set(hkey(con, pro), (headWin.get(hkey(con, pro)) ?? 0) + 1);
     if (winner === "tie") {
       headWin.set(hk, (headWin.get(hk) ?? 0) + 0.5);
       headWin.set(hkey(con, pro), (headWin.get(hkey(con, pro)) ?? 0) + 0.5);
@@ -247,12 +277,16 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     const t = tokenAgg.get(s.model_id);
     if (t) {
       s.mean_prompt_tokens = t.promptTurns ? t.prompt / t.promptTurns : 0;
-      s.mean_completion_tokens = t.completionTurns ? t.completion / t.completionTurns : 0;
+      s.mean_completion_tokens = t.completionTurns
+        ? t.completion / t.completionTurns
+        : 0;
       s.mean_total_tokens = s.mean_prompt_tokens + s.mean_completion_tokens;
     }
   });
 
-  const modelStats = Array.from(statsMap.values()).sort((a, b) => b.rating - a.rating);
+  const modelStats = Array.from(statsMap.values()).sort(
+    (a, b) => b.rating - a.rating,
+  );
 
   const headToHead: HeadToHeadCell[] = [];
   for (const m of models) {
@@ -260,7 +294,12 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
       if (m === o) continue;
       const tot = headTot.get(hkey(m, o)) || 0;
       const win = headWin.get(hkey(m, o)) || 0;
-      headToHead.push({ row: m, col: o, win_rate: tot ? win / tot : 0, samples: tot });
+      headToHead.push({
+        row: m,
+        col: o,
+        win_rate: tot ? win / tot : 0,
+        samples: tot,
+      });
     }
   }
 
@@ -269,17 +308,17 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     win_rate: (t.wins + 0.5 * t.ties) / (t.samples || 1),
   }));
 
-  const judgeAgreement: JudgeAgreementRow[] = Array.from(judgeAgreementPairs.entries()).map(
-    ([key, val]) => {
-      const [a, b] = key.split("|||");
-      return {
-        judge_a: a,
-        judge_b: b,
-        agreement_rate: val.total ? val.agree / val.total : 0,
-        samples: val.total,
-      };
-    }
-  );
+  const judgeAgreement: JudgeAgreementRow[] = Array.from(
+    judgeAgreementPairs.entries(),
+  ).map(([key, val]) => {
+    const [a, b] = key.split("|||");
+    return {
+      judge_a: a,
+      judge_b: b,
+      agreement_rate: val.total ? val.agree / val.total : 0,
+      samples: val.total,
+    };
+  });
 
   return {
     models,

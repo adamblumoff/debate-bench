@@ -5,9 +5,30 @@ const TEXT = "#e9eef7";
 const MUTED = "#98a7bf";
 const BORDER = "#1f2c3a";
 
-export const accentRange = ["#4dd3ff", "#6fe1ff", "#8fc7ff", "#b5e8ff", "#d9f7ff", "#7cc0ff"];
-export const heatRange = ["#0f1f2a", "#0d3a46", "#0f5560", "#1f7a8a", "#3aa9b5", "#6dd3e3"];
-export const divergingRange = ["#f9706d", "#f6b44f", "#e9eef7", "#63c7ff", "#3b9fff", "#1f7aad"];
+export const accentRange = [
+  "#4dd3ff",
+  "#6fe1ff",
+  "#8fc7ff",
+  "#b5e8ff",
+  "#d9f7ff",
+  "#7cc0ff",
+];
+export const heatRange = [
+  "#0f1f2a",
+  "#0d3a46",
+  "#0f5560",
+  "#1f7a8a",
+  "#3aa9b5",
+  "#6dd3e3",
+];
+export const divergingRange = [
+  "#f9706d",
+  "#f6b44f",
+  "#e9eef7",
+  "#63c7ff",
+  "#3b9fff",
+  "#1f7aad",
+];
 
 const baseConfig: Config = {
   background: "transparent",

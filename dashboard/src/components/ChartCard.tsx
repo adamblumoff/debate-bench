@@ -2,7 +2,15 @@
 
 import { ReactNode } from "react";
 
-export function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+export function ChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+}) {
   return (
     <section className="card">
       <header className="mb-3 flex items-start justify-between gap-3">

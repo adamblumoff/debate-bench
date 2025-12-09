@@ -23,6 +23,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Key not allowed" }, { status: 400 });
   }
   const expiresIn = serverEnv.urlExpirySeconds;
-  const url = await getSignedObjectUrl(run, key, expiresIn);
-  return NextResponse.json({ url, expiresIn });
+  try {
+    const url = await getSignedObjectUrl(run, key, expiresIn);
+    return NextResponse.json({ url, expiresIn });
+  } catch (err) {
+    const status =
+      err instanceof Error && /timeout/i.test(err.message) ? 504 : 502;
+    return NextResponse.json(
+      {
+        error: "sign_failed",
+        detail: err instanceof Error ? err.message : "unknown",
+      },
+      { status },
+    );
+  }
 }

@@ -11,7 +11,10 @@ type ChartType = (typeof chartTypes)[number];
 type DatasetKey = "debates" | "judges";
 type DataRow = Record<string, string | number | null | undefined>;
 
-function inferType(values: DataRow[], field: string): "quantitative" | "nominal" {
+function inferType(
+  values: DataRow[],
+  field: string,
+): "quantitative" | "nominal" {
   const sample = values.find((v) => v[field] !== undefined);
   if (sample == null) return "nominal";
   const val = sample[field];
@@ -24,7 +27,7 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
       debates: data.debateRows as DataRow[],
       judges: data.judgeRows as DataRow[],
     }),
-    [data.debateRows, data.judgeRows]
+    [data.debateRows, data.judgeRows],
   );
 
   const [datasetKey, setDatasetKey] = useState<DatasetKey>("debates");
@@ -58,15 +61,22 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
       enc.color = { aggregate: "count", type: "quantitative" };
     } else if (chartType === "boxplot") {
       enc.y = { field: yField, type: yType };
-      if (colorField) enc.color = { field: colorField, type: inferType(rows, colorField) };
+      if (colorField)
+        enc.color = { field: colorField, type: inferType(rows, colorField) };
     } else if (chartType === "scatter") {
       enc.y = { field: yField, type: yType };
-      if (colorField) enc.color = { field: colorField, type: inferType(rows, colorField) };
-      enc.tooltip = [xField, yField, colorField].filter(Boolean).map((f) => ({ field: f!, type: inferType(rows, f!) }));
+      if (colorField)
+        enc.color = { field: colorField, type: inferType(rows, colorField) };
+      enc.tooltip = [xField, yField, colorField]
+        .filter(Boolean)
+        .map((f) => ({ field: f!, type: inferType(rows, f!) }));
     } else {
       // bar
       if (yField) {
-        const yEncoding: Record<string, unknown> = { field: yField, type: yType };
+        const yEncoding: Record<string, unknown> = {
+          field: yField,
+          type: yType,
+        };
         if (yType === "quantitative") {
           yEncoding.aggregate = "mean";
         }
@@ -74,7 +84,8 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
       } else {
         enc.y = { aggregate: "count", type: "quantitative" };
       }
-      if (colorField) enc.color = { field: colorField, type: inferType(rows, colorField) };
+      if (colorField)
+        enc.color = { field: colorField, type: inferType(rows, colorField) };
     }
 
     return {
@@ -91,7 +102,9 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
     <div className="grid gap-3 md:grid-cols-[300px_1fr]">
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
         <h4 className="text-sm font-semibold text-white">Chart builder</h4>
-        <p className="text-xs text-slate-400 mb-3">Pick dataset and encodings</p>
+        <p className="text-xs text-slate-400 mb-3">
+          Pick dataset and encodings
+        </p>
         <div className="space-y-3 text-sm text-slate-200">
           <label className="flex flex-col gap-1">
             <span className="text-slate-400">Dataset</span>
@@ -167,7 +180,9 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
         {spec ? (
           <VegaLiteChart spec={spec} />
         ) : (
-          <p className="text-sm text-slate-400">Select fields to preview a chart.</p>
+          <p className="text-sm text-slate-400">
+            Select fields to preview a chart.
+          </p>
         )}
       </div>
     </div>
