@@ -51,6 +51,14 @@ function DashboardContent() {
   });
 
   const runFromUrl = searchParams.get("run") || undefined;
+  const builderHref = useMemo(() => {
+    const params = new URLSearchParams();
+    searchParams.getAll("compare").forEach((v) => params.append("compare", v));
+    const run = searchParams.get("run");
+    if (run) params.set("run", run);
+    const qs = params.toString();
+    return qs ? `/builder?${qs}` : "/builder";
+  }, [searchParams]);
   const runId = useMemo(() => {
     if (!manifest) return runFromUrl;
     if (runFromUrl && manifest.runs.some((r) => r.id === runFromUrl))
@@ -99,6 +107,14 @@ function DashboardContent() {
   );
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
+  const maxTopN = useMemo(() => {
+    const count = derived?.modelStats.length ?? meta?.modelCount ?? 12;
+    return Math.min(Math.max(count, 6), 24);
+  }, [derived?.modelStats.length, meta?.modelCount]);
+  const resetFilters = useCallback(() => {
+    setCategory("all");
+    setTopN(6);
+  }, [setCategory, setTopN]);
 
   const sortedRunOptions = useMemo(() => {
     const options = manifest?.runs || [];
@@ -157,12 +173,14 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
-      <div className="container-page space-y-8 pb-28">
+      <div className="container-page space-y-10 pb-28">
         <div className="flex flex-col gap-3">
           <RunControls
             runOptions={sortedRunOptions}
             runId={runId}
             selectedRun={selectedRun}
+            modelCount={derived?.models.length ?? meta?.modelCount}
+            debateCount={meta?.debateCount}
             manifestLoading={manifestLoading}
             manifestError={manifestError}
             refreshingRuns={refreshingRuns}
@@ -174,6 +192,7 @@ function DashboardContent() {
             disableDataRefresh={status === "loading"}
             disableDownloadData={status === "loading"}
             downloadHref={downloadHref}
+            builderHref={builderHref}
           />
           <Hero
             debateCount={meta?.debateCount || 0}
@@ -187,6 +206,9 @@ function DashboardContent() {
           onCategory={setCategory}
           topN={topN}
           onTopN={setTopN}
+          maxTopN={maxTopN}
+          defaultTopN={6}
+          onResetFilters={resetFilters}
         />
 
         <HighlightsSection
@@ -201,47 +223,65 @@ function DashboardContent() {
           pricing={pricing}
           topN={topN}
           modelCount={meta?.modelCount}
+          onResetFilters={resetFilters}
         />
 
         {status === "ready" && derived ? (
           <div className="space-y-6">
             <KpiStrip kpi={kpi} />
 
-            <section id="models" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Elo leaderboard">
-                {specs.leaderboard && (
-                  <VegaLiteChart spec={specs.leaderboard} />
-                )}
-              </ChartCard>
-              <ChartCard title="Win rate (top N)">
-                {specs.winrate && <VegaLiteChart spec={specs.winrate} />}
-              </ChartCard>
+            <section id="models" className="grid gap-4 md:grid-cols-12">
+              <div className="md:col-span-6">
+                <ChartCard title="Elo leaderboard" className="chart-card">
+                  {specs.leaderboard && (
+                    <VegaLiteChart spec={specs.leaderboard} />
+                  )}
+                </ChartCard>
+              </div>
+              <div className="md:col-span-6">
+                <ChartCard title="Win rate (top N)" className="chart-card">
+                  {specs.winrate && <VegaLiteChart spec={specs.winrate} />}
+                </ChartCard>
+              </div>
             </section>
 
-            <section id="topics" className="grid gap-4 md:grid-cols-2">
-              <ChartCard
-                title="Head-to-head win rate"
-                subtitle="Row model vs column model"
-              >
-                {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
-              </ChartCard>
-              <ChartCard
-                title="Topic/category win rates"
-                subtitle="Per model × category heatmap"
-              >
-                {specs.categoryHeat && (
-                  <VegaLiteChart spec={specs.categoryHeat} />
-                )}
-              </ChartCard>
+            <section id="topics" className="grid gap-4 md:grid-cols-12">
+              <div className="md:col-span-6">
+                <ChartCard
+                  title="Head-to-head win rate"
+                  subtitle="Row model vs column model"
+                  className="chart-card"
+                >
+                  {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
+                </ChartCard>
+              </div>
+              <div className="md:col-span-6">
+                <ChartCard
+                  title="Topic/category win rates"
+                  subtitle="Per model × category heatmap"
+                  className="chart-card"
+                >
+                  {specs.categoryHeat && (
+                    <VegaLiteChart spec={specs.categoryHeat} />
+                  )}
+                </ChartCard>
+              </div>
             </section>
 
-            <section id="judges" className="grid gap-4 md:grid-cols-2">
-              <ChartCard title="Judge agreement">
-                {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
-              </ChartCard>
-              <ChartCard title="Side bias (pro minus con win rate)">
-                {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
-              </ChartCard>
+            <section id="judges" className="grid gap-4 md:grid-cols-12">
+              <div className="md:col-span-6">
+                <ChartCard title="Judge agreement" className="chart-card">
+                  {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
+                </ChartCard>
+              </div>
+              <div className="md:col-span-6">
+                <ChartCard
+                  title="Side bias (pro minus con win rate)"
+                  className="chart-card"
+                >
+                  {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
+                </ChartCard>
+              </div>
             </section>
 
             <section id="pricing" className="space-y-3">

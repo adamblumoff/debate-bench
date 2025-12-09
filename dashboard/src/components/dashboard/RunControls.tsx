@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RunConfig } from "@/lib/server/runs";
 import { Download } from "lucide-react";
 
@@ -5,6 +6,8 @@ type Props = {
   runOptions: RunConfig[];
   runId?: string;
   selectedRun?: RunConfig;
+  modelCount?: number;
+  debateCount?: number;
   manifestLoading: boolean;
   manifestError?: Error | null;
   refreshingRuns: boolean;
@@ -16,12 +19,15 @@ type Props = {
   onDownloadData: () => void;
   disableDownloadData?: boolean;
   downloadHref: string;
+  builderHref: string;
 };
 
 export function RunControls({
   runOptions,
   runId,
   selectedRun,
+  modelCount,
+  debateCount,
   manifestLoading,
   manifestError,
   refreshingRuns,
@@ -33,16 +39,27 @@ export function RunControls({
   onDownloadData,
   disableDownloadData,
   downloadHref,
+  builderHref,
 }: Props) {
+  const updatedLabel = selectedRun?.updated
+    ? new Date(selectedRun.updated).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      })
+    : null;
+
   return (
-    <div className="flex flex-wrap items-center gap-3 justify-between">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+    <div className="space-y-1">
+      <div className="run-toolbar">
+        <div className="run-left">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
             Run
           </span>
           <select
-            className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2 py-1 text-sm text-slate-100"
+            className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100"
             value={runId || ""}
             onChange={(e) => onRunChange(e.target.value)}
             disabled={
@@ -59,44 +76,56 @@ export function RunControls({
               </option>
             ))}
           </select>
+          <div className="run-meta-inline">
+            {modelCount !== undefined && (
+              <span className="run-chip">{modelCount} models</span>
+            )}
+            {debateCount !== undefined && (
+              <span className="run-chip">{debateCount} debates</span>
+            )}
+            {updatedLabel && (
+              <span className="run-chip">Updated {updatedLabel}</span>
+            )}
+          </div>
         </div>
-        {selectedRun?.updated && (
-          <span className="text-xs text-slate-500">
-            Updated {selectedRun.updated}
-          </span>
-        )}
-        <button
-          className="text-xs text-slate-300 underline-offset-4 underline disabled:text-slate-500"
-          onClick={onRefreshRuns}
-          disabled={manifestLoading || refreshingRuns}
-        >
-          {refreshingRuns ? "Refreshing…" : "Refresh runs"}
-        </button>
-        <button
-          className="text-xs text-slate-300 underline-offset-4 underline"
-          onClick={onRefreshData}
-          disabled={disableDataRefresh}
-        >
-          Refresh data
-        </button>
-        <a
-          href={downloadHref}
-          download
-          className={`text-xs underline-offset-4 underline flex items-center gap-1 ${disableDownloadData ? "text-slate-500 cursor-not-allowed" : "text-slate-300 hover:text-white"}`}
-          onClick={(e) => {
-            if (disableDownloadData) {
+        <div className="run-actions">
+          <Link href={builderHref} className="btn-primary">
+            Custom chart
+          </Link>
+          <button
+            className="btn-ghost subtle disabled:opacity-60"
+            onClick={onRefreshRuns}
+            disabled={manifestLoading || refreshingRuns}
+          >
+            {refreshingRuns ? "Refreshing runs…" : "Refresh runs"}
+          </button>
+          <button
+            className="btn-ghost subtle disabled:opacity-60"
+            onClick={onRefreshData}
+            disabled={disableDataRefresh}
+          >
+            Refresh data
+          </button>
+          <a
+            href={downloadHref}
+            download
+            className={`btn-ghost subtle flex items-center gap-1 ${disableDownloadData ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--accent)]"}`}
+            onClick={(e) => {
+              if (disableDownloadData) {
+                e.preventDefault();
+                return;
+              }
               e.preventDefault();
-              return;
-            }
-            e.preventDefault();
-            onDownloadData();
-          }}
-          aria-disabled={disableDownloadData}
-          aria-label="Download debates JSONL"
-          title="Download debates JSONL"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-        </a>
+              onDownloadData();
+            }}
+            aria-disabled={disableDownloadData}
+            aria-label="Download debates JSONL"
+            title="Download debates JSONL"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>Download</span>
+          </a>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {refreshRunsError && (

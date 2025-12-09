@@ -7,25 +7,52 @@ export function buildLeaderboardSpec(
   limit: number,
 ): VisualizationSpec {
   const topStats = derived.modelStats.slice(0, limit);
+  const x = {
+    field: "rating",
+    type: "quantitative",
+    axis: { title: "Elo" },
+    scale: { zero: true, nice: true },
+  };
+  const y = { field: "model_id", type: "nominal", sort: "-x" };
   return {
     width: "container",
     height: 260,
     data: { values: topStats },
-    mark: { type: "bar" },
-    encoding: {
-      y: { field: "model_id", type: "nominal", sort: "-x" },
-      x: { field: "rating", type: "quantitative", axis: { title: "Elo" } },
-      color: {
-        field: "rating",
-        type: "quantitative",
-        scale: { range: accentRange },
+    layer: [
+      {
+        mark: { type: "bar", cornerRadiusEnd: 6 },
+        encoding: {
+          y,
+          x,
+          color: {
+            field: "rating",
+            type: "quantitative",
+            scale: { range: accentRange },
+          },
+          tooltip: [
+            { field: "model_id", title: "Model" },
+            { field: "rating", title: "Elo", format: ".0f" },
+            { field: "win_rate", title: "Win rate", format: ".1%" },
+          ],
+        },
       },
-      tooltip: [
-        { field: "model_id", title: "Model" },
-        { field: "rating", title: "Elo", format: ".0f" },
-        { field: "win_rate", title: "Win rate", format: ".1%" },
-      ],
-    },
+      {
+        mark: {
+          type: "text",
+          align: "left",
+          baseline: "middle",
+          dx: 6,
+          fill: "#d9f7ff",
+          fontSize: 11,
+        },
+        encoding: {
+          y,
+          x,
+          text: { field: "rating", format: ".0f" },
+          color: { value: "#d9f7ff" },
+        },
+      },
+    ],
   } satisfies VisualizationSpec;
 }
 
@@ -36,24 +63,52 @@ export function buildWinrateSpec(
   const topWin = [...derived.modelStats]
     .sort((a, b) => b.win_rate - a.win_rate)
     .slice(0, limit);
+  const x = {
+    field: "win_rate",
+    type: "quantitative",
+    axis: { format: ".0%", title: "Win rate" },
+    scale: { zero: true, nice: true, domain: [0, 1] },
+  };
+  const y = { field: "model_id", type: "nominal", sort: "-x" };
   return {
     width: "container",
     height: 260,
     data: { values: topWin },
-    mark: { type: "bar" },
-    encoding: {
-      y: { field: "model_id", type: "nominal", sort: "-x" },
-      x: {
-        field: "win_rate",
-        type: "quantitative",
-        axis: { format: ".0%", title: "Win rate" },
+    layer: [
+      {
+        mark: { type: "bar", cornerRadiusEnd: 6 },
+        encoding: {
+          y,
+          x,
+          color: {
+            field: "win_rate",
+            type: "quantitative",
+            scale: { range: accentRange },
+          },
+          tooltip: [
+            { field: "model_id", title: "Model" },
+            { field: "win_rate", title: "Win rate", format: ".1%" },
+            { field: "games", title: "Games", format: ".0f" },
+          ],
+        },
       },
-      color: {
-        field: "win_rate",
-        type: "quantitative",
-        scale: { range: accentRange },
+      {
+        mark: {
+          type: "text",
+          align: "left",
+          baseline: "middle",
+          dx: 6,
+          fill: "#d9f7ff",
+          fontSize: 11,
+        },
+        encoding: {
+          y,
+          x,
+          text: { field: "win_rate", format: ".0%" },
+          color: { value: "#d9f7ff" },
+        },
       },
-    },
+    ],
   } satisfies VisualizationSpec;
 }
 
@@ -76,6 +131,7 @@ export function buildTokenStackSpec(
         field: "tokens",
         type: "quantitative",
         axis: { title: "Mean tokens" },
+        scale: { zero: true, nice: true },
       },
       color: {
         field: "kind",
@@ -83,6 +139,11 @@ export function buildTokenStackSpec(
         scale: { domain: ["prompt", "output"], range: ["#6fe1ff", "#1f7aad"] },
         legend: { title: "Tokens" },
       },
+      tooltip: [
+        { field: "model", title: "Model" },
+        { field: "kind", title: "Type" },
+        { field: "tokens", title: "Mean tokens", format: ".0f" },
+      ],
     },
   } satisfies VisualizationSpec;
 }
@@ -92,7 +153,7 @@ export function buildRatingVsWinSpec(derived: DerivedData): VisualizationSpec {
     width: "container",
     height: 260,
     data: { values: derived.modelStats },
-    mark: { type: "point" },
+    mark: { type: "point", filled: true, opacity: 0.92, size: 80 },
     encoding: {
       x: { field: "rating", type: "quantitative", axis: { title: "Elo" } },
       y: {

@@ -19,13 +19,24 @@ export function buildSideBiasSpec(
     data: { values: side.slice(0, limit + 2) },
     mark: { type: "bar" },
     encoding: {
-      x: { field: "gap", type: "quantitative", axis: { format: ".0%" } },
+      x: {
+        field: "gap",
+        type: "quantitative",
+        axis: { format: ".0%", title: "Pro – con win rate" },
+        scale: { zero: true },
+      },
       y: { field: "model", type: "nominal", sort: "-x" },
       color: {
         field: "gap",
         type: "quantitative",
         scale: { range: divergingRange },
       },
+      tooltip: [
+        { field: "model", title: "Model" },
+        { field: "gap", title: "Gap", format: ".1%" },
+        { field: "pro", title: "Pro win", format: ".1%" },
+        { field: "con", title: "Con win", format: ".1%" },
+      ],
     },
   } satisfies VisualizationSpec;
 }

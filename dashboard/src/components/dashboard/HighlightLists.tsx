@@ -8,19 +8,21 @@ export function MiniBarList({
   formatter,
   onAdd,
   expected,
+  className = "",
 }: {
   title: string;
   items: { label: string; value: number; hint?: string }[];
   formatter: (n: number) => string;
   onAdd?: (id: string) => void;
   expected?: number;
+  className?: string;
 }) {
   const desired = expected !== undefined ? expected : items.length;
   const rowHeight = 56;
   const minHeight = desired ? desired * rowHeight : undefined;
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
-    <div className="card flex-1">
+    <div className={`card flex-1 highlight-card ${className}`.trim()}>
       <header className="flex items-center justify-between mb-2">
         <p className="text-sm text-slate-300">{title}</p>
         <div className="h-1 w-10 rounded-full bg-[var(--accent)]" />
@@ -62,14 +64,16 @@ export function TokenBarList({
   title,
   items,
   onAdd,
+  className = "",
 }: {
   title: string;
   items: { label: string; prompt: number; output: number }[];
   onAdd?: (id: string) => void;
+  className?: string;
 }) {
   const max = Math.max(...items.map((i) => i.prompt + i.output), 1);
   return (
-    <div className="card flex-1">
+    <div className={`card flex-1 highlight-card ${className}`.trim()}>
       <header className="flex items-center justify-between mb-2">
         <p className="text-sm text-slate-300">{title}</p>
         <div className="h-1 w-10 rounded-full bg-[var(--accent)]" />

@@ -34,10 +34,16 @@ export type HighlightLists = {
   sideBias: { label: string; value: number; hint?: string }[];
 };
 
+export type KpiItem = {
+  label: string;
+  value: string;
+  helper?: string;
+};
+
 export type Kpi = {
-  topModel: string;
-  sideGap: string;
-  judgeSpan: string;
+  topModel: KpiItem;
+  sideGap: KpiItem;
+  judgeSpan: KpiItem;
 } | null;
 
 export function selectHighlightDerived(
@@ -154,8 +160,22 @@ export function buildKpis(derived?: DerivedData): Kpi {
     },
   );
   return {
-    topModel: `${top.model_id} (${toPercent(top.win_rate)})`,
-    sideGap: `${widestGap.model_id}: ${toPercent(widestGap.pro_win_rate - widestGap.con_win_rate)}`,
-    judgeSpan: `${toPercent(judgeRange.min)} – ${toPercent(judgeRange.max)}`,
+    topModel: {
+      label: top.model_id,
+      value: toPercent(top.win_rate),
+      helper: `${top.games} games`,
+    },
+    sideGap: {
+      label: widestGap.model_id,
+      value: toPercent(
+        Math.abs(widestGap.pro_win_rate - widestGap.con_win_rate),
+      ),
+      helper: `Pro ${toPercent(widestGap.pro_win_rate)} / Con ${toPercent(widestGap.con_win_rate)}`,
+    },
+    judgeSpan: {
+      label: "Panel agreement",
+      value: `${toPercent(judgeRange.min)} – ${toPercent(judgeRange.max)}`,
+      helper: `${derived.judgeAgreement.length} judge pairs`,
+    },
   };
 }

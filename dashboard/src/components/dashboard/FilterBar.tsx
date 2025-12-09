@@ -6,6 +6,9 @@ type Props = {
   onCategory: (v: string) => void;
   topN: number;
   onTopN: (v: number) => void;
+  maxTopN?: number;
+  defaultTopN?: number;
+  onResetFilters?: () => void;
 };
 
 export function FilterBar({
@@ -14,7 +17,23 @@ export function FilterBar({
   onCategory,
   topN,
   onTopN,
+  maxTopN = 12,
+  defaultTopN = 6,
+  onResetFilters,
 }: Props) {
+  const sliderMax = Math.max(defaultTopN, maxTopN);
+  const clampedTopN = Math.min(topN, sliderMax);
+  const hasFilters = category !== "all" || topN !== defaultTopN;
+
+  const handleReset = () => {
+    if (onResetFilters) {
+      onResetFilters();
+      return;
+    }
+    onCategory("all");
+    onTopN(defaultTopN);
+  };
+
   return (
     <div className="filter-bar sticky top-0 z-20 backdrop-blur">
       <div className="filter-row">
@@ -46,20 +65,53 @@ export function FilterBar({
               Top N
             </p>
             <div className="topn-slider">
+              <span className="text-[11px] text-slate-500">1</span>
               <input
                 type="range"
-                min={4}
-                max={12}
-                value={topN}
-                onChange={(e) => onTopN(Number(e.target.value))}
+                min={1}
+                max={sliderMax}
+                value={clampedTopN}
+                onChange={(e) =>
+                  onTopN(
+                    Math.max(1, Math.min(sliderMax, Number(e.target.value))),
+                  )
+                }
               />
-              <span className="text-sm text-slate-200">{topN}</span>
+              <span className="text-[11px] text-slate-500">
+                {sliderMax === clampedTopN ? "All" : sliderMax}
+              </span>
+              <span className="topn-pill">Top {clampedTopN}</span>
             </div>
           </div>
         </div>
-        <div className="text-xs text-slate-400 filter-help">
-          Filters apply to highlights and category heatmaps; compare state is
-          shareable via URL.
+        <div className="filter-actions">
+          <p className="text-xs text-slate-400 filter-help">
+            Filters apply to highlights and category heatmaps; compare state is
+            shareable via URL.
+          </p>
+          <button
+            className={`clear-pill ${!hasFilters ? "opacity-50 cursor-not-allowed" : ""}`}
+            onClick={handleReset}
+            disabled={!hasFilters}
+          >
+            Clear all
+          </button>
+        </div>
+      </div>
+      <div className="filter-row filter-foot">
+        <div className="pin-row">
+          {hasFilters ? (
+            <>
+              {category !== "all" && (
+                <span className="pill pill-soft">Category: {category}</span>
+              )}
+              {topN !== defaultTopN && (
+                <span className="pill pill-soft">Top {clampedTopN}</span>
+              )}
+            </>
+          ) : (
+            <span className="pin-empty">No filters applied.</span>
+          )}
         </div>
       </div>
     </div>
