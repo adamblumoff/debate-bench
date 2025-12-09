@@ -160,6 +160,8 @@ function DashboardContent() {
           onTab={setActiveTab}
           onAddModel={addModel}
           pricing={pricing}
+          topN={topN}
+          modelCount={meta?.modelCount}
         />
 
         {status === "ready" && derived ? (

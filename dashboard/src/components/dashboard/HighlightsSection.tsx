@@ -17,6 +17,8 @@ type Props = {
   onTab: (tab: HighlightsTab) => void;
   onAddModel: (id: string) => void;
   pricing: PricingSnapshot;
+  topN: number;
+  modelCount?: number;
 };
 
 export function HighlightsSection({
@@ -29,6 +31,8 @@ export function HighlightsSection({
   onTab,
   onAddModel,
   pricing,
+  topN,
+  modelCount,
 }: Props) {
   if (status !== "ready" || !derived) {
     return (
@@ -51,8 +55,20 @@ export function HighlightsSection({
       <div className="grid gap-3 md:grid-cols-3">
         {activeTab === "performance" && (
           <>
-            <MiniBarList title="Elo leaderboard" items={highlightData.elo} formatter={(v) => v.toFixed(0)} onAdd={onAddModel} />
-            <MiniBarList title="Win rate" items={highlightData.win} formatter={(v) => `${(v * 100).toFixed(1)}%`} onAdd={onAddModel} />
+            <MiniBarList
+              title="Elo leaderboard"
+              items={highlightData.elo}
+              formatter={(v) => v.toFixed(0)}
+              onAdd={onAddModel}
+              expected={Math.min(topN, modelCount || topN)}
+            />
+            <MiniBarList
+              title="Win rate"
+              items={highlightData.win}
+              formatter={(v) => `${(v * 100).toFixed(1)}%`}
+              onAdd={onAddModel}
+              expected={Math.min(topN, modelCount || topN)}
+            />
             <ChartCard title="Elo vs win rate">{specs.ratingVsWin && <VegaLiteChart spec={specs.ratingVsWin} />}</ChartCard>
           </>
         )}
@@ -65,7 +81,13 @@ export function HighlightsSection({
         )}
         {activeTab === "cost" && (
           <>
-            <MiniBarList title="Cheapest blended cost" items={highlightData.cost} formatter={(v) => `$${v.toFixed(2)}`} onAdd={onAddModel} />
+            <MiniBarList
+              title="Cheapest blended cost"
+              items={highlightData.cost}
+              formatter={(v) => `$${v.toFixed(2)}`}
+              onAdd={onAddModel}
+              expected={Math.min(topN, modelCount || topN)}
+            />
             <div className="card col-span-2 flex flex-col justify-between">
               <div>
                 <p className="text-sm text-slate-300 mb-1">Pricing snapshot</p>

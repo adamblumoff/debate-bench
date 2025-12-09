@@ -7,12 +7,17 @@ export function MiniBarList({
   items,
   formatter,
   onAdd,
+  expected,
 }: {
   title: string;
   items: { label: string; value: number; hint?: string }[];
   formatter: (n: number) => string;
   onAdd?: (id: string) => void;
+  expected?: number;
 }) {
+  const desired = expected !== undefined ? expected : items.length;
+  const rowHeight = 56;
+  const minHeight = desired ? desired * rowHeight : undefined;
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
     <div className="card flex-1">
@@ -20,7 +25,7 @@ export function MiniBarList({
         <p className="text-sm text-slate-300">{title}</p>
         <div className="h-1 w-10 rounded-full bg-[var(--accent)]" />
       </header>
-      <div className="space-y-2">
+      <div className="space-y-2" style={minHeight ? { minHeight } : undefined}>
         {items.map((i) => (
           <div key={i.label} className="flex items-center gap-3">
             <div className="w-full">

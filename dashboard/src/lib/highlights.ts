@@ -83,11 +83,13 @@ export function buildHighlightLists(
     output: m.mean_completion_tokens,
   }));
 
-  const allowedModels = new Set(highlightDerived.modelStats.map((m) => m.model_id));
-  const cost = [...pricing.rows]
-    .filter((r) => !allowedModels.size || allowedModels.has(r.model_id))
+  const allowedModels = new Set(highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id));
+  const pricingRows = [...pricing.rows];
+  const costPool = pricingRows.filter((r) => allowedModels.has(r.model_id));
+  const costSource = costPool.length ? costPool : pricingRows;
+  const cost = costSource
     .sort((a, b) => a.input_per_million + a.output_per_million - (b.input_per_million + b.output_per_million))
-    .slice(0, 6)
+    .slice(0, topN)
     .map((r) => ({
       label: r.model_id,
       value: r.input_per_million + r.output_per_million,
