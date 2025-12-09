@@ -50,7 +50,12 @@ export function buildTokenStackSpec(derived: DerivedData, limit: number): Visual
     encoding: {
       y: { field: "model", type: "nominal", sort: "-x" },
       x: { field: "tokens", type: "quantitative", axis: { title: "Mean tokens" } },
-      color: { field: "kind", type: "nominal", scale: { range: accentRange.slice(0, 2) } },
+      color: {
+        field: "kind",
+        type: "nominal",
+        scale: { domain: ["prompt", "output"], range: ["#6fe1ff", "#1f7aad"] },
+        legend: { title: "Tokens" },
+      },
     },
   } satisfies VisualizationSpec;
 }
