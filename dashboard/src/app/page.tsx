@@ -58,6 +58,8 @@ function DashboardContent() {
     return manifest.defaultRunId;
   }, [manifest, runFromUrl]);
 
+  const runReady = Boolean(runId);
+
   useEffect(() => {
     if (!manifest || !runId || runId === runFromUrl) return;
     const params = new URLSearchParams(searchParams.toString());
@@ -66,7 +68,7 @@ function DashboardContent() {
   }, [manifest, runId, runFromUrl, router, searchParams]);
 
   const { status, error, derived, derivedByCategory, meta, load } =
-    useEnsureData(runId);
+    useEnsureData(runId, runReady);
   const { activeTab, setActiveTab, topN, setTopN, category, setCategory } =
     useHighlightsState();
   const {

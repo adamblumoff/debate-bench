@@ -22,7 +22,9 @@ export default async function BuilderPage({ searchParams }: BuilderPageProps) {
   const resolvedParams = await searchParams;
   const runId =
     typeof resolvedParams.run === "string" ? resolvedParams.run : undefined;
-  const metrics = await getMetrics(false, runId);
+  const metrics = await getMetrics(false, runId, undefined, {
+    includeRows: true,
+  });
   const derived = metrics.derived;
   const requested = parseCompareParam(resolvedParams.compare);
   const selectedModels = chooseModels(derived, requested);

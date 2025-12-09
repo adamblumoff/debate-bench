@@ -40,7 +40,9 @@ export async function buildChart(
   const modelsRaw = formData.getAll("models");
   const requested = parseCompareParam(modelsRaw as string[]);
 
-  const metrics = await getMetrics(false, runId);
+  const metrics = await getMetrics(false, runId, undefined, {
+    includeRows: true,
+  });
   const derived = metrics.derived;
   const selectedModels = chooseModels(derived, requested);
   const rows = filterRowsByModels(derived, selectedModels, dataset);

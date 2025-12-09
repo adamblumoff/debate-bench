@@ -35,11 +35,17 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const refresh = url.searchParams.get("refresh") === "1";
+  const full = url.searchParams.get("full") === "1";
   const runId = url.searchParams.get("run") || undefined;
   try {
-    const payload = await getMetrics(refresh, runId);
+    const payload = await getMetrics(refresh, runId, undefined, {
+      includeRows: full,
+    });
+    const cacheHeader = refresh
+      ? "no-store"
+      : "public, max-age=0, s-maxage=300, stale-while-revalidate=900";
     return NextResponse.json(payload, {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": cacheHeader },
     });
   } catch (err) {
     if (

@@ -60,12 +60,13 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 }));
 
-export const useEnsureData = (runId?: string) => {
+export const useEnsureData = (runId?: string, enabled: boolean = true) => {
   const load = useDataStore((s) => s.load);
   const status = useDataStore((s) => s.status);
   const key = runId ? `metrics-${runId}` : "metrics-default";
   useSWR(
-    status === "idle" || useDataStore.getState().currentRun !== runId
+    enabled &&
+      (status === "idle" || useDataStore.getState().currentRun !== runId)
       ? key
       : null,
     () => load(runId),

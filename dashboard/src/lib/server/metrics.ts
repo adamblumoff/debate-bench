@@ -12,10 +12,28 @@ type MetricsPayload = {
   meta: { debateCount: number; modelCount: number; categories: string[] };
 };
 
+type MetricsOptions = {
+  includeRows?: boolean;
+  includeCategories?: boolean;
+};
+
 const cache = new Map<string, { ts: number; payload: MetricsPayload }>();
 const defaultTtl = 5 * 60 * 1000;
 
-async function computeMetrics(run: RunConfig): Promise<MetricsPayload> {
+function stripRows(derived: DerivedData): DerivedData {
+  return {
+    ...derived,
+    debateRows: [],
+    judgeRows: [],
+  };
+}
+
+async function computeMetrics(
+  run: RunConfig,
+  opts: MetricsOptions = {},
+): Promise<MetricsPayload> {
+  const includeCategories = opts.includeCategories !== false;
+
   const s3 = new S3Client({ region: run.region });
   const command = new GetObjectCommand({ Bucket: run.bucket, Key: run.key });
   const url = await getSignedUrl(s3, command, {
@@ -37,11 +55,13 @@ async function computeMetrics(run: RunConfig): Promise<MetricsPayload> {
   }
 
   const derivedByCategory: Record<string, DerivedData> = {};
-  for (const category of categorySet) {
-    const subset = debates.filter(
-      (d) => d.transcript.topic.category === category,
-    );
-    derivedByCategory[category] = buildDerived(subset);
+  if (includeCategories) {
+    for (const category of categorySet) {
+      const subset = debates.filter(
+        (d) => d.transcript.topic.category === category,
+      );
+      derivedByCategory[category] = buildDerived(subset);
+    }
   }
 
   return {
@@ -65,7 +85,7 @@ async function getMetricsWithTtl(
   if (!refresh && entry && Date.now() - entry.ts < ttlMs) {
     return entry.payload;
   }
-  const payload = await computeMetrics(run);
+  const payload = await computeMetrics(run, { includeCategories: true });
   cache.set(key, { ts: Date.now(), payload });
   return payload;
 }
@@ -74,11 +94,25 @@ export async function getMetrics(
   refresh = false,
   runId?: string,
   ttlMs?: number,
+  opts: MetricsOptions = {},
 ): Promise<MetricsPayload> {
   const ttl =
     typeof ttlMs === "number"
       ? ttlMs
       : Number(process.env.METRICS_CACHE_MS || defaultTtl);
   const run = await resolveRun(runId, refresh);
-  return getMetricsWithTtl(refresh, ttl, run);
+  const payload = await getMetricsWithTtl(refresh, ttl, run);
+  if (opts.includeRows === false) {
+    const strip = (d: DerivedData) => stripRows(d);
+    const derivedByCategory: Record<string, DerivedData> = {};
+    for (const [k, v] of Object.entries(payload.derivedByCategory || {})) {
+      derivedByCategory[k] = strip(v);
+    }
+    return {
+      derived: strip(payload.derived),
+      derivedByCategory,
+      meta: payload.meta,
+    };
+  }
+  return payload;
 }
