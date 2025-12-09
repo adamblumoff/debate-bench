@@ -1,3 +1,4 @@
+import path from "path";
 import { resolveRun } from "@/lib/server/runs";
 import { fetchObjectStream } from "@/lib/server/s3";
 
@@ -18,10 +19,12 @@ export async function GET(request: Request) {
 
   try {
     const { body, contentType } = await fetchObjectStream(run);
+    const filename = run.key ? path.basename(run.key) : "debates.jsonl";
     return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
     });

@@ -1,4 +1,5 @@
 import { RunConfig } from "@/lib/server/runs";
+import { Download } from "lucide-react";
 
 type Props = {
   runOptions: RunConfig[];
@@ -12,6 +13,9 @@ type Props = {
   onRefreshRuns: () => void;
   onRefreshData: () => void;
   disableDataRefresh?: boolean;
+  onDownloadData: () => void;
+  disableDownloadData?: boolean;
+  downloadHref: string;
 };
 
 export function RunControls({
@@ -26,6 +30,9 @@ export function RunControls({
   onRefreshRuns,
   onRefreshData,
   disableDataRefresh,
+  onDownloadData,
+  disableDownloadData,
+  downloadHref,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3 justify-between">
@@ -61,6 +68,24 @@ export function RunControls({
         >
           Refresh data
         </button>
+        <a
+          href={downloadHref}
+          download
+          className={`text-xs underline-offset-4 underline flex items-center gap-1 ${disableDownloadData ? "text-slate-500 cursor-not-allowed" : "text-slate-300 hover:text-white"}`}
+          onClick={(e) => {
+            if (disableDownloadData) {
+              e.preventDefault();
+              return;
+            }
+            e.preventDefault();
+            onDownloadData();
+          }}
+          aria-disabled={disableDownloadData}
+          aria-label="Download debates JSONL"
+          title="Download debates JSONL"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+        </a>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {refreshRunsError && <span className="text-xs text-red-300">Refresh failed: {refreshRunsError}</span>}

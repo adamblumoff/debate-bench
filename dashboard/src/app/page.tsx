@@ -25,6 +25,13 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
+function buildDownloadHref(runId?: string) {
+  const params = new URLSearchParams();
+  if (runId) params.set("run", runId);
+  const qs = params.toString();
+  return qs ? `/api/debates?${qs}` : "/api/debates";
+}
+
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,6 +110,16 @@ function DashboardContent() {
   const onRefreshData = useCallback(() => {
     load(runId, true);
   }, [load, runId]);
+  const onDownloadData = useCallback(() => {
+    const link = document.createElement("a");
+    link.href = buildDownloadHref(runId);
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }, [runId]);
+
+  const downloadHref = useMemo(() => buildDownloadHref(runId), [runId]);
 
   const specs = useMemo(() => buildHighlightSpecs(highlightDerived, derived, topN, category), [highlightDerived, derived, topN, category]);
   const highlightData = useMemo(() => buildHighlightLists(highlightDerived, pricing, topN), [highlightDerived, pricing, topN]);
@@ -123,7 +140,10 @@ function DashboardContent() {
             onRunChange={onRunChange}
             onRefreshRuns={onRefreshRuns}
             onRefreshData={onRefreshData}
+            onDownloadData={onDownloadData}
             disableDataRefresh={status === "loading"}
+            disableDownloadData={status === "loading"}
+            downloadHref={downloadHref}
           />
           <Hero debateCount={meta?.debateCount || 0} modelCount={derived?.models.length || 0} />
         </div>
