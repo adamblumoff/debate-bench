@@ -15,7 +15,7 @@ import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { useFieldGuards } from "./useFieldGuards";
 
-type DatasetKey = "debates" | "judges";
+type DatasetKey = "debates" | "judges" | "judge_bias";
 type ChartType = "bar" | "scatter" | "heatmap";
 
 type Props = {
@@ -223,6 +223,7 @@ export default function BuilderClient({
             >
               <option value="debates">Debates</option>
               <option value="judges">Judges</option>
+              <option value="judge_bias">Judge bias</option>
             </select>
           </label>
 

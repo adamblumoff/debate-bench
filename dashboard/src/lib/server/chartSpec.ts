@@ -1,7 +1,7 @@
 import { VisualizationSpec } from "vega-embed";
 import { DerivedData } from "@/lib/types";
 
-export type DatasetKey = "debates" | "judges";
+export type DatasetKey = "debates" | "judges" | "judge_bias";
 export type ChartType = "bar" | "scatter" | "heatmap";
 
 export type DataRow = Record<string, string | number | null | undefined>;
@@ -26,11 +26,23 @@ export function inferType(
 }
 
 export function buildFields(data: DerivedData, dataset: DatasetKey): string[] {
-  const rows = dataset === "debates" ? data.debateRows : data.judgeRows;
+  const rows =
+    dataset === "debates"
+      ? data.debateRows
+      : dataset === "judges"
+        ? data.judgeRows
+        : data.judgeBias;
   if (!rows?.length) return [];
   const base = new Set(rows.flatMap((r) => Object.keys(r)));
   // ensure derived quantitative helper fields are available
-  base.add("win_rate");
+  if (dataset === "debates") base.add("win_rate");
+  if (dataset === "judge_bias") {
+    base.add("bias");
+    base.add("pro_rate");
+    base.add("con_rate");
+    base.add("topic_id");
+    base.add("topic_motion");
+  }
   return Array.from(base);
 }
 
@@ -43,7 +55,11 @@ export function buildFieldTypes(
     types[field] = inferType(rows, field);
   }
   // force helper fields
-  types["win_rate"] = "quantitative";
+  if ("win_rate" in rows[0]) types["win_rate"] = "quantitative";
+  if ("bias" in rows[0]) types["bias"] = "quantitative";
+  if ("pro_rate" in rows[0]) types["pro_rate"] = "quantitative";
+  if ("con_rate" in rows[0]) types["con_rate"] = "quantitative";
+  if ("topic_motion" in rows[0]) types["topic_motion"] = inferType(rows, "topic_motion");
   return types;
 }
 

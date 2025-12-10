@@ -3,12 +3,64 @@ import {
   DerivedData,
   HeadToHeadCell,
   JudgeAgreementRow,
+  JudgeBiasRow,
   JudgeRowForBuilder,
   ModelStats,
   TopicWinrate,
   DebateRowForBuilder,
   Winner,
 } from "./types";
+
+type SparseExample = {
+  y: number; // 1 for pro win, 0 for con win
+  idx: number[]; // feature indices
+  val: number[]; // corresponding values (same length as idx)
+  judge_id: string;
+  topic_id: string;
+};
+
+function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x));
+}
+
+/**
+ * Simple L2-regularized logistic regression (sparse one-hot features).
+ * Returns weight vector sized to `numFeatures`.
+ */
+function fitLogisticRidge(
+  examples: SparseExample[],
+  numFeatures: number,
+  {
+    lambda = 1.0,
+    lr = 0.1,
+    iters = 120,
+  }: { lambda?: number; lr?: number; iters?: number } = {},
+): Float64Array {
+  const w = new Float64Array(numFeatures);
+  const n = examples.length || 1;
+
+  for (let iter = 0; iter < iters; iter++) {
+    const grad = new Float64Array(numFeatures);
+    for (const ex of examples) {
+      let z = 0;
+      for (let k = 0; k < ex.idx.length; k++) {
+        z += w[ex.idx[k]] * ex.val[k];
+      }
+      const p = sigmoid(z);
+      const err = p - ex.y; // derivative of log-loss
+      for (let k = 0; k < ex.idx.length; k++) {
+        grad[ex.idx[k]] += err * ex.val[k];
+      }
+    }
+    // L2 penalty
+    for (let i = 0; i < numFeatures; i++) grad[i] += lambda * w[i];
+
+    const step = lr / n;
+    for (let i = 0; i < numFeatures; i++) w[i] -= step * grad[i];
+  }
+
+  return w;
+}
 
 export function buildDerived(debates: DebateRecord[]): DerivedData {
   if (!debates.length) {
@@ -19,6 +71,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
       headToHead: [],
       topicWinrates: [],
       judgeAgreement: [],
+      judgeBias: [],
       debateRows: [],
       judgeRows: [],
     };
@@ -88,8 +141,23 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     string,
     { agree: number; total: number }
   >();
+  const judgeBiasCounts = new Map<
+    string,
+    {
+      pro: number;
+      con: number;
+      tie: number;
+      category: string;
+      topic_id: string;
+      topic_motion?: string;
+    }
+  >();
   const judgeRows: JudgeRowForBuilder[] = [];
   const debateRows: DebateRowForBuilder[] = [];
+  const judgeIds: string[] = [];
+  const topicIds: string[] = [];
+  const seenJudge = new Set<string>();
+  const seenTopic = new Set<string>();
 
   const ensureStats = (id: string) => {
     if (!statsMap.has(id)) {
@@ -133,7 +201,13 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
 
   for (const { d } of withIndex) {
     const { pro_model_id: pro, con_model_id: con, topic } = d.transcript;
+    const category = topic.category || "uncategorized";
     const winner = d.aggregate.winner;
+
+    if (!seenTopic.has(topic.id)) {
+      topicIds.push(topic.id);
+      seenTopic.add(topic.id);
+    }
 
     const proStats = ensureStats(pro);
     const conStats = ensureStats(con);
@@ -230,6 +304,25 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     // judge rows and agreement
     const winnersByJudge: Record<string, Winner> = {};
     for (const j of d.judges) {
+      if (!seenJudge.has(j.judge_id)) {
+        judgeIds.push(j.judge_id);
+        seenJudge.add(j.judge_id);
+      }
+      const sideScore = j.winner === "pro" ? 1 : j.winner === "con" ? -1 : 0;
+      const biasKey = `${j.judge_id}|||${topic.id}`;
+      const biasCounts = judgeBiasCounts.get(biasKey) || {
+        pro: 0,
+        con: 0,
+        tie: 0,
+        category,
+        topic_id: topic.id,
+        topic_motion: topic.motion,
+      };
+      if (j.winner === "pro") biasCounts.pro += 1;
+      else if (j.winner === "con") biasCounts.con += 1;
+      else biasCounts.tie += 1;
+      judgeBiasCounts.set(biasKey, biasCounts);
+
       judgeRows.push({
         judge_id: j.judge_id,
         winner: j.winner,
@@ -237,14 +330,18 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         con_model_id: con,
         topic_id: topic.id,
         category: topic.category,
+        side_score: sideScore,
+        pro_pick: j.winner === "pro" ? 1 : 0,
+        con_pick: j.winner === "con" ? 1 : 0,
+        tie_pick: j.winner === "tie" || j.winner === null ? 1 : 0,
       });
       winnersByJudge[j.judge_id] = j.winner;
     }
-    const judgeIds = Object.keys(winnersByJudge);
-    for (let i = 0; i < judgeIds.length; i++) {
-      for (let k = i + 1; k < judgeIds.length; k++) {
-        const a = judgeIds[i];
-        const b = judgeIds[k];
+    const panelJudgeIds = Object.keys(winnersByJudge);
+    for (let i = 0; i < panelJudgeIds.length; i++) {
+      for (let k = i + 1; k < panelJudgeIds.length; k++) {
+        const a = panelJudgeIds[i];
+        const b = panelJudgeIds[k];
         const key = hkey(a, b);
         const entry = judgeAgreementPairs.get(key) || { agree: 0, total: 0 };
         entry.total += 1;
@@ -320,6 +417,126 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     };
   });
 
+  const judgeBias: JudgeBiasRow[] = Array.from(judgeBiasCounts.entries()).map(
+    ([key, counts]): JudgeBiasRow => {
+      const [judge_id, topic_id] = key.split("|||");
+      const samples = counts.pro + counts.con + counts.tie;
+      const pro_rate = samples
+        ? (counts.pro + 0.5 * counts.tie) / samples
+        : 0;
+      const con_rate = samples
+        ? (counts.con + 0.5 * counts.tie) / samples
+        : 0;
+      return {
+        judge_id,
+        category: counts.category,
+        topic_id,
+        topic_motion: counts.topic_motion,
+        pro_wins: counts.pro,
+        con_wins: counts.con,
+        ties: counts.tie,
+        samples,
+        pro_rate,
+        con_rate,
+        bias: pro_rate - con_rate,
+        adj_bias: undefined,
+        topic_avg_bias: undefined,
+        topic_avg_adj_bias: undefined,
+      };
+    },
+  );
+  judgeBias.sort((a, b) => {
+    const mag = Math.abs(b.bias) - Math.abs(a.bias);
+    if (mag !== 0) return mag;
+    return b.samples - a.samples;
+  });
+
+  // -------- Adjusted judge/topic bias via ridge logistic (controls for model strength) --------
+  if (judgeIds.length && topicIds.length && judgeRows.length) {
+    const modelIndex = new Map<string, number>();
+    models.forEach((m, i) => modelIndex.set(m, i));
+
+    const judgeIndex = new Map<string, number>();
+    judgeIds.forEach((j, i) => judgeIndex.set(j, i));
+    const topicIndex = new Map<string, number>();
+    topicIds.forEach((t, i) => topicIndex.set(t, i));
+
+    const offsetJudge = 1;
+    const offsetTopic = offsetJudge + judgeIds.length;
+    const offsetModel = offsetTopic + topicIds.length;
+    const numFeatures = 1 + judgeIds.length + topicIds.length + models.length;
+
+    const examples: SparseExample[] = [];
+    for (const jr of judgeRows) {
+      if (jr.winner === null || jr.winner === "tie") continue; // skip ties
+      if (!jr.topic_id || !judgeIndex.has(jr.judge_id)) continue;
+      const tIdx = topicIndex.get(jr.topic_id);
+      if (tIdx === undefined) continue;
+      const idx: number[] = [0];
+      const val: number[] = [1];
+      idx.push(offsetJudge + judgeIndex.get(jr.judge_id)!);
+      val.push(1);
+      idx.push(offsetTopic + tIdx);
+      val.push(1);
+      if (modelIndex.has(jr.pro_model_id as string)) {
+        idx.push(offsetModel + modelIndex.get(jr.pro_model_id as string)!);
+        val.push(1);
+      }
+      if (modelIndex.has(jr.con_model_id as string)) {
+        idx.push(offsetModel + modelIndex.get(jr.con_model_id as string)!);
+        val.push(-1); // con side subtracts
+      }
+      examples.push({
+        y: jr.winner === "pro" ? 1 : 0,
+        idx,
+        val,
+        judge_id: jr.judge_id,
+        topic_id: jr.topic_id as string,
+      });
+    }
+
+    if (examples.length && numFeatures > 1) {
+      const w = fitLogisticRidge(examples, numFeatures, {
+        lambda: 2.0,
+        lr: 0.2,
+        iters: 250,
+      });
+
+      const topicAdjStats = new Map<string, { sum: number; n: number }>();
+      const topicRawStats = new Map<string, { sum: number; n: number }>();
+
+      const adjFor = (judge_id: string, topic_id: string) => {
+        const jIdx = judgeIndex.get(judge_id);
+        const tIdx = topicIndex.get(topic_id);
+        if (jIdx === undefined || tIdx === undefined) return undefined;
+        const logit = w[0] + w[offsetJudge + jIdx] + w[offsetTopic + tIdx];
+        const p = sigmoid(logit);
+        return 2 * p - 1; // map to [-1,1]
+      };
+
+      for (const jb of judgeBias) {
+        const adj = adjFor(jb.judge_id, jb.topic_id);
+        jb.adj_bias = adj;
+        const rawEntry = topicRawStats.get(jb.topic_id) || { sum: 0, n: 0 };
+        rawEntry.sum += jb.bias;
+        rawEntry.n += 1;
+        topicRawStats.set(jb.topic_id, rawEntry);
+
+        const adjEntry = topicAdjStats.get(jb.topic_id) || { sum: 0, n: 0 };
+        adjEntry.sum += adj ?? jb.bias;
+        adjEntry.n += 1;
+        topicAdjStats.set(jb.topic_id, adjEntry);
+      }
+
+      for (const jb of judgeBias) {
+        const raw = topicRawStats.get(jb.topic_id);
+        jb.topic_avg_bias = raw && raw.n ? raw.sum / raw.n : undefined;
+        const adj = topicAdjStats.get(jb.topic_id);
+        jb.topic_avg_adj_bias = adj && adj.n ? adj.sum / adj.n : jb.topic_avg_bias;
+      }
+    }
+  }
+
   return {
     models,
     dimensions,
@@ -327,6 +544,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     headToHead,
     topicWinrates,
     judgeAgreement,
+    judgeBias,
     debateRows,
     judgeRows,
   };

@@ -24,7 +24,7 @@ export async function buildChart(
 ): Promise<BuildChartResponse> {
   const dataset = pickOrFallback<DatasetKey>(
     formData.get("dataset"),
-    ["debates", "judges"],
+    ["debates", "judges", "judge_bias"],
     "debates",
   );
   const chartType = pickOrFallback<ChartRequest["chartType"]>(

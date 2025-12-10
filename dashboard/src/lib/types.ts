@@ -105,6 +105,23 @@ export interface JudgeAgreementRow {
   samples: number;
 }
 
+export interface JudgeBiasRow {
+  judge_id: string;
+  category: string;
+  topic_id: string;
+  topic_motion?: string;
+  pro_wins: number;
+  con_wins: number;
+  ties: number;
+  samples: number;
+  pro_rate: number;
+  con_rate: number;
+  bias: number; // pro_rate - con_rate
+  adj_bias?: number; // bias adjusted for model strength
+  topic_avg_bias?: number; // mean raw bias for this topic
+  topic_avg_adj_bias?: number; // mean adjusted bias for this topic
+}
+
 export interface DebateRowForBuilder {
   pro_model_id: string;
   con_model_id: string;
@@ -121,6 +138,10 @@ export interface JudgeRowForBuilder {
   con_model_id: string;
   topic_id: string;
   category?: string;
+  side_score?: number;
+  pro_pick?: number;
+  con_pick?: number;
+  tie_pick?: number;
   [key: string]: string | number | Winner | undefined;
 }
 
@@ -131,6 +152,7 @@ export interface DerivedData {
   headToHead: HeadToHeadCell[];
   topicWinrates: TopicWinrate[];
   judgeAgreement: JudgeAgreementRow[];
+  judgeBias: JudgeBiasRow[];
   debateRows: DebateRowForBuilder[];
   judgeRows: JudgeRowForBuilder[];
 }

@@ -8,7 +8,7 @@ import { VegaLiteChart } from "./VegaLiteChart";
 const chartTypes = ["bar", "scatter", "heatmap", "boxplot"] as const;
 type ChartType = (typeof chartTypes)[number];
 
-type DatasetKey = "debates" | "judges";
+type DatasetKey = "debates" | "judges" | "judge_bias";
 type DataRow = Record<string, string | number | null | undefined>;
 
 function inferType(
@@ -26,8 +26,9 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
     () => ({
       debates: data.debateRows as DataRow[],
       judges: data.judgeRows as DataRow[],
+      judge_bias: data.judgeBias as unknown as DataRow[],
     }),
-    [data.debateRows, data.judgeRows],
+    [data.debateRows, data.judgeRows, data.judgeBias],
   );
 
   const [datasetKey, setDatasetKey] = useState<DatasetKey>("debates");
@@ -111,10 +112,23 @@ export function ChartBuilder({ data }: { data: DerivedData }) {
             <select
               className="rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
               value={datasetKey}
-              onChange={(e) => setDatasetKey(e.target.value as DatasetKey)}
+              onChange={(e) => {
+                const next = e.target.value as DatasetKey;
+                setDatasetKey(next);
+                // reset encodings when switching datasets
+                if (next === "judge_bias") {
+                  setXField("bias");
+                  setYField("judge_id");
+                } else {
+                  setXField("pro_model_id");
+                  setYField("winner");
+                }
+                setColorField("");
+              }}
             >
               <option value="debates">Debates</option>
-              <option value="judges">Judges</option>
+              <option value="judges">Judges (decisions)</option>
+              <option value="judge_bias">Judges (bias summary)</option>
             </select>
           </label>
           <label className="flex flex-col gap-1">

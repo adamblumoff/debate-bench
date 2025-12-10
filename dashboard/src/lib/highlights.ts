@@ -6,19 +6,17 @@ import {
   buildCategoryHeatSpec,
   buildH2HSpec,
   buildJudgeHeatSpec,
+  buildJudgeSideBiasSpec,
   buildSideBiasSpec,
 } from "@/lib/specs/core";
 import {
-  buildLeaderboardSpec,
   buildRatingVsWinSpec,
   buildTokenStackSpec,
-  buildWinrateSpec,
 } from "@/lib/specs/highlights";
 
 export type HighlightSpecs = {
-  leaderboard?: VisualizationSpec;
-  winrate?: VisualizationSpec;
   sideBias?: VisualizationSpec;
+  judgeSideBias?: VisualizationSpec;
   categoryHeat?: VisualizationSpec;
   tokens?: VisualizationSpec;
   ratingVsWin?: VisualizationSpec;
@@ -64,9 +62,8 @@ export function buildHighlightSpecs(
 ): HighlightSpecs {
   if (!highlightDerived || !fullDerived) return {};
   return {
-    leaderboard: buildLeaderboardSpec(highlightDerived, topN),
-    winrate: buildWinrateSpec(highlightDerived, topN),
     sideBias: buildSideBiasSpec(highlightDerived, topN),
+    judgeSideBias: buildJudgeSideBiasSpec(fullDerived, 3),
     categoryHeat: buildCategoryHeatSpec(highlightDerived, category),
     tokens: buildTokenStackSpec(highlightDerived, topN),
     ratingVsWin: buildRatingVsWinSpec(highlightDerived),

@@ -230,36 +230,26 @@ function DashboardContent() {
           <div className="space-y-6">
             <KpiStrip kpi={kpi} />
 
-            <section id="models" className="grid gap-4 md:grid-cols-12">
-              <div className="md:col-span-6">
-                <ChartCard title="Elo leaderboard" className="chart-card">
-                  {specs.leaderboard && (
-                    <VegaLiteChart spec={specs.leaderboard} />
-                  )}
-                </ChartCard>
-              </div>
-              <div className="md:col-span-6">
-                <ChartCard title="Win rate (top N)" className="chart-card">
-                  {specs.winrate && <VegaLiteChart spec={specs.winrate} />}
-                </ChartCard>
-              </div>
-            </section>
+            {/* Models section removed (Elo + win rate duplicated in highlights) */}
 
-            <section id="topics" className="grid gap-4 md:grid-cols-12">
-              <div className="md:col-span-6">
+            <section
+              id="topics"
+              className="grid gap-4 md:grid-cols-12 items-stretch"
+            >
+              <div className="md:col-span-6 min-w-0">
                 <ChartCard
                   title="Head-to-head win rate"
                   subtitle="Row model vs column model"
-                  className="chart-card"
+                  className="chart-card h-full"
                 >
                   {specs.h2h && <VegaLiteChart spec={specs.h2h} />}
                 </ChartCard>
               </div>
-              <div className="md:col-span-6">
+              <div className="md:col-span-6 min-w-0">
                 <ChartCard
                   title="Topic/category win rates"
                   subtitle="Per model × category heatmap"
-                  className="chart-card"
+                  className="chart-card h-full"
                 >
                   {specs.categoryHeat && (
                     <VegaLiteChart spec={specs.categoryHeat} />
@@ -269,17 +259,31 @@ function DashboardContent() {
             </section>
 
             <section id="judges" className="grid gap-4 md:grid-cols-12">
-              <div className="md:col-span-6">
-                <ChartCard title="Judge agreement" className="chart-card">
+              <div className="md:col-span-6 min-w-0">
+                <ChartCard
+                  title="Judge agreement"
+                  className="chart-card h-full overflow-hidden"
+                >
                   {specs.judgeHeat && <VegaLiteChart spec={specs.judgeHeat} />}
                 </ChartCard>
               </div>
-              <div className="md:col-span-6">
+              <div className="md:col-span-6 min-w-0">
                 <ChartCard
                   title="Side bias (pro minus con win rate)"
-                  className="chart-card"
+                  className="chart-card h-full overflow-hidden"
                 >
                   {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
+                </ChartCard>
+              </div>
+              <div className="md:col-span-12 min-w-0">
+                <ChartCard
+                  title="Judge side preference"
+                  subtitle="Regression-adjusted pro–con bias (controls for model + topic). Sorted by topic avg (con → pro); hover for motion."
+                  className="chart-card h-full overflow-hidden"
+                >
+                  {specs.judgeSideBias && (
+                    <VegaLiteChart spec={specs.judgeSideBias} />
+                  )}
                 </ChartCard>
               </div>
             </section>

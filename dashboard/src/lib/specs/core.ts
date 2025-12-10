@@ -15,7 +15,7 @@ export function buildSideBiasSpec(
   side.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
   return {
     width: "container",
-    height: 260,
+    height: 320,
     data: { values: side.slice(0, limit + 2) },
     mark: { type: "bar" },
     encoding: {
@@ -41,10 +41,99 @@ export function buildSideBiasSpec(
   } satisfies VisualizationSpec;
 }
 
+export function buildJudgeSideBiasSpec(
+  derived: DerivedData,
+  minSamples: number = 1,
+): VisualizationSpec {
+  const filtered = derived.judgeBias.filter(
+    (j) => j.samples >= minSamples && typeof j.adj_bias === "number",
+  );
+
+  // compute mean adjusted bias per topic for sorting
+  const topicBias = new Map<string, { sum: number; n: number }>();
+  for (const row of filtered) {
+    const entry = topicBias.get(row.topic_id) || { sum: 0, n: 0 };
+    const val = row.adj_bias as number;
+    entry.sum += val;
+    entry.n += 1;
+    topicBias.set(row.topic_id, entry);
+  }
+  const topicOrder = Array.from(topicBias.entries())
+    .map(([topic_id, { sum, n }]) => ({ topic_id, avg: n ? sum / n : 0 }))
+    .sort((a, b) => a.avg - b.avg) // most con-bias (negative) to most pro-bias (positive)
+    .map((t) => t.topic_id);
+
+  const values = filtered.map((j) => ({
+    judge: j.judge_id,
+    topic_id: j.topic_id,
+    topic_motion: j.topic_motion,
+    adj_bias: j.adj_bias as number,
+    pro: j.pro_rate,
+    con: j.con_rate,
+    samples: j.samples,
+    topic_avg_bias: (() => {
+      const entry = topicBias.get(j.topic_id);
+      if (!entry || !entry.n) return undefined;
+      return entry.sum / entry.n;
+    })(),
+  }));
+
+  return {
+    width: { step: 90 },
+    height: { step: 34 },
+    data: { values },
+    mark: { type: "rect" },
+    encoding: {
+      x: {
+        field: "topic_id",
+        type: "nominal",
+        sort: topicOrder,
+        axis: {
+          labelAngle: -40,
+          title: "Topic id",
+          labelLimit: 90,
+          labelPadding: 6,
+        },
+      },
+      y: {
+        field: "judge",
+        type: "nominal",
+        sort: "-x",
+        axis: {
+          title: "Judge model",
+          titlePadding: 14,
+          labelPadding: 10,
+        },
+      },
+      color: {
+        field: "adj_bias",
+        type: "quantitative",
+        scale: { domain: [-1, 0, 1], range: divergingRange },
+        legend: { format: ".2f", title: "Pro – con bias" },
+      },
+      tooltip: [
+        { field: "judge", title: "Judge" },
+        { field: "topic_id", title: "Topic" },
+        { field: "topic_motion", title: "Motion" },
+        {
+          field: "topic_avg_bias",
+          title: "Avg bias (topic)",
+          format: ".3f",
+        },
+        { field: "adj_bias", title: "Adj bias", format: ".3f" },
+        { field: "pro", title: "Pro pick", format: ".3f" },
+        { field: "con", title: "Con pick", format: ".3f" },
+        { field: "samples", title: "Decisions" },
+      ],
+    },
+    config: { axis: { labelLimit: 120 } },
+  } satisfies VisualizationSpec;
+}
+
 export function buildH2HSpec(derived: DerivedData): VisualizationSpec {
   return {
     width: "container",
-    height: 320,
+    height: 380,
     data: { values: derived.headToHead },
     mark: { type: "rect" },
     encoding: {
@@ -54,7 +143,12 @@ export function buildH2HSpec(derived: DerivedData): VisualizationSpec {
         field: "win_rate",
         type: "quantitative",
         scale: { range: heatRange, domain: [0, 1] },
-        legend: { format: ".0%" },
+        legend: {
+          format: ".0%",
+          labelOverlap: true,
+          values: [0, 0.2, 0.4, 0.6, 0.8, 1],
+          gradientLength: 140,
+        },
       },
       tooltip: [
         { field: "row", type: "nominal", title: "row" },
@@ -85,7 +179,12 @@ export function buildJudgeHeatSpec(derived: DerivedData): VisualizationSpec {
         field: "agreement_rate",
         type: "quantitative",
         scale: { range: heatRange, domain: [0, 1] },
-        legend: { format: ".0%" },
+        legend: {
+          format: ".0%",
+          values: [0, 0.2, 0.4, 0.6, 0.8, 1],
+          gradientLength: 140,
+          labelOverlap: true,
+        },
       },
       tooltip: [
         { field: "judge_a", type: "nominal" },
@@ -113,7 +212,7 @@ export function buildCategoryHeatSpec(
     }));
   return {
     width: "container",
-    height: 320,
+    height: 380,
     data: { values: rows },
     mark: { type: "rect" },
     encoding: {
@@ -123,7 +222,12 @@ export function buildCategoryHeatSpec(
         field: "win_rate",
         type: "quantitative",
         scale: { range: heatRange, domain: [0, 1] },
-        legend: { format: ".0%" },
+        legend: {
+          format: ".0%",
+          labelOverlap: true,
+          values: [0, 0.2, 0.4, 0.6, 0.8, 1],
+          gradientLength: 140,
+        },
       },
       tooltip: [
         { field: "model", type: "nominal" },
