@@ -1,0 +1,137 @@
+# DebateBench CLI Reference
+
+Authoritative reference for every `debatebench` command and option. Defaults reflect the current code (Python 3.9+, Typer).
+
+## Conventions
+- Defaults shown in parentheses.
+- Paths are workspace-relative unless noted.
+- Seeded randomness: unless you pass `--seed None`, runs are repeatable (default 12345).
+- Tags: if you omit `--run-tag`, a UTC timestamp `run-YYYYMMDD-HHMMSS` is used to suffix outputs.
+
+---
+
+## `debatebench run`
+Run debates for selected topics and model pairs, then (by default) summarize, plot, and rate.
+
+**Core options**
+- `--run-tag TEXT` — suffix for outputs (`results/debates_<tag>.jsonl`, `viz_<tag>/`, `plots_<tag>/`, `ratings_<tag>.json`). Default: timestamp.
+- `--debates-per-pair INT` — debates per ordered model pair per topic. Default 1 (or inferred when `--new-model`).
+- `--sample-topics INT` — randomly sample this many topics (after interactive selection).
+- `--seed INT` — RNG seed (12345). Set to null to use time-based randomness.
+- `--balanced-sides / --no-balanced-sides` — permutations (A vs B and B vs A) vs combinations (A vs B only). Default balanced.
+- `--swap-sides` — when not balanced, randomly swap pro/con per debate.
+
+**Selection**
+- `--openrouter-select / --no-openrouter-select` — interactive debater picker from OpenRouter (default on). If off, uses `configs/models.yaml`.
+- `--openrouter-months INT` — catalog lookback in months (4).
+- `--openrouter-probe / --no-openrouter-probe` — 1-token probe per selected model; failures are dropped (default on).
+- `--topic-select / --no-topic-select` — interactive topic picker (default on).
+- `--tui-wizard / --no-tui-wizard` — curses wizard that combines topic/model/judge selection (default on; falls back to prompts if curses unavailable).
+- `--judges-from-selection` — reuse selected debaters as judge pool; active debaters in a debate are excluded from sampling.
+- `--openrouter-judge-months INT` — judge catalog lookback (defaults to `--openrouter-months`).
+
+**Token/temperature**
+- `--openrouter-temperature FLOAT` — default temperature for debaters (0.7).
+- `--openrouter-max-tokens INT` — per-turn max tokens for debaters (None = use per-stage limit from config; if a stage ultimately has no limit, the adapter falls back to 1,024).
+- `--openrouter-judge-max-tokens INT` — per-judge max tokens (None = use config token_limit/parameters or provider default).
+- `--apply-stage-token-limits` — override all stages to `--openrouter-max-tokens` (otherwise per-stage limits come from config; config parser defaults to 5,000 when a stage max_tokens is null).
+
+**Judging**
+- `--balanced-judges / --random-judges` — balanced uses least-used-first, further balancing by topic and pair; random is uniform. Default balanced.
+- `--log-failed-judges` — append raw judge failures to `run_<tag>/failed_judges.jsonl`.
+- `--skip-on-empty` — if a debater returns empty content after retries, ban that model for the rest of the run instead of aborting.
+- `--retry-failed / --no-retry-failed` — retry failed debates once after the main loop. Default retry.
+
+**Execution control**
+- `--resume` — skip debates already present in the debates file (useful after interruption).
+- `--dry-run` — plan only: prints cost/time estimates, writes `run_<tag>/dryrun_schedule.json`, and exits before any debates.
+- `--estimate-time / --no-estimate-time` — show wall-clock estimate from recent runs (default on, with 15% buffer).
+- `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
+- `--quick-test` — fixed smoke test: 1 random topic, predefined debaters/judges from `configs/quick-test-models.yaml`.
+- `--judges-test` — judge-focused smoke: 1 topic, fixed debaters (Haiku vs Gemini 2.5 Flash Lite), judges (Gemini 3 Pro, GPT-5.1); balanced sides off.
+- `--skip-on-empty` — ban a model for the remainder when it produces empty turns after retries (default off).
+
+**Incremental append**
+- `--new-model TEXT` — append only matchups involving this debater to an existing run.
+- Requires: `--run-tag <tag>`, existing `results/debates_<tag>.jsonl`, and `run_<tag>/config_snapshot/{cli_args.json,effective_selection.json}`.
+- Inferred: topics, debates-per-pair, sides orientation, judge settings from the snapshot/log.
+
+**Paths**
+- `--config-path PATH` (`configs/config.yaml`)
+- `--topics-path PATH` (`configs/topics.json`)
+- `--models-path PATH` (`configs/models.yaml`)
+- `--judges-path PATH` (`configs/judges.yaml`)
+- `--debates-path PATH` (`results/debates.jsonl`; overwritten by tag)
+
+---
+
+## `debatebench init`
+Create default `configs/` templates and `results/`.
+- `--force / -f` — overwrite existing templates.
+
+---
+
+## `debatebench summarize`
+Emit CSV summaries from a debates file to `results/viz` by default.
+- `--debates-path PATH` — debates file (default `results/debates.jsonl`).
+- `--out-dir PATH` — output directory (default `results/viz`).
+- Outputs: `winner_counts.csv`, `topic_winrate.csv`, `model_dimension_avg.csv`, `judge_agreement.csv`, `judge_majority_alignment.csv`, `model_winrate_by_side.csv`, `dimension_score_gaps.csv`, `turn_timings.csv`, `token_usage.csv`.
+
+---
+
+## `debatebench plot`
+Render PNG plots from the CSVs produced by `summarize`.
+- `--viz-dir PATH` — input CSV dir (default `results/viz`).
+- `--out-dir PATH` — output PNG dir (default `results/plots`).
+- Plots: winner_counts.png, topic_winrate.png, model_dimension_heatmap.png, judge_agreement.png, judge_majority_alignment.png, model_winrate_by_side.png, dimension_score_gaps.png, turn_timings.png, token_usage.png.
+
+---
+
+## `debatebench rate`
+Recompute Elo ratings from debates.
+- `--debates-path PATH` (`results/debates.jsonl`)
+- `--config-path PATH` (`configs/config.yaml`)
+- `--ratings-path PATH` (`results/ratings.json`)
+- Output: ratings JSON with per-model games played and per-dimension averages.
+
+---
+
+## `debatebench show-leaderboard`
+Print ratings table (Rich).
+- `--ratings-path PATH` (`results/ratings.json`)
+- `--top INT` — show only top N.
+
+---
+
+## `debatebench inspect-debate`
+Print a single debate and judge decisions.
+- Argument: `debate_id` (optional).
+- `--debates-path PATH` — debates file (default `results/debates.jsonl`).
+- `--latest` — auto-pick newest `debates_*.jsonl` and newest debate ID.
+- Output: motion, pro/con IDs, transcript, judges, aggregate winner.
+
+---
+
+## `debatebench upload-results`
+Upload a file or directory tree to S3 with SSE-S3.
+- `--source PATH` — file or directory (default `results`).
+- `--bucket TEXT` — target bucket (required).
+- `--prefix TEXT` — key prefix (optional).
+- `--profile TEXT` — AWS profile (optional).
+- `--region TEXT` — AWS region override (optional).
+- `--dry-run` — list uploads without sending.
+
+---
+
+## Results sub-app alias
+All results utilities are also available under `debatebench results <command>`:
+- `rate`, `show-leaderboard`, `inspect-debate`, `summarize`, `plot`, `upload-results`.
+
+---
+
+## Behavior notes (helpful defaults)
+- Debater turns: default per-stage cap is 5,000 tokens from `config.yaml` parser. If stages are null and no CLI cap is set, the adapter falls back to 1,024. Prompts still nudge ~700 tokens and require `<END_OF_TURN>`.
+- Judge temperature is forced to 0.0; judge responses are validated against a strict JSON schema. Non-JSON fallbacks are parsed best-effort; all-minimum-score replies are rejected.
+- Balanced judge sampling prioritizes least-used overall, then least-used for the topic and pair; random is uniform.
+- Progress and failures: `run_<tag>/progress.json` tracks counts and banned models; `run_<tag>/failed_judges.jsonl` appears when `--log-failed-judges` is set.
+- Resume: `--resume` and incremental append both rely on the debates file; planning skips already-completed topic/pair/rep combos.
