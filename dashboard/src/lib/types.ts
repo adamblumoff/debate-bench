@@ -120,6 +120,11 @@ export interface JudgeBiasRow {
   adj_bias?: number; // bias adjusted for model strength
   topic_avg_bias?: number; // mean raw bias for this topic
   topic_avg_adj_bias?: number; // mean adjusted bias for this topic
+  adj_bias_mean?: number; // CV mean
+  adj_bias_std?: number; // CV std
+  adj_bias_ci_low?: number;
+  adj_bias_ci_high?: number;
+  stability?: "high" | "med" | "low";
 }
 
 export interface DebateRowForBuilder {

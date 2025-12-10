@@ -130,6 +130,104 @@ export function buildJudgeSideBiasSpec(
   } satisfies VisualizationSpec;
 }
 
+export function buildJudgeSideBiasCvSpec(
+  derived: DerivedData,
+  minSamples: number = 1,
+  stableOnly = false,
+): VisualizationSpec {
+  const filtered = derived.judgeBias.filter((j) => {
+    if (j.samples < minSamples) return false;
+    if (typeof j.adj_bias_mean !== "number") return false;
+    if (stableOnly && j.stability !== "high") return false;
+    return true;
+  });
+
+  const topicBias = new Map<string, { sum: number; n: number }>();
+  for (const row of filtered) {
+    const entry = topicBias.get(row.topic_id) || { sum: 0, n: 0 };
+    entry.sum += row.adj_bias_mean as number;
+    entry.n += 1;
+    topicBias.set(row.topic_id, entry);
+  }
+  const topicOrder = Array.from(topicBias.entries())
+    .map(([topic_id, { sum, n }]) => ({ topic_id, avg: n ? sum / n : 0 }))
+    .sort((a, b) => a.avg - b.avg)
+    .map((t) => t.topic_id);
+
+  const values = filtered.map((j) => ({
+    judge: j.judge_id,
+    topic_id: j.topic_id,
+    topic_motion: j.topic_motion,
+    adj_bias_mean: j.adj_bias_mean as number,
+    adj_bias_std: j.adj_bias_std,
+    adj_bias_ci_low: j.adj_bias_ci_low,
+    adj_bias_ci_high: j.adj_bias_ci_high,
+    stability: j.stability,
+    pro: j.pro_rate,
+    con: j.con_rate,
+    samples: j.samples,
+    topic_avg_bias: (() => {
+      const entry = topicBias.get(j.topic_id);
+      if (!entry || !entry.n) return undefined;
+      return entry.sum / entry.n;
+    })(),
+  }));
+
+  return {
+    width: { step: 90 },
+    height: { step: 34 },
+    data: { values },
+    mark: { type: "rect" },
+    encoding: {
+      x: {
+        field: "topic_id",
+        type: "nominal",
+        sort: topicOrder,
+        axis: {
+          labelAngle: -40,
+          title: "Topic id",
+          labelLimit: 90,
+          labelPadding: 6,
+        },
+      },
+      y: {
+        field: "judge",
+        type: "nominal",
+        sort: "-x",
+        axis: {
+          title: "Judge model",
+          titlePadding: 14,
+          labelPadding: 10,
+        },
+      },
+      color: {
+        field: "adj_bias_mean",
+        type: "quantitative",
+        scale: { domain: [-1, 0, 1], range: divergingRange },
+        legend: { format: ".2f", title: "Pro – con bias (CV mean)" },
+      },
+      tooltip: [
+        { field: "judge", title: "Judge" },
+        { field: "topic_id", title: "Topic" },
+        { field: "topic_motion", title: "Motion" },
+        {
+          field: "topic_avg_bias",
+          title: "Avg bias (topic)",
+          format: ".3f",
+        },
+        { field: "adj_bias_mean", title: "Adj bias (mean)", format: ".3f" },
+        { field: "adj_bias_ci_low", title: "CI low", format: ".3f" },
+        { field: "adj_bias_ci_high", title: "CI high", format: ".3f" },
+        { field: "stability", title: "Stability" },
+        { field: "pro", title: "Pro pick", format: ".3f" },
+        { field: "con", title: "Con pick", format: ".3f" },
+        { field: "samples", title: "Decisions" },
+      ],
+    },
+    config: { axis: { labelLimit: 120 } },
+  } satisfies VisualizationSpec;
+}
+
 export function buildH2HSpec(derived: DerivedData): VisualizationSpec {
   return {
     width: "container",

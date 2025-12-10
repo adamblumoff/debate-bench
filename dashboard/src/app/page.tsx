@@ -286,6 +286,17 @@ function DashboardContent() {
                   )}
                 </ChartCard>
               </div>
+              <div className="md:col-span-12 min-w-0">
+                <ChartCard
+                  title="Judge side preference (CV mean)"
+                  subtitle="5-fold CV mean of adjusted bias; topic×model interactions included."
+                  className="chart-card h-full overflow-hidden"
+                >
+                  {specs.judgeSideBiasCv && (
+                    <VegaLiteChart spec={specs.judgeSideBiasCv} />
+                  )}
+                </ChartCard>
+              </div>
             </section>
 
             <section id="pricing" className="space-y-3">

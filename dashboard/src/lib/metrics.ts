@@ -19,6 +19,13 @@ type SparseExample = {
   topic_id: string;
 };
 
+const LAMBDA = {
+  judge: 0.5,
+  topic: 0.5,
+  model: 0.5,
+  topic_model: 0.5,
+};
+
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
 }
@@ -34,10 +41,17 @@ function fitLogisticRidge(
     lambda = 1.0,
     lr = 0.1,
     iters = 120,
-  }: { lambda?: number; lr?: number; iters?: number } = {},
+    penalties,
+  }: {
+    lambda?: number;
+    lr?: number;
+    iters?: number;
+    penalties?: Float64Array;
+  } = {},
 ): Float64Array {
   const w = new Float64Array(numFeatures);
   const n = examples.length || 1;
+  const pen = penalties ?? new Float64Array(numFeatures).fill(lambda);
 
   for (let iter = 0; iter < iters; iter++) {
     const grad = new Float64Array(numFeatures);
@@ -53,13 +67,19 @@ function fitLogisticRidge(
       }
     }
     // L2 penalty
-    for (let i = 0; i < numFeatures; i++) grad[i] += lambda * w[i];
+    for (let i = 0; i < numFeatures; i++) grad[i] += pen[i] * w[i];
 
     const step = lr / n;
     for (let i = 0; i < numFeatures; i++) w[i] -= step * grad[i];
   }
 
   return w;
+}
+
+function hashFold(id: string, folds: number): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h) % folds;
 }
 
 export function buildDerived(debates: DebateRecord[]): DerivedData {
@@ -334,6 +354,7 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         pro_pick: j.winner === "pro" ? 1 : 0,
         con_pick: j.winner === "con" ? 1 : 0,
         tie_pick: j.winner === "tie" || j.winner === null ? 1 : 0,
+        debate_id: d.transcript.debate_id,
       });
       winnersByJudge[j.judge_id] = j.winner;
     }
@@ -452,24 +473,48 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
   });
 
   // -------- Adjusted judge/topic bias via ridge logistic (controls for model strength) --------
-  if (judgeIds.length && topicIds.length && judgeRows.length) {
-    const modelIndex = new Map<string, number>();
-    models.forEach((m, i) => modelIndex.set(m, i));
+  // Helper to build feature indices and examples (with topic x model interactions)
+  const topicModelKeys = new Set<string>();
+  for (const jr of judgeRows) {
+    if (jr.topic_id && jr.pro_model_id)
+      topicModelKeys.add(`${jr.topic_id}|||${jr.pro_model_id}`);
+    if (jr.topic_id && jr.con_model_id)
+      topicModelKeys.add(`${jr.topic_id}|||${jr.con_model_id}`);
+  }
+  const topicModel = Array.from(topicModelKeys).sort();
 
-    const judgeIndex = new Map<string, number>();
-    judgeIds.forEach((j, i) => judgeIndex.set(j, i));
-    const topicIndex = new Map<string, number>();
-    topicIds.forEach((t, i) => topicIndex.set(t, i));
+  const judgeIndex = new Map<string, number>();
+  judgeIds.forEach((j, i) => judgeIndex.set(j, i));
+  const topicIndex = new Map<string, number>();
+  topicIds.forEach((t, i) => topicIndex.set(t, i));
+  const modelIndex = new Map<string, number>();
+  models.forEach((m, i) => modelIndex.set(m, i));
+  const topicModelIndex = new Map<string, number>();
+  topicModel.forEach((tm, i) => topicModelIndex.set(tm, i));
 
-    const offsetJudge = 1;
-    const offsetTopic = offsetJudge + judgeIds.length;
-    const offsetModel = offsetTopic + topicIds.length;
-    const numFeatures = 1 + judgeIds.length + topicIds.length + models.length;
+  const offsetJudge = 1;
+  const offsetTopic = offsetJudge + judgeIds.length;
+  const offsetModel = offsetTopic + topicIds.length;
+  const offsetTopicModel = offsetModel + models.length;
+  const numFeatures = offsetTopicModel + topicModel.length;
 
-    const examples: SparseExample[] = [];
+  const penalties = new Float64Array(numFeatures);
+  penalties.fill(LAMBDA.model, offsetModel, offsetTopicModel);
+  penalties.fill(LAMBDA.topic, offsetTopic, offsetModel);
+  penalties.fill(LAMBDA.judge, offsetJudge, offsetTopic);
+  penalties.fill(LAMBDA.topic_model, offsetTopicModel, numFeatures);
+  penalties[0] = LAMBDA.judge;
+
+  const buildExamples = (holdoutFold: number | null, folds: number) => {
+    const ex: SparseExample[] = [];
     for (const jr of judgeRows) {
-      if (jr.winner === null || jr.winner === "tie") continue; // skip ties
+      if (jr.winner === null || jr.winner === "tie") continue;
       if (!jr.topic_id || !judgeIndex.has(jr.judge_id)) continue;
+      const fold = hashFold(
+        String(jr.debate_id ?? `${jr.topic_id}-${jr.judge_id}`),
+        folds,
+      );
+      if (holdoutFold !== null && fold === holdoutFold) continue;
       const tIdx = topicIndex.get(jr.topic_id);
       if (tIdx === undefined) continue;
       const idx: number[] = [0];
@@ -478,15 +523,29 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
       val.push(1);
       idx.push(offsetTopic + tIdx);
       val.push(1);
-      if (modelIndex.has(jr.pro_model_id as string)) {
-        idx.push(offsetModel + modelIndex.get(jr.pro_model_id as string)!);
+      const pro = jr.pro_model_id as string;
+      const con = jr.con_model_id as string;
+      if (modelIndex.has(pro)) {
+        idx.push(offsetModel + modelIndex.get(pro)!);
         val.push(1);
       }
-      if (modelIndex.has(jr.con_model_id as string)) {
-        idx.push(offsetModel + modelIndex.get(jr.con_model_id as string)!);
-        val.push(-1); // con side subtracts
+      if (modelIndex.has(con)) {
+        idx.push(offsetModel + modelIndex.get(con)!);
+        val.push(-1);
       }
-      examples.push({
+      if (jr.topic_id) {
+        const proKey = `${jr.topic_id}|||${pro}`;
+        const conKey = `${jr.topic_id}|||${con}`;
+        if (topicModelIndex.has(proKey)) {
+          idx.push(offsetTopicModel + topicModelIndex.get(proKey)!);
+          val.push(1);
+        }
+        if (topicModelIndex.has(conKey)) {
+          idx.push(offsetTopicModel + topicModelIndex.get(conKey)!);
+          val.push(-1);
+        }
+      }
+      ex.push({
         y: jr.winner === "pro" ? 1 : 0,
         idx,
         val,
@@ -494,28 +553,33 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         topic_id: jr.topic_id as string,
       });
     }
+    return ex;
+  };
 
+  const adjFor = (w: Float64Array, judge_id: string, topic_id: string) => {
+    const jIdx = judgeIndex.get(judge_id);
+    const tIdx = topicIndex.get(topic_id);
+    if (jIdx === undefined || tIdx === undefined) return undefined;
+    const logit = w[0] + w[offsetJudge + jIdx] + w[offsetTopic + tIdx];
+    const p = sigmoid(logit);
+    return 2 * p - 1;
+  };
+
+  if (judgeIds.length && topicIds.length && judgeRows.length) {
+    const examples = buildExamples(null, 1);
     if (examples.length && numFeatures > 1) {
       const w = fitLogisticRidge(examples, numFeatures, {
-        lambda: 2.0,
+        lambda: 0.5,
         lr: 0.2,
         iters: 250,
+        penalties,
       });
 
       const topicAdjStats = new Map<string, { sum: number; n: number }>();
       const topicRawStats = new Map<string, { sum: number; n: number }>();
 
-      const adjFor = (judge_id: string, topic_id: string) => {
-        const jIdx = judgeIndex.get(judge_id);
-        const tIdx = topicIndex.get(topic_id);
-        if (jIdx === undefined || tIdx === undefined) return undefined;
-        const logit = w[0] + w[offsetJudge + jIdx] + w[offsetTopic + tIdx];
-        const p = sigmoid(logit);
-        return 2 * p - 1; // map to [-1,1]
-      };
-
       for (const jb of judgeBias) {
-        const adj = adjFor(jb.judge_id, jb.topic_id);
+        const adj = adjFor(w, jb.judge_id, jb.topic_id);
         jb.adj_bias = adj;
         const rawEntry = topicRawStats.get(jb.topic_id) || { sum: 0, n: 0 };
         rawEntry.sum += jb.bias;
@@ -533,6 +597,50 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         jb.topic_avg_bias = raw && raw.n ? raw.sum / raw.n : undefined;
         const adj = topicAdjStats.get(jb.topic_id);
         jb.topic_avg_adj_bias = adj && adj.n ? adj.sum / adj.n : jb.topic_avg_bias;
+      }
+
+      // 5-fold CV for stability
+      const folds = 5;
+      const cvBias = new Map<string, number[]>();
+      for (let f = 0; f < folds; f++) {
+        const exFold = buildExamples(f, folds);
+        if (!exFold.length) continue;
+        const wf = fitLogisticRidge(exFold, numFeatures, {
+          lambda: 0.5,
+          lr: 0.2,
+          iters: 220,
+          penalties,
+        });
+        for (const jb of judgeBias) {
+          const adj = adjFor(wf, jb.judge_id, jb.topic_id);
+          if (typeof adj !== "number") continue;
+          const key = `${jb.judge_id}|||${jb.topic_id}`;
+          if (!cvBias.has(key)) cvBias.set(key, []);
+          cvBias.get(key)!.push(adj);
+        }
+      }
+
+      for (const jb of judgeBias) {
+        const arr = cvBias.get(`${jb.judge_id}|||${jb.topic_id}`);
+        if (!arr || !arr.length) continue;
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const variance =
+          arr.length > 1
+            ? arr.reduce((a, b) => a + (b - mean) ** 2, 0) / (arr.length - 1)
+            : 0;
+        const std = Math.sqrt(variance);
+        const ciLow = mean - 1.96 * std;
+        const ciHigh = mean + 1.96 * std;
+        jb.adj_bias_mean = mean;
+        jb.adj_bias_std = std;
+        jb.adj_bias_ci_low = ciLow;
+        jb.adj_bias_ci_high = ciHigh;
+        jb.stability =
+          arr.length >= 5 && (ciLow > 0 || ciHigh < 0)
+            ? "high"
+            : arr.length >= 3
+              ? "med"
+              : "low";
       }
     }
   }
