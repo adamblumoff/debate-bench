@@ -9,11 +9,15 @@ export function buildLeaderboardSpec(
   const topStats = derived.modelStats.slice(0, limit);
   const x = {
     field: "rating",
-    type: "quantitative",
+    type: "quantitative" as const,
     axis: { title: "Elo" },
     scale: { zero: true, nice: true },
   };
-  const y = { field: "model_id", type: "nominal", sort: "-x" };
+  const y = {
+    field: "model_id",
+    type: "nominal" as const,
+    sort: { field: "rating", order: "descending" as const },
+  };
   return {
     width: "container",
     height: 260,
@@ -65,11 +69,15 @@ export function buildWinrateSpec(
     .slice(0, limit);
   const x = {
     field: "win_rate",
-    type: "quantitative",
+    type: "quantitative" as const,
     axis: { format: ".0%", title: "Win rate" },
     scale: { zero: true, nice: true, domain: [0, 1] },
   };
-  const y = { field: "model_id", type: "nominal", sort: "-x" };
+  const y = {
+    field: "model_id",
+    type: "nominal" as const,
+    sort: { field: "win_rate", order: "descending" as const },
+  };
   return {
     width: "container",
     height: 260,
@@ -126,7 +134,11 @@ export function buildTokenStackSpec(
     data: { values: tokenRows },
     mark: { type: "bar" },
     encoding: {
-      y: { field: "model", type: "nominal", sort: "-x" },
+      y: {
+        field: "model",
+        type: "nominal" as const,
+        sort: { field: "tokens", order: "descending" as const },
+      },
       x: {
         field: "tokens",
         type: "quantitative",
