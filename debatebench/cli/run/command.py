@@ -33,7 +33,7 @@ from .estimate import (
     load_activity_pricing,
     load_token_stats,
 )
-from .schedule import build_pairs, derive_debate_seed, select_judges
+from .schedule import build_pairs, derive_debate_seed, make_pair_key, select_judges
 from .selection import (
     SelectionCancelled,
     _fallback_select_models,
@@ -859,6 +859,8 @@ def run_command(
             console.print(f"  {jid}: ~${cost:.2f}")
         # Build a full schedule preview with per-debate judge sampling (matches run-time logic)
         preview_usage = judge_usage.copy()
+        preview_topic_usage: dict[tuple[str, str], int] = {}
+        preview_pair_usage: dict[tuple[str, str], int] = {}
         schedule_preview = []
         for topic in topics_selected:
             for (model_a, model_b) in pairs:
@@ -872,17 +874,28 @@ def run_command(
                     judge_source_pool = list(judge_models)
                     if judges_from_selection:
                         judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                    pair_key = make_pair_key(pro_model.id, con_model.id)
                     judges_chosen = []
                     if main_cfg.num_judges > 0:
                         if len(judge_source_pool) < main_cfg.num_judges:
                             judges_chosen = ["<insufficient judges after exclusion>"]
                         else:
                             panel = select_judges(
-                                judge_source_pool, main_cfg.num_judges, debate_seed, preview_usage, balanced_judges
+                                judge_source_pool,
+                                main_cfg.num_judges,
+                                debate_seed,
+                                preview_usage,
+                                balanced_judges,
+                                topic_id=topic.id,
+                                pair_key=pair_key,
+                                topic_usage=preview_topic_usage,
+                                pair_usage=preview_pair_usage,
                             )
                             judges_chosen = [j.id for j in panel]
                             for j in panel:
                                 preview_usage[j.id] = preview_usage.get(j.id, 0) + 1
+                                preview_topic_usage[(j.id, topic.id)] = preview_topic_usage.get((j.id, topic.id), 0) + 1
+                                preview_pair_usage[(j.id, pair_key)] = preview_pair_usage.get((j.id, pair_key), 0) + 1
                     schedule_preview.append(
                         {
                             "topic": topic.id,
@@ -903,6 +916,9 @@ def run_command(
             )
         console.print(f"Output would be written to: debates={debates_path}, viz={viz_dir}, plots={plots_dir}")
         return
+
+    topic_usage: dict[tuple[str, str], int] = {}
+    pair_usage: dict[tuple[str, str], int] = {}
 
     run_index = 0
     for topic in topics_selected:
@@ -946,8 +962,17 @@ def run_command(
                     # If judges are drawn from the debater set, exclude the two active debaters for this debate.
                     if judges_from_selection:
                         judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                    pair_key = make_pair_key(pro_model.id, con_model.id)
                     panel_configs = select_judges(
-                        judge_source_pool, main_cfg.num_judges, debate_seed, judge_usage, balanced_judges
+                        judge_source_pool,
+                        main_cfg.num_judges,
+                        debate_seed,
+                        judge_usage,
+                        balanced_judges,
+                        topic_id=topic.id,
+                        pair_key=pair_key,
+                        topic_usage=topic_usage,
+                        pair_usage=pair_usage,
                     )
                     panel_adapters = [judge_adapters[j.id] for j in panel_configs]
                     # Build candidate list: selected panel first, then remaining pool (balanced order)
@@ -995,6 +1020,11 @@ def run_command(
                     )
 
                     panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
+                    # Update topic/pair usage for judges that actually returned
+                    for jr in judge_results:
+                        jid = jr.judge_id
+                        topic_usage[(jid, topic.id)] = topic_usage.get((jid, topic.id), 0) + 1
+                        pair_usage[(jid, pair_key)] = pair_usage.get((jid, pair_key), 0) + 1
                     record = DebateRecord(
                         transcript=transcript,
                         judges=judge_results,
@@ -1066,8 +1096,17 @@ def run_command(
                 judge_source_pool = list(judge_models)
                 if judges_from_selection:
                     judge_source_pool = [j for j in judge_models if j.id not in {pro_model.id, con_model.id}]
+                pair_key = make_pair_key(pro_model.id, con_model.id)
                 panel_configs = select_judges(
-                    judge_source_pool, main_cfg.num_judges, retry_seed, judge_usage, balanced_judges
+                    judge_source_pool,
+                    main_cfg.num_judges,
+                    retry_seed,
+                    judge_usage,
+                    balanced_judges,
+                    topic_id=topic.id,
+                    pair_key=pair_key,
+                    topic_usage=topic_usage,
+                    pair_usage=pair_usage,
                 )
                 remaining_candidates = [
                     j for j in judge_source_pool if j.id not in {cfg.id for cfg in panel_configs}
@@ -1086,6 +1125,10 @@ def run_command(
                 )
 
                 panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
+                for jr in judge_results:
+                    jid = jr.judge_id
+                    topic_usage[(jid, topic.id)] = topic_usage.get((jid, topic.id), 0) + 1
+                    pair_usage[(jid, pair_key)] = pair_usage.get((jid, pair_key), 0) + 1
                 record = DebateRecord(
                     transcript=transcript,
                     judges=judge_results,

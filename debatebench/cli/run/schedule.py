@@ -4,9 +4,11 @@ from __future__ import annotations
 import hashlib
 import itertools
 import random
-from typing import List
+from typing import List, Tuple
 
 import typer
+
+UsageKey = Tuple[str, str]
 
 
 def derive_debate_seed(tag: str, topic_id: str, pro_id: str, con_id: str, rep: int) -> int:
@@ -26,17 +28,44 @@ def build_pairs(models: List, balanced_sides: bool):
     return list(itertools.combinations(models, 2))
 
 
-def select_judges(pool, expected: int, seed_val: int, usage_counts: dict[str, int], balanced_judges: bool):
+def make_pair_key(pro_id: str, con_id: str) -> str:
+    return f"{pro_id}|||{con_id}"
+
+
+def select_judges(
+    pool,
+    expected: int,
+    seed_val: int,
+    usage_counts: dict[str, int],
+    balanced_judges: bool,
+    topic_id: str | None = None,
+    pair_key: str | None = None,
+    topic_usage: dict[UsageKey, int] | None = None,
+    pair_usage: dict[UsageKey, int] | None = None,
+):
     if len(pool) < expected:
         raise typer.BadParameter(f"Need at least {expected} judges after exclusions; found {len(pool)}.")
     rng = random.Random(seed_val)
     if balanced_judges:
-        ordered = sorted(
-            pool,
-            key=lambda j: (usage_counts.get(j.id, 0), rng.random(), j.id),
-        )
+
+        def score(j):
+            total = usage_counts.get(j.id, 0)
+            t_score = (
+                (topic_usage or {}).get((j.id, topic_id or ""), 0)
+                if topic_id is not None
+                else 0
+            )
+            p_score = (
+                (pair_usage or {}).get((j.id, pair_key or ""), 0)
+                if pair_key is not None
+                else 0
+            )
+            # Prioritize least-used on topic, then pair, then overall.
+            return (t_score, p_score, total, rng.random(), j.id)
+
+        ordered = sorted(pool, key=score)
         return ordered[:expected]
     return rng.sample(pool, expected)
 
 
-__all__ = ["derive_debate_seed", "build_pairs", "select_judges"]
+__all__ = ["derive_debate_seed", "build_pairs", "select_judges", "make_pair_key"]
