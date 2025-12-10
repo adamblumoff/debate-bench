@@ -154,6 +154,13 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
       completionTurns: number;
     }
   >();
+  const costAgg = new Map<
+    string,
+    {
+      cost: number;
+      samples: number;
+    }
+  >();
   const headWin = new Map<string, number>();
   const headTot = new Map<string, number>();
   const topicStats = new Map<string, TopicWinrate>();
@@ -215,6 +222,11 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         completionTurns: 0,
       });
     return tokenAgg.get(id)!;
+  };
+
+  const ensureCost = (id: string) => {
+    if (!costAgg.has(id)) costAgg.set(id, { cost: 0, samples: 0 });
+    return costAgg.get(id)!;
   };
 
   const hkey = (a: string, b: string) => `${a}|||${b}`;
@@ -383,6 +395,11 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         agg.completion += turn.completion_tokens;
         agg.completionTurns += 1;
       }
+      if (typeof turn.cost === "number") {
+        const c = ensureCost(modelId);
+        c.cost += turn.cost;
+        c.samples += 1;
+      }
     }
   }
 
@@ -399,6 +416,12 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         ? t.completion / t.completionTurns
         : 0;
       s.mean_total_tokens = s.mean_prompt_tokens + s.mean_completion_tokens;
+    }
+    const c = costAgg.get(s.model_id);
+    if (c && c.samples) {
+        s.mean_cost_usd = c.cost / c.samples;
+        s.total_cost_usd = c.cost;
+        s.cost_samples = c.samples;
     }
   });
 

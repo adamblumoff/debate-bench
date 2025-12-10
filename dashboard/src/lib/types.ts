@@ -13,6 +13,9 @@ export interface JudgeDecision {
   winner: Winner;
   pro: JudgeScore;
   con: JudgeScore;
+  cost?: number | null;
+  currency?: string | null;
+  cost_details?: unknown;
 }
 
 export interface Topic {
@@ -28,6 +31,8 @@ export interface Turn {
   duration_ms?: number | null;
   prompt_tokens?: number | null;
   completion_tokens?: number | null;
+  cost?: number | null;
+  currency?: string | null;
 }
 
 export interface Transcript {
@@ -78,6 +83,9 @@ export interface ModelStats {
   mean_prompt_tokens: number;
   mean_completion_tokens: number;
   mean_total_tokens: number;
+  mean_cost_usd?: number;
+  total_cost_usd?: number;
+  cost_samples?: number;
 }
 
 export interface HeadToHeadCell {

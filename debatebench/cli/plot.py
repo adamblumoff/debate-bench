@@ -129,6 +129,16 @@ def plot_command(
     style_axes(ax)
     save(fig, "token_usage.png")
 
+    # Cost usage (if available)
+    cost_path = viz_dir / "cost_usage.csv"
+    if cost_path.exists():
+        df = pd.read_csv(cost_path)
+        fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
+        sns.barplot(x="mean_cost_usd", y="model_id", hue="side", data=df, orient="h", ax=ax, palette=palettes["seq"])
+        ax.set_title("Mean Observed Cost (USD) by Model and Side")
+        style_axes(ax)
+        save(fig, "cost_usage.png")
+
     console.print(f"[green]Wrote plots to {out_dir}")
 
 

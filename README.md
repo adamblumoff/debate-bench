@@ -38,7 +38,7 @@ debatebench inspect-debate <debate_uuid>
 - Judge pool: either the selected debaters (`--judges-from-selection`) or a separate OpenRouter list. Balanced sampling (`--balanced-judges`, default) evens usage by topic/pair; random sampling is available.
 - Stage token caps: defaults come from `configs/config.yaml` (parser falls back to 5,000 tokens per stage when max_tokens is null). `--apply-stage-token-limits` overrides all stages to `--openrouter-max-tokens`. If a stage ultimately has no limit, the adapter falls back to 1,024. Prompts still nudge ~700 tokens.
 - Failure handling: empty turns trigger retries up to 5; `--skip-on-empty` bans a model for the remainder; `--retry-failed` retries failed debates once.
-- Time/cost preview: `--dry-run` emits `run_<tag>/dryrun_schedule.json`, prints rough wall-clock and token-cost estimates (live OpenRouter pricing + optional activity snapshot), then exits.
+- Time/cost preview: `--dry-run` emits `run_<tag>/dryrun_schedule.json`, prints rough wall-clock and token-cost estimates (live OpenRouter pricing + optional activity snapshot), then exits. Real runs request per-call usage from OpenRouter and record observed USD cost on each turn/judge when returned.
 - Incremental append: `--new-model <id> --run-tag <tag>` schedules only matchups involving the new model using the prior topics/pairs from `results/debates_<tag>.jsonl` and `run_<tag>/config_snapshot/*`.
 
 ## Outputs (results/)

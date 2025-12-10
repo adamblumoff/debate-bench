@@ -4,7 +4,8 @@ How to point the DebateBench dashboard at a new run produced by the CLI.
 
 ## What the dashboard expects
 - A debates JSONL file (`results/debates_<tag>.jsonl`) uploaded somewhere reachable (typically S3).
-- Optional: pricing data via `OPENROUTER_API_KEY` for live token costs; otherwise the bundled snapshot is used.
+- Optional: pricing data via `OPENROUTER_API_KEY` for live token costs; otherwise the bundled snapshot is used. When debates include observed costs (captured via OpenRouter `usage.include=true`), the dashboard prefers those over price tables.
+- Cost highlights are “observed-or-nothing”: if any observed costs exist, the card shows only models with observed cost data (it will list fewer than Top N if some models lack usage costs) and will not blend in price-table entries for the missing models. Mixed datasets may therefore show shorter cost lists; this is intentional.
 - The dashboard server derives all metrics; CSVs/PNGs from `viz_*/plots_*` are not required but can be offered as downloads.
 
 ## Upload the debates file
@@ -31,7 +32,7 @@ S3_KEY=demos/demo-jsonl/debates_demo.jsonl   # key to the uploaded JSONL
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 S3_URL_EXPIRY_SECONDS=900                    # signed URL TTL
-OPENROUTER_API_KEY=...                       # optional, enables live pricing
+OPENROUTER_API_KEY=...                       # optional, enables live pricing fallback
 
 # Optional rate limiting overrides
 # RL_PRICING_CAPACITY=60

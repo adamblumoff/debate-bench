@@ -105,25 +105,42 @@ export function buildHighlightLists(
     output: m.mean_completion_tokens,
   }));
 
-  const allowedModels = new Set(
-    highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id),
-  );
-  const pricingRows = [...pricing.rows];
-  const costPool = pricingRows.filter((r) => allowedModels.has(r.model_id));
-  const costSource = costPool.length ? costPool : pricingRows;
-  const cost = costSource
-    .sort(
-      (a, b) =>
-        a.input_per_million +
-        a.output_per_million -
-        (b.input_per_million + b.output_per_million),
-    )
+  const observedCost = highlightDerived.modelStats
+    .filter((m) => typeof m.mean_cost_usd === "number")
+    .sort((a, b) => (a.mean_cost_usd ?? 0) - (b.mean_cost_usd ?? 0))
     .slice(0, topN)
-    .map((r) => ({
-      label: r.model_id,
-      value: r.input_per_million + r.output_per_million,
-      hint: `${pricing.currency} in/out`,
+    .map((m) => ({
+      label: m.model_id,
+      value: m.mean_cost_usd ?? 0,
+      hint: "Observed avg per turn (USD)",
     }));
+
+  const cost =
+    observedCost.length > 0
+      ? observedCost
+      : (() => {
+          const allowedModels = new Set(
+            highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id),
+          );
+          const pricingRows = [...pricing.rows];
+          const costPool = pricingRows.filter((r) =>
+            allowedModels.has(r.model_id),
+          );
+          const costSource = costPool.length ? costPool : pricingRows;
+          return costSource
+            .sort(
+              (a, b) =>
+                a.input_per_million +
+                a.output_per_million -
+                (b.input_per_million + b.output_per_million),
+            )
+            .slice(0, topN)
+            .map((r) => ({
+              label: r.model_id,
+              value: r.input_per_million + r.output_per_million,
+              hint: `${pricing.currency} in/out`,
+            }));
+        })();
 
   const sideBias = [...highlightDerived.modelStats]
     .map((m) => {

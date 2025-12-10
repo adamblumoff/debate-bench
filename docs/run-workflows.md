@@ -63,7 +63,7 @@ Planner infers topics, debates-per-pair, judge settings, and only schedules pair
 debatebench run --run-tag plan --debates-per-pair 1 --sample-topics 4 --dry-run
 ```
 Outputs:
-- Console: estimated wall time (median of recent runs + 15%), rough USD cost (live OpenRouter pricing + optional activity snapshot), per-model/per-judge cost share.
+- Console: estimated wall time (median of recent runs + 15%), rough USD cost (live OpenRouter pricing + optional activity snapshot), per-model/per-judge cost share. During actual runs, observed OpenRouter costs are recorded per turn/judge when provided and override snapshots in the dashboard.
 - File: `run_plan/dryrun_schedule.json` with every planned debate and judge panel.
 
 ## 8) Tighten or loosen token caps

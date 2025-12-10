@@ -43,7 +43,14 @@ class OpenRouterAdapter(ModelAdapter):
 
     DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
-    def __init__(self, config, api_key: str, site_url: Optional[str], site_name: Optional[str]):
+    def __init__(
+        self,
+        config,
+        api_key: str,
+        site_url: Optional[str],
+        site_name: Optional[str],
+        include_usage: bool = True,
+    ):
         super().__init__(config)
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is required for OpenRouter provider.")
@@ -56,6 +63,7 @@ class OpenRouterAdapter(ModelAdapter):
         self.api_key = api_key
         self.site_url = site_url
         self.site_name = site_name
+        self.include_usage = include_usage
 
     def _headers(self) -> Dict[str, str]:
         headers = {
@@ -94,6 +102,10 @@ class OpenRouterAdapter(ModelAdapter):
             payload["temperature"] = temp_val
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+
+        # Request usage (cost + token) data when enabled; server may omit silently.
+        if self.include_usage:
+            payload["usage"] = {"include": True}
 
         # Encourage JSON responses for judges using structured outputs
         if response_format is not None:
@@ -159,6 +171,9 @@ class OpenRouterAdapter(ModelAdapter):
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "completion_tokens": usage.get("completion_tokens"),
                     "total_tokens": usage.get("total_tokens"),
+                    "cost": usage.get("cost"),
+                    "currency": usage.get("currency") or usage.get("cost_currency"),
+                    "cost_details": usage.get("cost_details"),
                     "reasoning": reasoning,
                 }
                 return content, meta
@@ -288,6 +303,7 @@ def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> Deb
         api_key=settings.openrouter_api_key,
         site_url=settings.openrouter_site_url,
         site_name=settings.openrouter_site_name,
+        include_usage=settings.capture_usage_costs,
     )
 
 
@@ -299,6 +315,7 @@ def build_judge_adapter(config: JudgeModelConfig, settings: Settings) -> JudgeAd
         api_key=settings.openrouter_api_key,
         site_url=settings.openrouter_site_url,
         site_name=settings.openrouter_site_name,
+        include_usage=settings.capture_usage_costs,
     )
 
 

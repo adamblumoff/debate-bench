@@ -290,6 +290,9 @@ def run_single_judge(
         prompt_tokens=usage.get("prompt_tokens") if usage else None,
         completion_tokens=usage.get("completion_tokens") if usage else None,
         total_tokens=usage.get("total_tokens") if usage else None,
+        cost=usage.get("cost") if usage else None,
+        currency=usage.get("currency") if usage else None,
+        cost_details=usage.get("cost_details") if usage else None,
     )
 
 

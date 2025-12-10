@@ -11,7 +11,7 @@ Authoritative reference for every `debatebench` command and option. Defaults ref
 ---
 
 ## `debatebench run`
-Run debates for selected topics and model pairs, then (by default) summarize, plot, and rate.
+Run debates for selected topics and model pairs, then (by default) summarize, plot, and rate. When an OpenRouter API key is present we request per-call usage (`usage.include=true`), record observed USD cost on each turn/judge, and reuse it in summaries/dashboard; if OpenRouter omits it we fall back silently to token counts.
 
 **Core options**
 - `--run-tag TEXT` — suffix for outputs (`results/debates_<tag>.jsonl`, `viz_<tag>/`, `plots_<tag>/`, `ratings_<tag>.json`). Default: timestamp.
@@ -75,7 +75,7 @@ Create default `configs/` templates and `results/`.
 Emit CSV summaries from a debates file to `results/viz` by default.
 - `--debates-path PATH` — debates file (default `results/debates.jsonl`).
 - `--out-dir PATH` — output directory (default `results/viz`).
-- Outputs: `winner_counts.csv`, `topic_winrate.csv`, `model_dimension_avg.csv`, `judge_agreement.csv`, `judge_majority_alignment.csv`, `model_winrate_by_side.csv`, `dimension_score_gaps.csv`, `turn_timings.csv`, `token_usage.csv`.
+- Outputs: `winner_counts.csv`, `topic_winrate.csv`, `model_dimension_avg.csv`, `judge_agreement.csv`, `judge_majority_alignment.csv`, `model_winrate_by_side.csv`, `dimension_score_gaps.csv`, `turn_timings.csv`, `token_usage.csv`, `cost_usage.csv` (observed mean USD per side when available).
 
 ---
 
@@ -83,7 +83,7 @@ Emit CSV summaries from a debates file to `results/viz` by default.
 Render PNG plots from the CSVs produced by `summarize`.
 - `--viz-dir PATH` — input CSV dir (default `results/viz`).
 - `--out-dir PATH` — output PNG dir (default `results/plots`).
-- Plots: winner_counts.png, topic_winrate.png, model_dimension_heatmap.png, judge_agreement.png, judge_majority_alignment.png, model_winrate_by_side.png, dimension_score_gaps.png, turn_timings.png, token_usage.png.
+- Plots: winner_counts.png, topic_winrate.png, model_dimension_heatmap.png, judge_agreement.png, judge_majority_alignment.png, model_winrate_by_side.png, dimension_score_gaps.png, turn_timings.png, token_usage.png, cost_usage.png (if cost CSV exists).
 
 ---
 

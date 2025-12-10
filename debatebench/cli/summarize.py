@@ -32,6 +32,7 @@ def summarize(
     - judge_latency.csv (mean latency per judge)
     - turn_timings.csv (mean turn duration per model side)
     - token_usage.csv (mean prompt/completion tokens per model side)
+    - cost_usage.csv (mean observed USD cost per model side; falls back to tokens if missing)
     """
     debates = load_debate_records(debates_path)
     if not debates:
@@ -71,6 +72,7 @@ def summarize(
     dim_counts = defaultdict(lambda: defaultdict(int))
     turn_duration = defaultdict(lambda: {"pro": [], "con": []})
     token_usage = defaultdict(lambda: {"pro_prompt": [], "pro_completion": [], "con_prompt": [], "con_completion": []})
+    cost_usage = defaultdict(lambda: {"pro_cost": [], "con_cost": []})
     for d in debates:
         pro_id = d.transcript.pro_model_id
         con_id = d.transcript.con_model_id
@@ -92,6 +94,9 @@ def summarize(
             if t.completion_tokens is not None:
                 key = f"{side}_completion"
                 token_usage[model_id][key].append(t.completion_tokens)
+            if t.cost is not None:
+                key = f"{side}_cost"
+                cost_usage[model_id][key].append(t.cost)
     with (out_dir / "model_dimension_avg.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["model_id", "dimension", "mean_score", "samples"])
@@ -125,6 +130,18 @@ def summarize(
                 mp = sum(pvals) / len(pvals) if pvals else 0.0
                 mc = sum(cvals) / len(cvals) if cvals else 0.0
                 writer.writerow([model_id, side, f"{mp:.2f}", f"{mc:.2f}", cnt])
+
+    # Cost usage per model side (observed from OpenRouter usage, if present)
+    with (out_dir / "cost_usage.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["model_id", "side", "mean_cost_usd", "samples"])
+        for model_id, buckets in sorted(cost_usage.items()):
+            for side in ("pro", "con"):
+                key = f"{side}_cost"
+                vals = buckets[key]
+                cnt = len(vals)
+                mean_cost = sum(vals) / cnt if cnt else 0.0
+                writer.writerow([model_id, side, f"{mean_cost:.6f}", cnt])
 
     # Judge agreement matrix (winner label agreement)
     pair_agree = defaultdict(int)

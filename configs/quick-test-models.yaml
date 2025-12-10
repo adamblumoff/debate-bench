@@ -8,25 +8,25 @@ debaters:
     parameters:
       temperature: 0.35
 
-  - id: deepseek-deepseek-v3.2-speciale
+  - id: claude-sonnet-4.5
     provider: openrouter
-    model: deepseek/deepseek-v3.2-speciale
+    model: anthropic/claude-sonnet-4.5
     token_limit: null
     parameters:
       temperature: 0.35
 
 judges:
-  - id: moonshotai-kimi-k2-thinking
+  - id: x-ai-grok-4.1-fast
     provider: openrouter
-    model: moonshotai/kimi-k2-thinking
+    model: x-ai/grok-4.1-fast
     token_limit: null
     prompt_style: default
     parameters:
       temperature: 0.0
 
-  - id: deepseek-deepseek-v3.2-speciale
+  - id: deepseek-deepseek-v3.2
     provider: openrouter
-    model: deepseek/deepseek-v3.2-speciale
+    model: deepseek/deepseek-v3.2
     token_limit: null
     prompt_style: default
     parameters:
