@@ -37,7 +37,7 @@ pnpm dev
 Open http://localhost:3000. The app calls `/api/metrics` (server parses + derives metrics from the signed JSONL) and hydrates the UI with pre-computed data; the client no longer parses the full debates file.
 
 ## What’s implemented
-- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky filter bar (Top N + category), discovery tiles, and shareable compare drawer (state synced to URL).
+- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky category filter bar, discovery tiles, and shareable compare drawer (state synced to URL).
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
 - Cost snapshot table (per‑1M tokens) with live pricing override when `OPENROUTER_API_KEY` is set; falls back to bundled snapshot otherwise.
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.

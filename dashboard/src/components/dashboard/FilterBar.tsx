@@ -4,10 +4,6 @@ type Props = {
   categories: string[];
   category: string;
   onCategory: (v: string) => void;
-  topN: number;
-  onTopN: (v: number) => void;
-  maxTopN?: number;
-  defaultTopN?: number;
   onResetFilters?: () => void;
 };
 
@@ -15,15 +11,9 @@ export function FilterBar({
   categories,
   category,
   onCategory,
-  topN,
-  onTopN,
-  maxTopN = 12,
-  defaultTopN = 6,
   onResetFilters,
 }: Props) {
-  const sliderMax = Math.max(defaultTopN, maxTopN);
-  const clampedTopN = Math.min(topN, sliderMax);
-  const hasFilters = category !== "all" || topN !== defaultTopN;
+  const hasFilters = category !== "all";
 
   const handleReset = () => {
     if (onResetFilters) {
@@ -31,7 +21,6 @@ export function FilterBar({
       return;
     }
     onCategory("all");
-    onTopN(defaultTopN);
   };
 
   return (
@@ -60,29 +49,6 @@ export function FilterBar({
               ))}
             </div>
           </div>
-          <div className="topn-block">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400 topn-label">
-              Top N
-            </p>
-            <div className="topn-slider">
-              <span className="text-[11px] text-slate-500">1</span>
-              <input
-                type="range"
-                min={1}
-                max={sliderMax}
-                value={clampedTopN}
-                onChange={(e) =>
-                  onTopN(
-                    Math.max(1, Math.min(sliderMax, Number(e.target.value))),
-                  )
-                }
-              />
-              <span className="text-[11px] text-slate-500">
-                {sliderMax === clampedTopN ? "All" : sliderMax}
-              </span>
-              <span className="topn-pill">Top {clampedTopN}</span>
-            </div>
-          </div>
         </div>
         <div className="filter-actions">
           <p className="text-xs text-slate-400 filter-help">
@@ -104,9 +70,6 @@ export function FilterBar({
             <>
               {category !== "all" && (
                 <span className="pill pill-soft">Category: {category}</span>
-              )}
-              {topN !== defaultTopN && (
-                <span className="pill pill-soft">Top {clampedTopN}</span>
               )}
             </>
           ) : (

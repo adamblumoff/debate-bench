@@ -77,7 +77,7 @@ function DashboardContent() {
 
   const { status, error, derived, derivedByCategory, meta, load } =
     useEnsureData(runId, runReady);
-  const { activeTab, setActiveTab, topN, setTopN, category, setCategory } =
+  const { activeTab, setActiveTab, category, setCategory } =
     useHighlightsState();
   const {
     selected: compareModels,
@@ -107,14 +107,14 @@ function DashboardContent() {
   );
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
-  const maxTopN = useMemo(() => {
-    const count = derived?.modelStats.length ?? meta?.modelCount ?? 12;
-    return Math.min(Math.max(count, 6), 24);
+  const topN = useMemo(() => {
+    const count = derived?.modelStats.length ?? meta?.modelCount;
+    if (typeof count === "number" && count > 0) return count;
+    return 6;
   }, [derived?.modelStats.length, meta?.modelCount]);
   const resetFilters = useCallback(() => {
     setCategory("all");
-    setTopN(6);
-  }, [setCategory, setTopN]);
+  }, [setCategory]);
 
   const sortedRunOptions = useMemo(() => {
     const options = manifest?.runs || [];
@@ -204,10 +204,6 @@ function DashboardContent() {
           categories={categories}
           category={category}
           onCategory={setCategory}
-          topN={topN}
-          onTopN={setTopN}
-          maxTopN={maxTopN}
-          defaultTopN={6}
           onResetFilters={resetFilters}
         />
 
@@ -273,17 +269,6 @@ function DashboardContent() {
                   className="chart-card h-full overflow-hidden"
                 >
                   {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
-                </ChartCard>
-              </div>
-              <div className="md:col-span-12 min-w-0">
-                <ChartCard
-                  title="Judge side preference"
-                  subtitle="Regression-adjusted pro–con bias (controls for model + topic). Sorted by topic avg (con → pro); hover for motion."
-                  className="chart-card h-full overflow-hidden"
-                >
-                  {specs.judgeSideBias && (
-                    <VegaLiteChart spec={specs.judgeSideBias} />
-                  )}
                 </ChartCard>
               </div>
               <div className="md:col-span-12 min-w-0">

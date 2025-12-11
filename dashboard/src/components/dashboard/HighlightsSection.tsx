@@ -113,7 +113,7 @@ export function HighlightsSection({
               items={highlightData.elo}
               formatter={(v) => v.toFixed(0)}
               onAdd={onAddModel}
-              expected={Math.min(topN, modelCount || topN)}
+              expected={modelCount ?? topN}
               className="h-full w-full"
             />
           </div>
@@ -123,7 +123,7 @@ export function HighlightsSection({
               items={highlightData.win}
               formatter={(v) => `${(v * 100).toFixed(1)}%`}
               onAdd={onAddModel}
-              expected={Math.min(topN, modelCount || topN)}
+              expected={modelCount ?? topN}
               className="h-full w-full"
             />
           </div>
@@ -150,7 +150,7 @@ export function HighlightsSection({
           </div>
           <div className="flex min-w-0">
             <ChartCard
-              title="Token stack (top N)"
+              title="Token stack (per run)"
               className="chart-card highlight-card h-full w-full"
             >
               {specs.tokens && <VegaLiteChart spec={specs.tokens} />}
@@ -176,7 +176,7 @@ export function HighlightsSection({
               items={highlightData.cost}
               formatter={(v) => `$${v.toFixed(2)}`}
               onAdd={onAddModel}
-              expected={Math.min(topN, modelCount || topN)}
+              expected={modelCount ?? topN}
               className="h-full w-full"
             />
           </div>

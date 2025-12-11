@@ -6,7 +6,6 @@ import {
   buildCategoryHeatSpec,
   buildH2HSpec,
   buildJudgeHeatSpec,
-  buildJudgeSideBiasSpec,
   buildJudgeSideBiasCvSpec,
   buildSideBiasSpec,
 } from "@/lib/specs/core";
@@ -18,7 +17,6 @@ import {
 export type HighlightSpecs = {
   sideBias?: VisualizationSpec;
   judgeSideBiasCv?: VisualizationSpec;
-  judgeSideBias?: VisualizationSpec;
   categoryHeat?: VisualizationSpec;
   tokens?: VisualizationSpec;
   ratingVsWin?: VisualizationSpec;
@@ -65,7 +63,6 @@ export function buildHighlightSpecs(
   if (!highlightDerived || !fullDerived) return {};
   return {
     sideBias: buildSideBiasSpec(highlightDerived, topN),
-    judgeSideBias: buildJudgeSideBiasSpec(fullDerived, 3),
     judgeSideBiasCv: buildJudgeSideBiasCvSpec(fullDerived, 3, false),
     categoryHeat: buildCategoryHeatSpec(highlightDerived, category),
     tokens: buildTokenStackSpec(highlightDerived, topN),
