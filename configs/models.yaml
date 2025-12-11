@@ -53,3 +53,11 @@ models:
     token_limit: null
     parameters:
       temperature: 0.7
+  
+  - id: openai-gpt-5.2
+    role: debater
+    provider: openrouter
+    model: openai/gpt-5.2
+    token_limit: null
+    parameters:
+      temperature: 0.7

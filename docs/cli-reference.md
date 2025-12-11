@@ -47,6 +47,13 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--dry-run` — plan only: prints cost/time estimates, writes `run_<tag>/dryrun_schedule.json`, and exits before any debates.
 - `--estimate-time / --no-estimate-time` — show wall-clock estimate from recent runs (default on, with 15% buffer).
 - `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
+- `--postupload / --no-postupload` — after postrun, upload results to S3 (default on).
+- `--postupload-bucket TEXT` — S3 bucket for `--postupload` (optional; defaults from env or `debatebench-results`).
+- `--postupload-prefix TEXT` — key prefix inside the bucket (optional; defaults from env or `runs/<run_tag>`).
+- `--postupload-profile TEXT` — AWS profile to use (optional; defaults from env; leave unset for Railway buckets).
+- `--postupload-region TEXT` — AWS region override (optional; defaults from env).
+- `--postupload-include-artifacts` — also upload `run_<tag>/`, `viz_<tag>/`, `plots_<tag>/`, and `ratings_<tag>.json` if present (default on).
+- `--postupload-dry-run` — list postupload keys without sending.
 - `--quick-test` — fixed smoke test: 1 random topic, predefined debaters/judges from `configs/quick-test-models.yaml`.
 - `--judges-test` — judge-focused smoke: 1 topic, fixed debaters (Haiku vs Gemini 2.5 Flash Lite), judges (Gemini 3 Pro, GPT-5.1); balanced sides off.
 - `--skip-on-empty` — ban a model for the remainder when it produces empty turns after retries (default off).
@@ -115,10 +122,12 @@ Print a single debate and judge decisions.
 ## `debatebench upload-results`
 Upload a file or directory tree to S3 with SSE-S3.
 - `--source PATH` — file or directory (default `results`).
-- `--bucket TEXT` — target bucket (required).
+- `--bucket TEXT` — target bucket (optional; defaults from env or `debatebench-results`).
 - `--prefix TEXT` — key prefix (optional).
 - `--profile TEXT` — AWS profile (optional).
 - `--region TEXT` — AWS region override (optional).
+- `--endpoint-url TEXT` — custom S3-compatible endpoint (optional; used for Railway buckets, MinIO, etc.).
+- `--force-path-style / --no-force-path-style` — force path-style addressing for S3-compatible endpoints (optional; inferred for Railway).
 - `--dry-run` — list uploads without sending.
 
 ---

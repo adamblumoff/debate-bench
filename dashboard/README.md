@@ -4,10 +4,11 @@ Interactive, read-only dashboard that streams a private debates JSONL from S3 (v
 
 ## Setup
 
-1) Copy `.env.example` to `.env.local` and fill with your bucket/key and AWS creds allowed to sign `GetObject`:
+1) Copy `.env.example` to `.env.local` and fill with your bucket/key and creds allowed to sign `GetObject`:
 
 ```
-S3_BUCKET=debatebench-results
+AWS_S3_BUCKET_NAME=debatebench-results
+S3_BUCKET=debatebench-results  # fallback for older deploys
 S3_REGION=us-east-1
 S3_KEY=sample5/balanced-2025-11-30/results_sample5/debates_sample5-11-30-2025_balanced_sides.jsonl
 AWS_ACCESS_KEY_ID=...

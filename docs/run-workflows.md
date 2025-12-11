@@ -76,12 +76,14 @@ Outputs:
   debatebench run --openrouter-judge-max-tokens 400
   ```
 
-## 9) Upload artifacts to S3
-After a run, push the results directory tree:
+## 9) Upload artifacts to S3-compatible storage (AWS or Railway)
+After a run, push the results directory tree. If you’ve set `DEBATEBENCH_S3_BUCKET`/`DEBATEBENCH_S3_ENDPOINT` (or the `S3_*` equivalents), you don’t need to pass a bucket:
 ```bash
-debatebench upload-results --source results/run_demo --bucket my-bucket --prefix runs/demo
+debatebench upload-results --source results/run_demo --prefix runs/demo
 ```
-Add `--dry-run` to preview keys; `--profile`/`--region` to override AWS defaults.
+Add `--dry-run` to preview keys. For Railway buckets, ensure `DEBATEBENCH_S3_ENDPOINT` is set and path-style is enabled (`DEBATEBENCH_S3_FORCE_PATH_STYLE=true`), or pass `--endpoint-url` / `--force-path-style`.
+
+Note: `debatebench run` now defaults `--postupload` and `--postupload-include-artifacts` to on. Use `--no-postupload` to skip uploads for a specific run.
 
 ## 10) Inspect and share outputs
 - Show leaderboard:

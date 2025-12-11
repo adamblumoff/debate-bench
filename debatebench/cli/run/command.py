@@ -137,6 +137,35 @@ def run_command(
         "--postrate/--no-postrate",
         help="After debates finish, recompute ratings and show leaderboard.",
     ),
+    postupload: bool = typer.Option(
+        True,
+        "--postupload/--no-postupload",
+        help="After postrun, upload results to S3 using the upload-results command.",
+    ),
+    postupload_bucket: Optional[str] = typer.Option(
+        None,
+        help="S3 bucket for --postupload. Defaults from env (DEBATEBENCH_S3_BUCKET/S3_BUCKET) or 'debatebench-results'.",
+    ),
+    postupload_prefix: str = typer.Option(
+        "",
+        help="Key prefix inside the bucket for --postupload (omit leading slash). Defaults from env (DEBATEBENCH_S3_PREFIX/S3_PREFIX) or 'runs/<run_tag>'.",
+    ),
+    postupload_profile: Optional[str] = typer.Option(
+        None,
+        help="AWS profile name for --postupload. Defaults from env (DEBATEBENCH_AWS_PROFILE/AWS_PROFILE). Leave unset for Railway buckets.",
+    ),
+    postupload_region: Optional[str] = typer.Option(
+        None,
+        help="AWS region override for --postupload. Defaults from env (DEBATEBENCH_S3_REGION/S3_REGION).",
+    ),
+    postupload_include_artifacts: bool = typer.Option(
+        True,
+        help="When postuploading, also upload run_<tag>/, viz_<tag>/, plots_<tag>/, and ratings_<tag>.json if present.",
+    ),
+    postupload_dry_run: bool = typer.Option(
+        False,
+        help="List uploads for --postupload without sending to S3.",
+    ),
     estimate_time: bool = typer.Option(
         True,
         help="Estimate total wall-clock time using recent runs (median) and planned debate count.",
@@ -178,6 +207,13 @@ def run_command(
         log_failed_judges=log_failed_judges,
         dry_run=dry_run,
         postrate=postrate,
+        postupload=postupload,
+        postupload_bucket=postupload_bucket,
+        postupload_prefix=postupload_prefix,
+        postupload_profile=postupload_profile,
+        postupload_region=postupload_region,
+        postupload_include_artifacts=postupload_include_artifacts,
+        postupload_dry_run=postupload_dry_run,
         estimate_time=estimate_time,
     )
 

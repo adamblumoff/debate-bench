@@ -5,7 +5,7 @@ Public, read-only dashboard that loads one private debates JSONL from S3, visual
 
 ## Assumptions (fixed for v1)
 - Single run/file at launch; no multi-run switching yet.
-- S3 bucket region: `us-east-1`.
+- S3-compatible bucket region: default `us-east-1` (or Railway `auto`).
 - Max dataset size ~3,000 debates (JSONL stays a few MB); in-browser parsing is acceptable.
 - Bucket is private; all access via short-lived signed GET URLs.
 - No authentication; public read-only UI.
@@ -20,11 +20,14 @@ Public, read-only dashboard that loads one private debates JSONL from S3, visual
 
 ## Environment Variables
 ```
-S3_BUCKET=debatebench-results
+AWS_S3_BUCKET_NAME=debatebench-results
+S3_BUCKET=debatebench-results               # fallback for older deploys
 S3_REGION=us-east-1
 S3_KEY=sample5/balanced-2025-11-30/results_sample5/debates_sample5-11-30-2025_balanced_sides.jsonl
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
+S3_ENDPOINT=https://storage.railway.app     # optional: Railway / other S3-compatible endpoint
+S3_FORCE_PATH_STYLE=true                    # recommended for Railway
 ``` 
 (`S3_KEY` may later become a comma-list manifest when we add multi-run support.)
 

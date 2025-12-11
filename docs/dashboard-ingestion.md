@@ -26,11 +26,14 @@ debatebench upload-results \
 ## Configure the dashboard (Next.js app)
 In `dashboard/.env` (or `.env.local` for local dev):
 ```
-S3_BUCKET=my-results-bucket
+AWS_S3_BUCKET_NAME=my-results-bucket
+S3_BUCKET=my-results-bucket                  # fallback for older deploys
 S3_REGION=us-east-1
 S3_KEY=demos/demo-jsonl/debates_demo.jsonl   # key to the uploaded JSONL
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
+S3_ENDPOINT=https://storage.railway.app      # optional: Railway / other S3-compatible endpoint
+S3_FORCE_PATH_STYLE=true                     # recommended for Railway
 S3_URL_EXPIRY_SECONDS=900                    # signed URL TTL
 OPENROUTER_API_KEY=...                       # optional, enables live pricing fallback
 
@@ -40,6 +43,18 @@ OPENROUTER_API_KEY=...                       # optional, enables live pricing fa
 # RL_METRICS_CAPACITY=20
 # RL_METRICS_REFILL_MS=60000
 ```
+
+## Optional CLI postupload defaults
+If you want `debatebench run --postupload` to work without extra flags, set any of:
+```
+DEBATEBENCH_S3_BUCKET=debatebench-results   # default if omitted
+DEBATEBENCH_S3_PREFIX=runs                 # base prefix; per-run default is runs/<run_tag>
+DEBATEBENCH_AWS_PROFILE=debatebench-uploader
+DEBATEBENCH_S3_REGION=us-east-1
+DEBATEBENCH_S3_ENDPOINT=https://<railway-bucket-endpoint>   # for Railway buckets or other S3-compatible storage
+DEBATEBENCH_S3_FORCE_PATH_STYLE=true                        # recommended for Railway (path-style)
+```
+The CLI also falls back to `S3_BUCKET`, `S3_PREFIX`, `AWS_PROFILE`, and `S3_REGION` if present.
 
 ## Start the dashboard locally
 ```bash
@@ -60,7 +75,7 @@ pnpm dev
 
 ## Updating to a new run
 1) Upload the new debates file to S3.
-2) Update `S3_KEY` (and optionally label) in the dashboard env.
+2) Update `S3_KEY` (and optionally label) in the dashboard env. Bucket comes from `AWS_S3_BUCKET_NAME`.
 3) Redeploy or restart the dev server.
 
 ## Common ingestion pitfalls

@@ -34,7 +34,11 @@ async function computeMetrics(
 ): Promise<MetricsPayload> {
   const includeCategories = opts.includeCategories !== false;
 
-  const s3 = new S3Client({ region: run.region });
+  const s3 = new S3Client({
+    region: run.region,
+    endpoint: serverEnv.endpoint,
+    forcePathStyle: serverEnv.forcePathStyle,
+  });
   const command = new GetObjectCommand({ Bucket: run.bucket, Key: run.key });
   const url = await getSignedUrl(s3, command, {
     expiresIn: serverEnv.urlExpirySeconds,

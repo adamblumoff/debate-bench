@@ -63,4 +63,4 @@ Each line is a `DebateRecord`:
 - `failed_judges.jsonl` rows include judge_id, error, debate_id, topic, pro, con, created_at.
 
 ## S3 uploads
-`debatebench upload-results` preserves directory structure; keys are `prefix/relative/path`. Encryption is SSE-S3 by default.
+`debatebench upload-results` preserves directory structure; keys are `prefix/relative/path`. It targets any S3-compatible bucket (AWS, Railway, MinIO); SSE-S3 is attempted when supported.

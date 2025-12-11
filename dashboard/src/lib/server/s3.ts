@@ -9,7 +9,11 @@ export async function getSignedObjectUrl(
   key?: string,
   expiresIn: number = serverEnv.urlExpirySeconds,
 ) {
-  const s3 = new S3Client({ region: run.region });
+  const s3 = new S3Client({
+    region: run.region,
+    endpoint: serverEnv.endpoint,
+    forcePathStyle: serverEnv.forcePathStyle,
+  });
   const command = new GetObjectCommand({
     Bucket: run.bucket,
     Key: key ?? run.key,

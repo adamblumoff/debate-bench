@@ -48,6 +48,13 @@ class RunOptions:
     log_failed_judges: bool
     dry_run: bool
     postrate: bool
+    postupload: bool
+    postupload_bucket: Optional[str]
+    postupload_prefix: str
+    postupload_profile: Optional[str]
+    postupload_region: Optional[str]
+    postupload_include_artifacts: bool
+    postupload_dry_run: bool
     estimate_time: bool
 
 

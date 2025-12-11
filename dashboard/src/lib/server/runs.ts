@@ -44,7 +44,11 @@ function deriveLabel(key: string): string {
 }
 
 async function listRunsFromS3(): Promise<RunConfig[]> {
-  const client = new S3Client({ region: serverEnv.region });
+  const client = new S3Client({
+    region: serverEnv.region,
+    endpoint: serverEnv.endpoint,
+    forcePathStyle: serverEnv.forcePathStyle,
+  });
   const runs: RunConfig[] = [];
   const seen = new Set<string>();
 
