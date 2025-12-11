@@ -37,10 +37,10 @@ pnpm dev
 Open http://localhost:3000. The app calls `/api/metrics` (server parses + derives metrics from the signed JSONL) and hydrates the UI with pre-computed data; the client no longer parses the full debates file.
 
 ## What’s implemented
-- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky category filter bar, discovery tiles, and shareable compare drawer (state synced to URL).
+- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky category filter bar, discovery tiles, and (optional) compare drawer synced to URL. The compare UI (including pricing-table actions) is hidden by default; set `NEXT_PUBLIC_ENABLE_COMPARE=true` to surface it.
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
 - Cost snapshot table (per‑1M tokens) with live pricing override when `OPENROUTER_API_KEY` is set; falls back to bundled snapshot otherwise.
-- Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts.
+- Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts. UI is hidden by default; set `NEXT_PUBLIC_ENABLE_BUILDER=true` to surface it.
 - Server computes all derived metrics via `/api/metrics`; client only renders. Default caching uses an in-process TTL. Elo now mirrors the config in the debates JSONL (falls back to the embedded `elo.initial_rating`/`k_factor` if present).
 - Pricing: live when `OPENROUTER_API_KEY` is set; otherwise snapshot bundled in `src/lib/pricing.ts`.
 
@@ -51,7 +51,7 @@ Open http://localhost:3000. The app calls `/api/metrics` (server parses + derive
 
 ## Code structure (dashboard)
 - `src/app/page.tsx`: orchestration—loads derived data from `/api/metrics`, wires hooks, renders modular sections.
-- `src/hooks/`: `useHighlightsState`, `useCompareQuery` (URL-synced compare), `usePricingData`.
+- `src/hooks/`: `useHighlightsState`, `useCompareQuery` (URL-synced compare; gated by flag), `usePricingData`.
 - `src/lib/specs/`: pure Vega specs (`core.ts`, `highlights.ts`); `src/lib/format.ts` for small formatters.
 - `src/components/dashboard/`: layout pieces (Hero, FilterBar, DiscoveryTiles, HighlightLists, PricingTable, CompareDrawer).
 - `src/lib/pricing.ts`: bundled snapshot + optional fetch helper (uses live data when `OPENROUTER_API_KEY` is configured).

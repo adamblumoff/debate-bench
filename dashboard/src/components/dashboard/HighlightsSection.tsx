@@ -19,7 +19,7 @@ type Props = {
   highlightData: HighlightLists;
   activeTab: HighlightsTab;
   onTab: (tab: HighlightsTab) => void;
-  onAddModel: (id: string) => void;
+  onAddModel?: (id: string) => void;
   pricing: PricingSnapshot;
   topN: number;
   modelCount?: number;

@@ -20,6 +20,7 @@ import {
   buildKpis,
   selectHighlightDerived,
 } from "@/lib/highlights";
+import { ENABLE_BUILDER, ENABLE_COMPARE } from "@/lib/featureFlags";
 import { ChartCard } from "@/components/ChartCard";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
@@ -52,6 +53,7 @@ function DashboardContent() {
 
   const runFromUrl = searchParams.get("run") || undefined;
   const builderHref = useMemo(() => {
+    if (!ENABLE_BUILDER) return null;
     const params = new URLSearchParams();
     searchParams.getAll("compare").forEach((v) => params.append("compare", v));
     const run = searchParams.get("run");
@@ -83,7 +85,7 @@ function DashboardContent() {
     selected: compareModels,
     addModel: addCompareModel,
     removeModel,
-  } = useCompareQuery();
+  } = useCompareQuery(undefined, ENABLE_COMPARE);
   // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
   const highlightDerived = useMemo(
     () => selectHighlightDerived(derived, derivedByCategory, category),
@@ -192,7 +194,8 @@ function DashboardContent() {
             disableDataRefresh={status === "loading"}
             disableDownloadData={status === "loading"}
             downloadHref={downloadHref}
-            builderHref={builderHref}
+            builderHref={builderHref || undefined}
+            builderEnabled={ENABLE_BUILDER}
           />
           <Hero
             debateCount={meta?.debateCount || 0}
@@ -215,7 +218,7 @@ function DashboardContent() {
           highlightData={highlightData}
           activeTab={activeTab}
           onTab={setActiveTab}
-          onAddModel={addModel}
+          onAddModel={ENABLE_COMPARE ? addModel : undefined}
           pricing={pricing}
           topN={topN}
           modelCount={meta?.modelCount}
@@ -285,7 +288,10 @@ function DashboardContent() {
             </section>
 
             <section id="pricing" className="space-y-3">
-              <PricingTable pricing={pricing} onAdd={addModel} />
+              <PricingTable
+                pricing={pricing}
+                onAdd={ENABLE_COMPARE ? addModel : undefined}
+              />
             </section>
           </div>
         ) : (
@@ -301,14 +307,17 @@ function DashboardContent() {
         )}
       </div>
 
-      <CompareDrawer
-        models={compareModels}
-        onRemove={removeModel}
-        derived={derived}
-        open={compareOpen}
-        setOpen={setCompareOpen}
-        lastAdded={lastAdded}
-      />
+      {ENABLE_COMPARE && (
+        <CompareDrawer
+          models={compareModels}
+          onRemove={removeModel}
+          derived={derived}
+          open={compareOpen}
+          setOpen={setCompareOpen}
+          lastAdded={lastAdded}
+          builderEnabled={ENABLE_BUILDER}
+        />
+      )}
     </main>
   );
 }

@@ -9,6 +9,7 @@ export function PricingTable({
   pricing: PricingSnapshot;
   onAdd?: (id: string) => void;
 }) {
+  const showActions = Boolean(onAdd);
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-3">
@@ -36,7 +37,7 @@ export function PricingTable({
               <th className="py-2 pr-4 text-left">Provider</th>
               <th className="py-2 pr-4 text-right">Input</th>
               <th className="py-2 pr-4 text-right">Output</th>
-              <th className="py-2 pr-4 text-right">Actions</th>
+              {showActions && <th className="py-2 pr-4 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="text-slate-200">
@@ -53,16 +54,16 @@ export function PricingTable({
                 <td className="py-2 pr-4 text-right">
                   ${r.output_per_million.toFixed(2)}
                 </td>
-                <td className="py-2 pr-4 text-right">
-                  {onAdd && (
+                {showActions && (
+                  <td className="py-2 pr-4 text-right">
                     <button
                       className="text-xs px-2 py-1 rounded-md border border-[var(--border)] hover:border-[var(--accent)]"
-                      onClick={() => onAdd(r.model_id)}
+                      onClick={() => onAdd?.(r.model_id)}
                     >
                       + Compare
                     </button>
-                  )}
-                </td>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

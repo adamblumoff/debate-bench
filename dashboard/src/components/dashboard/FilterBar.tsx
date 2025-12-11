@@ -52,8 +52,7 @@ export function FilterBar({
         </div>
         <div className="filter-actions">
           <p className="text-xs text-slate-400 filter-help">
-            Filters apply to highlights and category heatmaps; compare state is
-            shareable via URL.
+            Filters apply to highlights and category heatmaps.
           </p>
           <button
             className={`clear-pill ${!hasFilters ? "opacity-50 cursor-not-allowed" : ""}`}

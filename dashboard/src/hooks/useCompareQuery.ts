@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MAX_COMPARE } from "@/lib/compareLimits";
 
-export function useCompareQuery(max = MAX_COMPARE) {
+export function useCompareQuery(max = MAX_COMPARE, enabled = true) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const searchString = useMemo(() => searchParams.toString(), [searchParams]);
 
   const parseParams = useCallback(() => {
-    const params = searchParams;
-    const values = params.getAll("compare");
+    if (!enabled) return [];
+    const values = searchParams.getAll("compare");
     if (values.length === 1 && values[0].includes(",")) {
       return Array.from(new Set(values[0].split(",").filter(Boolean))).slice(
         0,
@@ -19,40 +18,38 @@ export function useCompareQuery(max = MAX_COMPARE) {
       );
     }
     return Array.from(new Set(values)).slice(0, max);
-  }, [searchParams, max]);
+  }, [searchParams, max, enabled]);
 
-  const [selected, setSelected] = useState<string[]>(parseParams);
+  const selected = useMemo(() => parseParams(), [parseParams]);
 
-  useEffect(() => {
-    setSelected(parseParams());
-  }, [parseParams]);
+  const writeSelection = useCallback(
+    (next: string[]) => {
+      if (!enabled) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("compare");
+      next.forEach((c) => params.append("compare", c));
+      const nextString = params.toString();
+      const href = nextString ? `?${nextString}` : window.location.pathname;
+      router.replace(href, { scroll: false });
+    },
+    [router, searchParams, enabled],
+  );
 
   const addModel = useCallback(
     (id: string) => {
-      setSelected((prev) => {
-        if (prev.includes(id)) return prev;
-        return [...prev, id].slice(-max);
-      });
+      if (!enabled) return;
+      if (selected.includes(id)) return;
+      const next = [...selected, id].slice(-max);
+      writeSelection(next);
     },
-    [max],
+    [max, enabled, selected, writeSelection],
   );
 
   const removeModel = useCallback((id: string) => {
-    setSelected((prev) => {
-      return prev.filter((m) => m !== id);
-    });
-  }, []);
-
-  useEffect(() => {
-    const current = searchString;
-    const params = new URLSearchParams(current);
-    params.delete("compare");
-    selected.forEach((c) => params.append("compare", c));
-    const nextString = params.toString();
-    if (nextString === current) return;
-    const href = nextString ? `?${nextString}` : window.location.pathname;
-    router.replace(href, { scroll: false });
-  }, [router, searchString, selected]);
+    if (!enabled) return;
+    const next = selected.filter((m) => m !== id);
+    writeSelection(next);
+  }, [enabled, selected, writeSelection]);
 
   return { selected, addModel, removeModel };
 }

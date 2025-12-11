@@ -19,7 +19,8 @@ type Props = {
   onDownloadData: () => void;
   disableDownloadData?: boolean;
   downloadHref: string;
-  builderHref: string;
+  builderHref?: string;
+  builderEnabled?: boolean;
 };
 
 export function RunControls({
@@ -40,6 +41,7 @@ export function RunControls({
   disableDownloadData,
   downloadHref,
   builderHref,
+  builderEnabled,
 }: Props) {
   const updatedLabel = selectedRun?.updated
     ? new Date(selectedRun.updated).toLocaleString(undefined, {
@@ -89,9 +91,11 @@ export function RunControls({
           </div>
         </div>
         <div className="run-actions">
-          <Link href={builderHref} className="btn-primary">
-            Custom chart
-          </Link>
+          {builderEnabled && builderHref && (
+            <Link href={builderHref} className="btn-primary">
+              Custom chart
+            </Link>
+          )}
           <button
             className="btn-ghost subtle disabled:opacity-60"
             onClick={onRefreshRuns}

@@ -13,6 +13,7 @@ type Props = {
   open: boolean;
   setOpen: (v: boolean) => void;
   lastAdded?: number;
+  builderEnabled?: boolean;
 };
 
 export function CompareDrawer({
@@ -22,9 +23,10 @@ export function CompareDrawer({
   open,
   setOpen,
   lastAdded,
+  builderEnabled = false,
 }: Props) {
-  const hasAny = models.length > 0 && derived;
-  const meetsMin = models.length >= MIN_COMPARE && derived;
+  const hasAny = models.length > 0;
+  const meetsMin = models.length >= MIN_COMPARE;
 
   const rows =
     derived && hasAny
@@ -34,30 +36,29 @@ export function CompareDrawer({
           .slice(0, MAX_COMPARE)
       : [];
 
-  const compareHref =
-    models.length > 0
-      ? `/builder?${models.map((m) => `compare=${encodeURIComponent(m)}`).join("&")}`
-      : "/builder";
-
   useEffect(() => {
     if (lastAdded) setOpen(true);
   }, [lastAdded, setOpen]);
 
   return (
     <div
-      className={`compare-drawer-left ${open && derived ? "open" : ""}`}
+      className={`compare-drawer-left ${open ? "open" : ""}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
       <div className="compare-tab">
         Compare {rows.length ? `(${rows.length})` : ""}
       </div>
-      {derived && (
-        <div className="compare-body">
-          <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
-            <div className="min-w-0">
+      <div className="compare-body">
+        <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
+          <div className="min-w-0">
+            {builderEnabled ? (
               <Link
-                href={compareHref}
+                href={
+                  models.length > 0
+                    ? `/builder?${models.map((m) => `compare=${encodeURIComponent(m)}`).join("&")}`
+                    : "/builder"
+                }
                 aria-disabled={!meetsMin}
                 tabIndex={!meetsMin ? -1 : 0}
                 onClick={(e) => {
@@ -71,18 +72,30 @@ export function CompareDrawer({
               >
                 Compare
               </Link>
-            </div>
-            <div className="text-[10px] text-slate-400 text-right leading-tight min-w-0 overflow-wrap:anywhere">
-              Pick 2–6 models
-            </div>
+            ) : (
+              <span className="text-[12.5px] uppercase tracking-[0.18em] font-semibold text-slate-500">
+                Custom charts off
+              </span>
+            )}
           </div>
-          {!meetsMin && (
+          <div className="text-[10px] text-slate-400 text-right leading-tight min-w-0 overflow-wrap:anywhere">
+            {builderEnabled ? "Pick 2–6 models" : "Selection saved locally"}
+          </div>
+        </div>
+        {builderEnabled ? (
+          !meetsMin && (
             <p className="text-[10.5px] text-amber-200 mb-2">
               Add at least two models to open custom charts.
             </p>
-          )}
-          <div className="grid gap-2">
-            {rows.map((r) => (
+          )
+        ) : (
+          <p className="text-[10.5px] text-slate-500 mb-2">
+            Custom chart builder is hidden for now.
+          </p>
+        )}
+        <div className="grid gap-2">
+          {rows.length ? (
+            rows.map((r) => (
               <div key={r!.model_id} className="compare-card">
                 <div className="flex items-center justify-between">
                   <p className="text-[12.5px] font-semibold text-white leading-tight overflow-wrap:anywhere min-w-0">
@@ -103,10 +116,16 @@ export function CompareDrawer({
                   {toTokens(r!.mean_completion_tokens)}
                 </p>
               </div>
-            ))}
-          </div>
+            ))
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              {models.length
+                ? "Loading compare stats…"
+                : "Pick models to start comparing."}
+            </p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
