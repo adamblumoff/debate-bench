@@ -175,7 +175,18 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
-      <div className="container-page space-y-10 pb-28">
+      <div className="container-page space-y-8 pb-28">
+        <div className="flex flex-col gap-3">
+          <Hero />
+        </div>
+
+        <FilterBar
+          categories={categories}
+          category={category}
+          onCategory={setCategory}
+          onResetFilters={resetFilters}
+        />
+
         <div className="flex flex-col gap-3">
           <RunControls
             runOptions={sortedRunOptions}
@@ -197,18 +208,7 @@ function DashboardContent() {
             builderHref={builderHref || undefined}
             builderEnabled={ENABLE_BUILDER}
           />
-          <Hero
-            debateCount={meta?.debateCount || 0}
-            modelCount={derived?.models.length || 0}
-          />
         </div>
-
-        <FilterBar
-          categories={categories}
-          category={category}
-          onCategory={setCategory}
-          onResetFilters={resetFilters}
-        />
 
         <HighlightsSection
           status={status}
