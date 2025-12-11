@@ -297,10 +297,12 @@ export function buildJudgeHeatSpec(derived: DerivedData): VisualizationSpec {
 
 export function buildCategoryHeatSpec(
   derived: DerivedData,
-  category: string,
+  selectedCategories: string[] = [],
 ): VisualizationSpec {
+  const allowed =
+    selectedCategories.length > 0 ? new Set(selectedCategories) : null;
   const rows = derived.topicWinrates
-    .filter((t) => category === "all" || t.category === category)
+    .filter((t) => !allowed || (t.category && allowed.has(t.category)))
     .map((t) => ({
       category: t.category || t.topic_id,
       model: t.model_id,

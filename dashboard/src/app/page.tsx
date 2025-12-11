@@ -1,6 +1,12 @@
 "use client";
 
-import { Suspense, useMemo, useCallback, useState, useEffect } from "react";
+import {
+  Suspense,
+  useMemo,
+  useCallback,
+  useState,
+  useEffect,
+} from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEnsureData } from "@/store/useDataStore";
@@ -18,6 +24,7 @@ import {
   buildHighlightLists,
   buildHighlightSpecs,
   buildKpis,
+  filterDerivedByModels,
   selectHighlightDerived,
 } from "@/lib/highlights";
 import { ENABLE_BUILDER, ENABLE_COMPARE } from "@/lib/featureFlags";
@@ -79,20 +86,33 @@ function DashboardContent() {
 
   const { status, error, derived, derivedByCategory, meta, load } =
     useEnsureData(runId, runReady);
-  const { activeTab, setActiveTab, category, setCategory } =
-    useHighlightsState();
+  const {
+    activeTab,
+    setActiveTab,
+    categories: selectedCategories,
+    setCategories,
+    models: selectedModels,
+    setModels,
+  } = useHighlightsState();
   const {
     selected: compareModels,
     addModel: addCompareModel,
     removeModel,
   } = useCompareQuery(undefined, ENABLE_COMPARE);
-  // Only apply category filter to highlights/category heatmap; keep full derived for global metrics.
-  const highlightDerived = useMemo(
-    () => selectHighlightDerived(derived, derivedByCategory, category),
-    [derived, derivedByCategory, category],
+  const categoryDerived = useMemo(
+    () =>
+      selectHighlightDerived(derived, derivedByCategory, selectedCategories),
+    [derived, derivedByCategory, selectedCategories],
+  );
+  const filteredDerived = useMemo(
+    () =>
+      categoryDerived
+        ? filterDerivedByModels(categoryDerived, selectedModels)
+        : undefined,
+    [categoryDerived, selectedModels],
   );
 
-  const modelIds = derived?.modelStats.map((m) => m.model_id) || [];
+  const modelIds = filteredDerived?.modelStats.map((m) => m.model_id) || [];
   const pricing = usePricingData(modelIds, runId);
   const [compareOpen, setCompareOpen] = useState(false);
   const [lastAdded, setLastAdded] = useState<number>();
@@ -109,14 +129,39 @@ function DashboardContent() {
   );
 
   const categories = useMemo(() => meta?.categories || [], [meta]);
+  const modelOptions = useMemo(
+    () => categoryDerived?.models || derived?.models || [],
+    [categoryDerived?.models, derived?.models],
+  );
+
+  useEffect(() => {
+    if (!categories.length || selectedCategories.length === 0) return;
+    const allowed = new Set(categories);
+    const next = selectedCategories.filter((c) => allowed.has(c));
+    if (next.length !== selectedCategories.length) setCategories(next);
+  }, [categories, selectedCategories, setCategories]);
+
+  useEffect(() => {
+    if (!modelOptions.length || selectedModels.length === 0) return;
+    const allowed = new Set(modelOptions);
+    const next = selectedModels.filter((m) => allowed.has(m));
+    if (next.length !== selectedModels.length) setModels(next);
+  }, [modelOptions, selectedModels, setModels]);
+
   const topN = useMemo(() => {
-    const count = derived?.modelStats.length ?? meta?.modelCount;
+    const count = filteredDerived?.modelStats.length ?? meta?.modelCount;
     if (typeof count === "number" && count > 0) return count;
     return 6;
-  }, [derived?.modelStats.length, meta?.modelCount]);
+  }, [filteredDerived?.modelStats.length, meta?.modelCount]);
   const resetFilters = useCallback(() => {
-    setCategory("all");
-  }, [setCategory]);
+    setCategories([]);
+    setModels([]);
+  }, [setCategories, setModels]);
+
+  useEffect(() => {
+    setCategories([]);
+    setModels([]);
+  }, [setCategories, setModels]);
 
   const sortedRunOptions = useMemo(() => {
     const options = manifest?.runs || [];
@@ -164,14 +209,22 @@ function DashboardContent() {
   const downloadHref = useMemo(() => buildDownloadHref(runId), [runId]);
 
   const specs = useMemo(
-    () => buildHighlightSpecs(highlightDerived, derived, topN, category),
-    [highlightDerived, derived, topN, category],
+    () =>
+      filteredDerived
+        ? buildHighlightSpecs(
+            filteredDerived,
+            filteredDerived,
+            topN,
+            selectedCategories,
+          )
+        : {},
+    [filteredDerived, topN, selectedCategories],
   );
   const highlightData = useMemo(
-    () => buildHighlightLists(highlightDerived, pricing, topN),
-    [highlightDerived, pricing, topN],
+    () => buildHighlightLists(filteredDerived, pricing, topN),
+    [filteredDerived, pricing, topN],
   );
-  const kpi = useMemo(() => buildKpis(derived), [derived]);
+  const kpi = useMemo(() => buildKpis(filteredDerived), [filteredDerived]);
 
   return (
     <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
@@ -182,8 +235,11 @@ function DashboardContent() {
 
         <FilterBar
           categories={categories}
-          category={category}
-          onCategory={setCategory}
+          selectedCategories={selectedCategories}
+          onCategories={setCategories}
+          models={modelOptions}
+          selectedModels={selectedModels}
+          onModels={setModels}
           onResetFilters={resetFilters}
         />
 
@@ -192,7 +248,7 @@ function DashboardContent() {
             runOptions={sortedRunOptions}
             runId={runId}
             selectedRun={selectedRun}
-            modelCount={derived?.models.length ?? meta?.modelCount}
+            modelCount={filteredDerived?.models.length ?? meta?.modelCount}
             debateCount={meta?.debateCount}
             manifestLoading={manifestLoading}
             manifestError={manifestError}
@@ -213,7 +269,7 @@ function DashboardContent() {
         <HighlightsSection
           status={status}
           error={error}
-          derived={derived}
+          derived={filteredDerived}
           specs={specs}
           highlightData={highlightData}
           activeTab={activeTab}
@@ -225,7 +281,7 @@ function DashboardContent() {
           onResetFilters={resetFilters}
         />
 
-        {status === "ready" && derived ? (
+        {status === "ready" && filteredDerived ? (
           <div className="space-y-6">
             <KpiStrip kpi={kpi} />
 
@@ -311,7 +367,7 @@ function DashboardContent() {
         <CompareDrawer
           models={compareModels}
           onRemove={removeModel}
-          derived={derived}
+          derived={filteredDerived}
           open={compareOpen}
           setOpen={setCompareOpen}
           lastAdded={lastAdded}

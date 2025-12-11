@@ -37,7 +37,8 @@ pnpm dev
 Open http://localhost:3000. The app calls `/api/metrics` (server parses + derives metrics from the signed JSONL) and hydrates the UI with pre-computed data; the client no longer parses the full debates file.
 
 ## What’s implemented
-- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky category filter bar, discovery tiles, and (optional) compare drawer synced to URL. The compare UI (including pricing-table actions) is hidden by default; set `NEXT_PUBLIC_ENABLE_COMPARE=true` to surface it.
+- Dark-mode layout with hero, tabbed highlights (Elo, win rate, tokens, cost), sticky category/model filter bar, discovery tiles, and (optional) compare drawer synced to URL. The compare UI (including pricing-table actions) is hidden by default; set `NEXT_PUBLIC_ENABLE_COMPARE=true` to surface it.
+  - Filter semantics: single-category selection uses server-derived per-category aggregates. Multi-category selection merges per-category aggregates client-side (counts are exact; Elo/means are weighted approximations). Judge agreement/side-preference charts are not recomputed for filtered subsets; filters only drop visible rows/columns per selected models/categories.
 - KPIs, Elo leaderboard, win-rate bars, side-bias bars, head-to-head heatmap, topic/category heatmap (category filter), judge agreement heatmap, Elo vs win-rate scatter.
 - Cost snapshot table (per‑1M tokens) with live pricing override when `OPENROUTER_API_KEY` is set; falls back to bundled snapshot otherwise.
 - Custom chart builder: choose dataset (debates or judges), chart type (bar/scatter/heatmap/box), and fields for X/Y/Color to generate Vega-Lite charts. UI is hidden by default; set `NEXT_PUBLIC_ENABLE_BUILDER=true` to surface it.
