@@ -29,11 +29,12 @@ def run_command(
         Path("configs/judges.yaml"), help="Path to judge models."
     ),
     debates_path: Path = typer.Option(
-        Path("results/debates.jsonl"), help="Base output debates file (overridden/auto-suffixed by run tag)."
+        Path("results/debates.jsonl"),
+        help="Base path used to choose the output directory for debates_<run_tag>.jsonl.",
     ),
     run_tag: Optional[str] = typer.Option(
         None,
-        help="If set, writes debates to results/debates_<run_tag>.jsonl (and leaves the default file untouched).",
+        help="Run tag for outputs (default: UTC timestamp run-YYYYMMDD-HHMMSS).",
     ),
     new_model_id: Optional[str] = typer.Option(
         None,
@@ -70,10 +71,12 @@ def run_command(
         4, help="Lookback window in months for OpenRouter model selection."
     ),
     openrouter_temperature: float = typer.Option(
-        0.7, help="Default temperature for OpenRouter debater adapters."
+        0.7,
+        help="Temperature for OpenRouter-selected debaters (and quick-test config). Judges are forced to 0.0 in the adapter.",
     ),
     openrouter_max_tokens: Optional[int] = typer.Option(
-        None, help="Max tokens per debater completion when using OpenRouter models (None = no cap)."
+        None,
+        help="Debater token limit for OpenRouter-selected models. To cap debate turns, also pass --apply-stage-token-limits to apply this value to per-round token limits.",
     ),
     openrouter_probe: bool = typer.Option(
         True, help="Probe each selected OpenRouter model before running; drop any that fail."
@@ -101,7 +104,7 @@ def run_command(
     ),
     apply_stage_token_limits: bool = typer.Option(
         False,
-        help="Apply fixed per-stage token limits (disabled by default; leave off for uncapped turns).",
+        help="Overwrite per-round token limits for opening/rebuttal/closing to --openrouter-max-tokens for this run.",
     ),
     skip_on_empty: bool = typer.Option(
         False,
@@ -109,7 +112,7 @@ def run_command(
     ),
     quick_test: bool = typer.Option(
         False,
-        help="Run a fixed sanity test: 1 random topic, Google Gemini 3 Pro Preview vs OpenAI GPT-5.1, judges Kimi K2 Thinking + Claude Opus 4.5 + DeepSeek V3.2.",
+        help="Run a quick test using configs/quick-test-models.yaml (1 random topic, fixed debaters/judges from that file).",
     ),
     judges_test: bool = typer.Option(
         False,

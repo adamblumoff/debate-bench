@@ -30,7 +30,6 @@ def summarize(
     - model_winrate_by_side.csv (wins/losses/ties when model is PRO vs CON)
     - judge_majority_alignment.csv (% of debates where judge matches panel)
     - dimension_score_gaps.csv (mean_pro - mean_con per dimension per debate)
-    - judge_latency.csv (mean latency per judge)
     - turn_timings.csv (mean turn duration per model side)
     - token_usage.csv (mean prompt/completion tokens per model side)
     - cost_usage.csv (mean observed USD cost per model side; falls back to tokens if missing)

@@ -14,11 +14,11 @@ Quick fixes for common issues when running DebateBench.
 ## Judges & panels
 - **“Need at least N judges after exclusions”**: When using `--judges-from-selection`, active debaters are excluded from the judge pool. Add more models or turn off that flag.
 - **Unbalanced judge usage**: Use default `--balanced-judges` to even usage by topic/pair; `--random-judges` is uniform sampling.
-- **Judge JSON parse failures**: Enable `--log-failed-judges` to capture raw replies in `run_<tag>/failed_judges.jsonl`. Judges are retried with alternates until the expected count is reached; if not, the debate fails.
+- **Judge JSON parse failures**: Enable `--log-failed-judges` to capture raw replies in `results/run_<tag>/failed_judges.jsonl`. Judges are retried with alternates until the expected count is reached; if not, the debate fails.
 
 ## Debate execution
 - **Empty turn / banned model**: If a model returns empty content after retries, the run fails unless `--skip-on-empty` is set, which bans that model for the remainder. Check `progress.json` for `banned_models`.
-- **Long or runaway turns**: Cap with `--openrouter-max-tokens` (and optionally `--apply-stage-token-limits`) and reduce temperature.
+- **Long or runaway turns**: Tighten per-round `max_tokens` in `configs/config.yaml`, or run with `--apply-stage-token-limits --openrouter-max-tokens <N>`. (Note: `--openrouter-max-tokens` alone does not override `configs/config.yaml` stage caps.)
 - **High variance outputs**: Lower `--openrouter-temperature` (debater) or use deterministic models. Judges are already forced to temperature 0.
 
 ## Cost / time
@@ -27,7 +27,7 @@ Quick fixes for common issues when running DebateBench.
 
 ## Resume / append
 - **Resume skipped everything**: Ensure `--run-tag` matches the debates file you expect, and that `--debates-per-pair` matches the original plan.
-- **Incremental append errors**: Confirm `run_<tag>/config_snapshot/cli_args.json` and `effective_selection.json` exist, and that the new model ID is present in `configs/models.yaml`.
+- **Incremental append errors**: Confirm `results/run_<tag>/config_snapshot/cli_args.json` and `effective_selection.json` exist, and that the new model ID is present in `configs/models.yaml`.
 
 ## CLI UX
 - **Curses wizard not available**: The CLI falls back to prompt-based selection. You can also disable it with `--no-tui-wizard`.
@@ -41,6 +41,6 @@ Quick fixes for common issues when running DebateBench.
 
 ## When in doubt
 1) Re-run with `--dry-run` to validate selection and costs.
-2) Check `run_<tag>/progress.json` for state, banned models, counts.
+2) Check `results/run_<tag>/progress.json` for state, banned models, counts.
 3) Inspect `failed_judges.jsonl` (if enabled) to see parsing failures.
 4) Reduce scope: fewer topics, lower debates per pair, tighter token caps.

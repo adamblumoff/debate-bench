@@ -12,7 +12,7 @@ What happens:
 - Wizard asks for topics, debaters, judges (text-only OpenRouter models from last 4 months).
 - Each model is probed with a 1-token request; failures are dropped.
 - Balanced sides (A vs B and B vs A) and balanced judges.
-- Outputs: `results/debates_demo.jsonl`, `viz_demo/`, `plots_demo/`, `ratings_demo.json`, `run_demo/*`.
+- Outputs: `results/debates_demo.jsonl`, `results/viz_demo/`, `results/plots_demo/`, `results/ratings_demo.json`, `results/run_demo/*`.
 
 ## 2) Scripted run (no prompts)
 Goal: use static configs and avoid any interactive selection.
@@ -51,7 +51,7 @@ debatebench run --resume --run-tag demo
 Planner skips completed topic/pair/rep combos based on `results/debates_demo.jsonl`.
 
 ## 6) Incremental append: add one new model to an existing run
-Prereqs: existing run tag `demo`, files `results/debates_demo.jsonl` and `run_demo/config_snapshot/{cli_args.json,effective_selection.json}` present; new model exists in `configs/models.yaml`.
+Prereqs: existing run tag `demo`, files `results/debates_demo.jsonl` and `results/run_demo/config_snapshot/{cli_args.json,effective_selection.json}` present; new model exists in `configs/models.yaml`.
 ```bash
 debatebench run --new-model openai-gpt-5-mini --run-tag demo --dry-run   # preview schedule/cost
 debatebench run --new-model openai-gpt-5-mini --run-tag demo             # execute append
@@ -64,14 +64,14 @@ debatebench run --run-tag plan --debates-per-pair 1 --sample-topics 4 --dry-run
 ```
 Outputs:
 - Console: estimated wall time (median of recent runs + 15%), rough USD cost (live OpenRouter pricing + optional activity snapshot), per-model/per-judge cost share. During actual runs, observed OpenRouter costs are recorded per turn/judge when provided and override snapshots in the dashboard.
-- File: `run_plan/dryrun_schedule.json` with every planned debate and judge panel.
+- File: `results/run_plan/dryrun_schedule.json` with every planned debate and judge panel.
 
 ## 8) Tighten or loosen token caps
-- Cap all stages to 768 tokens and judges to 256:
+- Cap all stages to 768 tokens (works in all modes) and judges to 256 when selecting judges from OpenRouter/quick-test (otherwise set caps in `configs/judges.yaml`):
   ```bash
   debatebench run --apply-stage-token-limits --openrouter-max-tokens 768 --openrouter-judge-max-tokens 256
   ```
-- Leave turns uncapped but keep judges concise (default prompt still asks for ~400 tokens):
+- Keep the existing per-round caps from `configs/config.yaml` but cap judge outputs when selecting judges from OpenRouter:
   ```bash
   debatebench run --openrouter-judge-max-tokens 400
   ```

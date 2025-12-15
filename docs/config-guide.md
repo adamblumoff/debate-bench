@@ -22,23 +22,22 @@ debate:
   rounds:
     - role: pro
       stage: opening
-      max_tokens: null   # null = uncapped unless CLI caps are applied
+      max_tokens: 4096   # if null, the parser treats it as 5000 (not uncapped)
     - role: con
       stage: opening
-      max_tokens: null
+      max_tokens: 4096
     - role: pro
       stage: rebuttal
-      max_tokens: null
+      max_tokens: 4096
     - role: con
       stage: rebuttal
-      max_tokens: null
+      max_tokens: 4096
     - role: pro
       stage: closing
-      max_tokens: null
+      max_tokens: 4096
     - role: con
       stage: closing
-      max_tokens: null
-  temperature: 0.7        # default debater temperature (overridable via CLI)
+      max_tokens: 4096
   system_prompt_pro: |    # see default text in repo
   system_prompt_con: |
 
@@ -55,11 +54,10 @@ scoring:
 elo:
   initial_rating: 400
   k_factor: 32
-  min_games_for_display: 5
 ```
 
 Notes:
-- Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens` can be overridden by `--apply-stage-token-limits` + `--openrouter-max-tokens`.
+- Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--apply-stage-token-limits` can overwrite opening/rebuttal/closing token limits to `--openrouter-max-tokens` for a run.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.
 - Scoring dimensions: ids should be short, lowercase-friendly; min/max define the integer range judges must return. Winner is computed from mean scores (no winner field required).
@@ -90,7 +88,7 @@ models:
   - id: openai-gpt-5.1
     provider: openrouter
     model: openai/gpt-5.1
-    token_limit: null          # per-turn cap; null = uncapped unless overridden
+    token_limit: null          # used only if a round token limit is unset; debate rounds normally pass max_tokens from config.yaml
     endpoint: null             # override OpenRouter endpoint if needed
     parameters:
       temperature: 0.7
@@ -99,7 +97,7 @@ models:
 Rules:
 - `provider` must be `openrouter` for built-in adapters.
 - `id` is the internal handle used in outputs; avoid slashes/spaces (the interactive picker auto-normalizes to dash).
-- If you leave `token_limit` null, the CLI may still cap via `--openrouter-max-tokens` or stage limits.
+- Debate turn length is primarily controlled by per-round `max_tokens`/`token_limit` in `configs/config.yaml`. `token_limit` in `models.yaml` only matters if a round token limit ends up unset (or for future providers).
 - Additional OpenRouter request params can be placed in `parameters` (e.g., `timeout`, `retries`, `backoff`).
 
 ---
@@ -114,12 +112,12 @@ judges:
     token_limit: null
     prompt_style: default
     parameters:
-      temperature: 0.0   # forced to 0.0 in code for determinism
+      temperature: 0.0   # forced to 0.0 in code for determinism (ignored if set)
 ```
 Rules:
 - Judge IDs must not collide with debater IDs.
 - If `--judges-from-selection` is used, these are ignored and the debater list is reused (active debaters are excluded from the sample for each debate).
-- `openrouter_judge_max_tokens` CLI flag can cap judge outputs regardless of `token_limit`.
+- When selecting judges from OpenRouter (`--openrouter-select`) or using `--quick-test`, `--openrouter-judge-max-tokens` assigns a token cap for judges. If you run with `--no-openrouter-select`, set `token_limit` / `parameters.max_tokens` in `configs/judges.yaml` instead.
 
 ---
 
@@ -141,12 +139,14 @@ Keep model IDs valid in your OpenRouter account; temperatures are usually lower 
 ---
 
 ## Token limits: how precedence works
-1) If `--apply-stage-token-limits` is passed, every stage uses `--openrouter-max-tokens`.
-2) Else, per-round `max_tokens` from `config.yaml` apply. When `max_tokens` is null, the parser defaults it to 5,000.
-3) Else, the adapter uses model `token_limit` or `parameters.max_tokens` if provided.
-4) If none apply, the adapter defaults to 1,024.
+Debaters:
+1) The CLI passes the per-round `max_tokens`/`token_limit` from `configs/config.yaml` as `max_tokens` on each turn request.
+2) If `--apply-stage-token-limits` is set, opening/rebuttal/closing rounds are overwritten to `--openrouter-max-tokens` for that run.
+3) If a round token limit is ever unset/`None` (unusual), the OpenRouter adapter falls back to the model `token_limit`, then `parameters.max_tokens`, then 1,024.
 
-Judge caps: `--openrouter-judge-max-tokens` overrides judge `token_limit`/`parameters.max_tokens`; otherwise those apply; otherwise provider defaults.
+Judges:
+1) If a judge `token_limit` or `parameters.max_tokens` is set (via `configs/judges.yaml`, OpenRouter selection, or `--openrouter-judge-max-tokens` in quick/interactive modes), it is passed as `max_tokens`.
+2) Otherwise, the request omits `max_tokens` and the provider default applies.
 
 ---
 

@@ -1,10 +1,10 @@
 # DebateBench Dashboard (Next.js)
 
-Interactive, read-only dashboard that streams a private debates JSONL from S3 (via signed URL), builds derived tables client-side, and renders preset + ad‑hoc charts (Vega-Lite).
+Interactive, read-only dashboard that reads a private debates JSONL from S3 (via signed URL), computes derived metrics server-side, and renders preset + ad‑hoc charts (Vega-Lite).
 
 ## Setup
 
-1) Copy `.env.example` to `.env.local` and fill with your bucket/key and creds allowed to sign `GetObject`:
+1) Copy `.env.example` to `.env` (or `.env.local`) and fill with your bucket/key and creds allowed to sign `GetObject`:
 
 ```
 AWS_S3_BUCKET_NAME=debatebench-results

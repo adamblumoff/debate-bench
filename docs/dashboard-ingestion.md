@@ -24,7 +24,7 @@ debatebench upload-results \
 ```
 
 ## Configure the dashboard (Next.js app)
-In `dashboard/.env` (or `.env.local` for local dev):
+In `dashboard/.env`:
 ```
 AWS_S3_BUCKET_NAME=my-results-bucket
 S3_BUCKET=my-results-bucket                  # fallback for older deploys
@@ -81,4 +81,4 @@ pnpm dev
 ## Common ingestion pitfalls
 - Using a key that is not allowlisted by `S3_KEY`: the signer will reject it.
 - Uploading an empty or partial debates file: the dashboard will show zeros; verify with `debatebench inspect-debate --latest` before uploading.
-- Large files: the dashboard streams and parses JSONL client-side; ~3,000 debates (a few MB) is the assumed v1 limit.
+- Large files: the dashboard parses JSONL server-side to build aggregates; ~3,000 debates (a few MB) is the assumed v1 limit.

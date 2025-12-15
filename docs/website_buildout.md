@@ -1,80 +1,35 @@
 # Interactive DebateBench Dashboard (Next.js)
 
-## Goal & Scope
-Public, read-only dashboard that loads one private debates JSONL from S3, visualizes key metrics, and offers an interactive chart builder where users choose X/Y fields (and color/group) to generate custom charts.
+This document started as a buildout plan; the current dashboard implementation has evolved. For day-to-day usage and env setup, prefer `dashboard/README.md` and `docs/dashboard-ingestion.md`.
 
-## Assumptions (fixed for v1)
-- Single run/file at launch; no multi-run switching yet.
-- S3-compatible bucket region: default `us-east-1` (or Railway `auto`).
-- Max dataset size ~3,000 debates (JSONL stays a few MB); in-browser parsing is acceptable.
-- Bucket is private; all access via short-lived signed GET URLs.
-- No authentication; public read-only UI.
+## Current architecture (as implemented)
+- The dashboard is read-only and loads a private debates JSONL from S3 via a short-lived signed URL.
+- Parsing + metric derivation happens server-side in `/api/metrics` (Node.js runtime). The client primarily renders derived tables and charts.
+- Run selection is exposed via `/api/manifest` (single run by default; can be extended to multi-run).
+- `/api/sign` issues allowlisted signed URLs; `/api/debates` can serve the raw JSONL behind the same allowlist.
+- Live pricing is optional: if `OPENROUTER_API_KEY` is set, `/api/pricing` can refresh pricing; otherwise the UI falls back to a bundled snapshot.
 
-## Stack
-- **Next.js (App Router)** + TypeScript.
-- **AWS SDK v3** in API routes for signing S3 GETs.
-- **react-vega** (Vega-Lite) for charts, including the custom builder.
-- **Zustand + SWR** for client state and data fetch/cache.
-- **Streaming JSONL parsing** in a Web Worker (line-by-line) for responsiveness.
-- Styling: Tailwind (or similar utility layer) for fast layout.
-
-## Environment Variables
+## Environment variables (dashboard)
+In `dashboard/.env` (or `.env.local` if you prefer Next’s defaults):
 ```
 AWS_S3_BUCKET_NAME=debatebench-results
 S3_BUCKET=debatebench-results               # fallback for older deploys
 S3_REGION=us-east-1
-S3_KEY=sample5/balanced-2025-11-30/results_sample5/debates_sample5-11-30-2025_balanced_sides.jsonl
+S3_KEY=runs/demo/debates_demo.jsonl         # key to the uploaded JSONL
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 S3_ENDPOINT=https://storage.railway.app     # optional: Railway / other S3-compatible endpoint
 S3_FORCE_PATH_STYLE=true                    # recommended for Railway
-``` 
-(`S3_KEY` may later become a comma-list manifest when we add multi-run support.)
+S3_URL_EXPIRY_SECONDS=900
+OPENROUTER_API_KEY=...                      # optional: enables live pricing fallback
+```
 
-## Data Model (from JSONL)
-Each line contains: `transcript` (pro/con model IDs, topic id/category, turns with timing/tokens), `aggregate` (winner, mean_pro/mean_con scores per dimension), `judges` (per-judge winner + scores), `created_at`.
-Derived tables to compute client-side: overall winrates, side bias, head-to-head matrix, per-dimension averages, judge agreement, topic/category winrates, token/time stats.
+## Data model (from JSONL)
+Each line is a `DebateRecord` containing:
+- `transcript` (topic, pro/con model IDs, turns including timing/token/cost fields when available)
+- `judges` (per-judge winner + per-dimension scores)
+- `aggregate` (panel winner + mean scores per dimension)
 
-## API Routes
-- `GET /api/sign?key=S3_KEY` → returns short-lived signed URL for the configured JSONL (allowlist keys only).
-- `GET /api/manifest` → returns the single configured run (id, label, s3_key). Future: multiple entries.
-- (Optional later) `POST /api/filter` for server-side prefilter if files grow.
-
-## Client Data Flow
-1) Fetch manifest → request signed URL for the JSONL.
-2) Stream-fetch JSONL; parse incrementally in a Web Worker; accumulate rows in memory (arrays or Arrow table) with progress indicator.
-3) Build derived datasets (winrates, head-to-head, judge stats, topic/category tables).
-4) Feed derived tables to canned charts and the custom Vega-Lite builder.
-
-## Pages / UX
-- **Overview**: KPI cards (top ratings, largest side gap, judge agreement range), rating bar, head-to-head heatmap.
-- **Models**: select model(s); show rating, side bias bars, per-dimension averages, volatility.
-- **Judges**: agreement heatmap, majority alignment bar, latency distribution.
-- **Topics**: topic/category winrates, filter by model.
-- **Builder** (interactive): choose dataset (debates, debate-aggregates, judge rows), pick X/Y, Color/Group, aggregation, chart type (bar/line/scatter/heatmap/box). Live Vega-Lite preview; export PNG/JSON spec; shareable URL params.
-- **Data**: download links to the source JSONL and client-derived CSVs.
-
-## Performance
-- Stream + worker to avoid main-thread jank; show progress while loading.
-- Cache parsed result in memory; optionally persist a lightweight snapshot keyed by ETag in `localStorage`.
-- Lazy-load heavy deps (`react-vega`, `apache-arrow` if used).
-
-## Security
-- No auth; API signs only allowlisted keys from env to prevent arbitrary bucket reads.
-- Short-lived signed URLs; no write routes.
-- CORS limited to app origin.
-
-## Deployment
-- Host on Vercel (or similar). Provide env vars above. Ensure IAM creds allow `s3:GetObject` on the configured key for signing.
-
-## Milestones
-1) Scaffold Next.js app, env handling, and signer API route.
-2) Implement streaming JSONL loader + worker; in-memory derived tables.
-3) Ship Overview, Models, Judges, Topics pages with canned charts.
-4) Build custom chart builder (X/Y/Color selectable, chart type, aggregation, export).
-5) Polish UI, add data download page, and finalize deployment config.
-
-## Future (after v1)
-- Multi-run manifest & selector; compare runs side-by-side.
-- Precompute Arrow/Parquet server-side for larger files.
-- Optional auth (if bucket exposure policies change).
+## Notes
+- Size limits: the server parses the JSONL to build aggregates; extremely large runs can time out or exceed memory limits.
+- Security: signing endpoints allowlist the configured key(s) from env; bucket objects remain private.

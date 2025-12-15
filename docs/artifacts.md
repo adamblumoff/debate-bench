@@ -4,7 +4,7 @@ Where DebateBench writes outputs and what each file contains.
 
 ## Top-level
 - `results/` — all run outputs live here.
-- `configs/` — inputs and snapshots (copied into each `run_<tag>/config_snapshot/`).
+- `configs/` — inputs and snapshots (copied into each `results/run_<tag>/config_snapshot/`).
 
 ## Per-run outputs (tag = run name or timestamp)
 - `results/debates_<tag>.jsonl` — append-only debate records (one JSON per line).
@@ -29,11 +29,13 @@ Each line is a `DebateRecord`:
 - `topic_winrate.csv`: topic_id,pro_wins,con_wins,ties,total
 - `model_dimension_avg.csv`: model_id,dimension,mean_score,samples
 - `judge_agreement.csv`: judge_a,judge_b,agree,total,agreement_rate
+- `judge_side_preference.csv`: judge_id,pro,con,tie,total,pro_rate,con_rate,tie_rate
 - `judge_majority_alignment.csv`: judge_id,matches_majority,total,alignment_rate
 - `model_winrate_by_side.csv`: model_id,pro_w,pro_l,pro_t,con_w,con_l,con_t
 - `dimension_score_gaps.csv`: debate_id,dimension,gap (mean_pro - mean_con)
 - `turn_timings.csv`: model_id,side,mean_ms,samples
 - `token_usage.csv`: model_id,side,mean_prompt_tokens,mean_completion_tokens,samples
+- `cost_usage.csv`: model_id,side,mean_cost_usd,samples (only includes observed costs when present in the JSONL)
 
 ## PNG plots (plots_<tag>/)
 - winner_counts.png
@@ -41,10 +43,12 @@ Each line is a `DebateRecord`:
 - model_dimension_heatmap.png
 - judge_agreement.png
 - judge_majority_alignment.png
+- judge_side_preference.png (if CSV exists)
 - model_winrate_by_side.png
 - dimension_score_gaps.png
 - turn_timings.png
 - token_usage.png
+- cost_usage.png (if CSV exists)
 
 ## Progress and diagnostics
 - `progress.json` example:
