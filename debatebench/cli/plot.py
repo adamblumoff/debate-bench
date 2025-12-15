@@ -90,6 +90,19 @@ def plot_command(
     style_axes(ax)
     save(fig, "judge_majority_alignment.png")
 
+    # Judge side preference (pro/con/tie rate per judge)
+    side_pref_path = viz_dir / "judge_side_preference.csv"
+    if side_pref_path.exists():
+        df = pd.read_csv(side_pref_path)
+        df = df.set_index("judge_id")[["pro_rate", "con_rate", "tie_rate"]]
+        fig, ax = plt.subplots(figsize=(8, 2 + 0.35 * len(df)))
+        df.plot(kind="barh", stacked=True, ax=ax, color=palettes["seq"][:3])
+        ax.set_title("Judge Side Preference (Rates)")
+        ax.set_xlabel("Rate")
+        ax.set_xlim(0, 1)
+        style_axes(ax)
+        save(fig, "judge_side_preference.png")
+
     # Model winrate by side
     df = pd.read_csv(viz_dir / "model_winrate_by_side.csv")
     rows = []

@@ -8,8 +8,9 @@ import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { HighlightLists, HighlightSpecs } from "@/lib/highlights";
 import { PricingSnapshot } from "@/lib/pricing";
-import { DerivedData } from "@/lib/types";
+import { DerivedData, RecentCostSummary } from "@/lib/types";
 import { HighlightsTab } from "@/hooks/useHighlightsState";
+import { RecentCostPanel } from "@/components/dashboard/RecentCostPanel";
 
 type Props = {
   status: "idle" | "loading" | "ready" | "error";
@@ -21,6 +22,7 @@ type Props = {
   onTab: (tab: HighlightsTab) => void;
   onAddModel?: (id: string) => void;
   pricing: PricingSnapshot;
+  recentCost?: RecentCostSummary;
   topN: number;
   modelCount?: number;
   onResetFilters?: () => void;
@@ -36,6 +38,7 @@ export function HighlightsSection({
   onTab,
   onAddModel,
   pricing,
+  recentCost,
   topN,
   modelCount,
   onResetFilters,
@@ -172,7 +175,7 @@ export function HighlightsSection({
         <div className="grid gap-3 md:grid-cols-12">
           <div className="md:col-span-4 flex min-w-0">
             <MiniBarList
-              title="Cheapest blended cost"
+              title="Lowest observed $/1M tokens"
               items={highlightData.cost}
               formatter={(v) => `$${v.toFixed(2)}`}
               onAdd={onAddModel}
@@ -180,18 +183,8 @@ export function HighlightsSection({
               className="h-full w-full"
             />
           </div>
-          <div className="card highlight-card snapshot-card col-span-12 md:col-span-8 flex flex-col">
-            <div>
-              <p className="text-sm text-slate-300 mb-1">Pricing snapshot</p>
-              <p className="text-xs text-slate-500">
-                Updated {pricing.updated} • {pricing.currency} per 1M tokens
-              </p>
-            </div>
-            <div className="mt-3">
-              <a href="#pricing" className="btn-ghost inline-block">
-                View pricing table
-              </a>
-            </div>
+          <div className="col-span-12 md:col-span-8 min-w-0">
+            <RecentCostPanel recentCost={recentCost} pricing={pricing} />
           </div>
         </div>
       )}

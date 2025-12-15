@@ -26,6 +26,7 @@ def summarize(
     - topic_winrate.csv (wins/ties per topic)
     - model_dimension_avg.csv (per-model per-dimension averages, by side)
     - judge_agreement.csv (pairwise judge winner agreement rates)
+    - judge_side_preference.csv (per-judge pro/con/tie rates)
     - model_winrate_by_side.csv (wins/losses/ties when model is PRO vs CON)
     - judge_majority_alignment.csv (% of debates where judge matches panel)
     - dimension_score_gaps.csv (mean_pro - mean_con per dimension per debate)
@@ -148,6 +149,7 @@ def summarize(
     pair_total = defaultdict(int)
     judge_match_majority = defaultdict(int)
     judge_total = defaultdict(int)
+    judge_winner_counts = defaultdict(lambda: {"pro": 0, "con": 0, "tie": 0})
     for d in debates:
         winners = {j.judge_id: j.winner for j in d.judges}
         ids = list(winners.keys())
@@ -156,6 +158,8 @@ def summarize(
             judge_total[j_id] += 1
             if win == majority:
                 judge_match_majority[j_id] += 1
+            if win in ("pro", "con", "tie"):
+                judge_winner_counts[j_id][win] += 1
         for i in range(len(ids)):
             for j in range(i + 1, len(ids)):
                 a, b = ids[i], ids[j]
@@ -169,6 +173,42 @@ def summarize(
             agree = pair_agree.get((a, b), 0)
             rate = agree / tot if tot else 0.0
             writer.writerow([a, b, agree, tot, f"{rate:.4f}"])
+
+    # Judge side preference (per-judge pro/con/tie rates)
+    with (out_dir / "judge_side_preference.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "judge_id",
+                "pro",
+                "con",
+                "tie",
+                "total",
+                "pro_rate",
+                "con_rate",
+                "tie_rate",
+            ]
+        )
+        for j_id, counts in sorted(judge_winner_counts.items()):
+            total = sum(counts.values())
+            pro = counts["pro"]
+            con = counts["con"]
+            tie = counts["tie"]
+            pro_rate = pro / total if total else 0.0
+            con_rate = con / total if total else 0.0
+            tie_rate = tie / total if total else 0.0
+            writer.writerow(
+                [
+                    j_id,
+                    pro,
+                    con,
+                    tie,
+                    total,
+                    f"{pro_rate:.4f}",
+                    f"{con_rate:.4f}",
+                    f"{tie_rate:.4f}",
+                ]
+            )
 
     # Judge majority alignment
     with (out_dir / "judge_majority_alignment.csv").open("w", newline="", encoding="utf-8") as f:

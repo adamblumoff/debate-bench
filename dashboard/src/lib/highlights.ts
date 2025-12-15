@@ -401,19 +401,30 @@ export function buildHighlightLists(
     output: m.mean_completion_tokens,
   }));
 
-  const observedCost = highlightDerived.modelStats
-    .filter((m) => typeof m.mean_cost_usd === "number")
-    .sort((a, b) => (a.mean_cost_usd ?? 0) - (b.mean_cost_usd ?? 0))
+  const observedCostPerMillion = highlightDerived.modelStats
+    .filter(
+      (m) =>
+        typeof m.mean_cost_usd === "number" &&
+        typeof m.mean_total_tokens === "number" &&
+        m.mean_total_tokens > 0,
+    )
+    .map((m) => {
+      const perMillion =
+        ((m.mean_cost_usd ?? 0) / (m.mean_total_tokens || 1)) * 1_000_000;
+      const hintParts: string[] = ["Observed effective (USD/1M)"];
+      if (typeof m.cost_samples === "number") hintParts.push(`${m.cost_samples} turns`);
+      return {
+        label: m.model_id,
+        value: perMillion,
+        hint: hintParts.join(" • "),
+      };
+    })
+    .sort((a, b) => a.value - b.value)
     .slice(0, topN)
-    .map((m) => ({
-      label: m.model_id,
-      value: m.mean_cost_usd ?? 0,
-      hint: "Observed avg per turn (USD)",
-    }));
 
   const cost =
-    observedCost.length > 0
-      ? observedCost
+    observedCostPerMillion.length > 0
+      ? observedCostPerMillion
       : (() => {
           const allowedModels = new Set(
             highlightDerived.modelStats.slice(0, topN).map((m) => m.model_id),
@@ -434,7 +445,7 @@ export function buildHighlightLists(
             .map((r) => ({
               label: r.model_id,
               value: r.input_per_million + r.output_per_million,
-              hint: `${pricing.currency} in/out`,
+              hint: `${pricing.currency} in+out (snapshot)`,
             }));
         })();
 

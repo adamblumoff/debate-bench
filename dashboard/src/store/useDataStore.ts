@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import useSWR from "swr";
-import { DerivedData } from "@/lib/types";
+import { DerivedData, RecentCostSummary } from "@/lib/types";
 import { MetricsResponse } from "@/lib/apiTypes";
 
 interface DataState {
@@ -11,6 +11,7 @@ interface DataState {
   derived?: DerivedData;
   derivedByCategory?: Record<string, DerivedData>;
   meta?: { debateCount: number; modelCount: number; categories: string[] };
+  recentCost?: RecentCostSummary;
   currentRun?: string;
   _requestId?: number;
   load: (runId?: string, refresh?: boolean) => Promise<void>;
@@ -36,6 +37,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         derived: undefined,
         derivedByCategory: undefined,
         meta: undefined,
+        recentCost: undefined,
       });
       const qsParts = [] as string[];
       if (runId) qsParts.push(`run=${encodeURIComponent(runId)}`);
@@ -50,6 +52,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         derived: json.derived,
         derivedByCategory: json.derivedByCategory,
         meta: json.meta,
+        recentCost: json.recentCost,
         currentRun: runId,
       });
     } catch (e) {

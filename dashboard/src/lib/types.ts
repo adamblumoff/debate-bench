@@ -13,6 +13,11 @@ export interface JudgeDecision {
   winner: Winner;
   pro: JudgeScore;
   con: JudgeScore;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  latency_ms?: number | null;
+  raw_response?: unknown;
   cost?: number | null;
   currency?: string | null;
   cost_details?: unknown;
@@ -168,4 +173,53 @@ export interface DerivedData {
   judgeBias: JudgeBiasRow[];
   debateRows: DebateRowForBuilder[];
   judgeRows: JudgeRowForBuilder[];
+}
+
+export interface RecentCostDebateRow {
+  seq: number;
+  debate_id: string;
+  topic_id: string;
+  category?: string;
+  motion?: string;
+  pro_model_id: string;
+  con_model_id: string;
+  debater_cost_usd: number;
+  judge_cost_usd: number;
+  total_cost_usd: number;
+  debater_tokens: number;
+  judge_tokens: number;
+  created_at?: string;
+}
+
+export interface RecentCostModelRow {
+  model_id: string;
+  debater_cost_usd: number;
+  judge_cost_usd: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  usd_per_million_tokens?: number;
+}
+
+export interface RecentCostStageRow {
+  stage: string;
+  cost_usd: number;
+  tokens: number;
+}
+
+export interface RecentCostSummary {
+  window: number;
+  currency: "USD" | "mixed";
+  totals: {
+    debater_cost_usd: number;
+    judge_cost_usd: number;
+    total_cost_usd: number;
+  };
+  per_debate: {
+    mean_cost_usd: number;
+    median_cost_usd: number;
+    p90_cost_usd: number;
+  };
+  debates: RecentCostDebateRow[];
+  models: RecentCostModelRow[];
+  stages: RecentCostStageRow[];
 }
