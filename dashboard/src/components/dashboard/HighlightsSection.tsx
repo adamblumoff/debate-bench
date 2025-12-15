@@ -92,7 +92,7 @@ export function HighlightsSection({
 
   return (
     <section id="highlights" className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
             Highlights
@@ -109,7 +109,7 @@ export function HighlightsSection({
       </div>
 
       {activeTab === "performance" && (
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="flex min-w-0">
             <MiniBarList
               title="Elo leaderboard"
@@ -142,7 +142,7 @@ export function HighlightsSection({
       )}
 
       {activeTab === "efficiency" && (
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="flex min-w-0">
             <TokenBarList
               title="Mean tokens (prompt/output)"
@@ -172,7 +172,7 @@ export function HighlightsSection({
       )}
 
       {activeTab === "cost" && (
-        <div className="grid gap-3 md:grid-cols-12">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
           <div className="md:col-span-4 flex min-w-0">
             <MiniBarList
               title="Lowest observed $/1M tokens"

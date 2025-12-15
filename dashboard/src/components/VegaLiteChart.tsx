@@ -13,6 +13,12 @@ const VegaEmbed = dynamic(
 export function VegaLiteChart({ spec }: { spec: VisualizationSpec }) {
   const themed = useMemo(() => withVizTheme(spec), [spec]);
   return (
-    <VegaEmbed spec={themed} options={{ actions: false }} className="w-full" />
+    <div className="w-full min-w-0 overflow-x-auto">
+      <VegaEmbed
+        spec={themed}
+        options={{ actions: false }}
+        className="w-full"
+      />
+    </div>
   );
 }

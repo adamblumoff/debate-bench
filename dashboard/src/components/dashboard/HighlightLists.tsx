@@ -2,6 +2,16 @@
 
 import { toTokens } from "@/lib/format";
 
+function formatModelId(id: string) {
+  if (id.includes("/")) return id;
+  const firstDash = id.indexOf("-");
+  if (firstDash <= 0) return id;
+  const provider = id.slice(0, firstDash);
+  const rest = id.slice(firstDash + 1);
+  if (!rest) return id;
+  return `${provider}/${rest}`;
+}
+
 export function MiniBarList({
   title,
   items,
@@ -29,11 +39,18 @@ export function MiniBarList({
       </header>
       <div className="space-y-2" style={minHeight ? { minHeight } : undefined}>
         {items.map((i) => (
-          <div key={i.label} className="flex items-center gap-3">
-            <div className="w-full">
-              <div className="flex justify-between text-xs text-slate-400">
-                <span>{i.label}</span>
-                <span className="text-slate-200">{formatter(i.value)}</span>
+          <div key={i.label} className="flex items-center gap-3 min-w-0">
+            <div className="w-full min-w-0">
+              <div className="flex justify-between gap-2 text-xs text-slate-400 min-w-0">
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  title={i.label}
+                >
+                  {formatModelId(i.label)}
+                </span>
+                <span className="shrink-0 text-slate-200">
+                  {formatter(i.value)}
+                </span>
               </div>
               <div className="h-2.5 rounded-full bg-slate-800/70 overflow-hidden">
                 <div
@@ -83,11 +100,18 @@ export function TokenBarList({
           const total = i.prompt + i.output;
           const promptPct = total ? (i.prompt / total) * 100 : 50;
           return (
-            <div key={i.label} className="flex items-center gap-3">
-              <div className="w-full">
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>{i.label}</span>
-                  <span className="text-slate-200">{toTokens(total)}</span>
+            <div key={i.label} className="flex items-center gap-3 min-w-0">
+              <div className="w-full min-w-0">
+                <div className="flex justify-between gap-2 text-xs text-slate-400 min-w-0">
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    title={i.label}
+                  >
+                    {formatModelId(i.label)}
+                  </span>
+                  <span className="shrink-0 text-slate-200">
+                    {toTokens(total)}
+                  </span>
                 </div>
                 <div className="h-2.5 rounded-full bg-slate-800/70 overflow-hidden flex">
                   <div

@@ -31,6 +31,7 @@ body {
   color: var(--text-primary);
   font-size: 15px;
   letter-spacing: 0.01em;
+  overflow-x: hidden;
 }
 
 #__next {
@@ -457,6 +458,41 @@ h3,
   align-items: center;
 }
 
+/* Mobile: prevent horizontal overflow from long run labels + meta chips. */
+@media (max-width: 640px) {
+  .run-toolbar {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .run-left {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .run-toolbar select {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .run-meta-inline {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .run-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    white-space: normal;
+    justify-content: flex-start;
+  }
+}
+
 .tile {
   display: block;
   padding: 14px;
@@ -475,6 +511,13 @@ h3,
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+}
+
+@media (max-width: 640px) {
+  .tab-switch {
+    flex-wrap: wrap;
+    width: 100%;
+  }
 }
 
 .tab-switch button {

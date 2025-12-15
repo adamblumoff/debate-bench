@@ -22,7 +22,7 @@ export function ChartCard({
         </div>
         <span className="chart-legend-bar" />
       </header>
-      <div className="min-h-[260px]">{children}</div>
+      <div className="min-h-[260px] overflow-x-auto">{children}</div>
     </section>
   );
 }
