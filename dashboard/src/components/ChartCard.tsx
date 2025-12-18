@@ -5,11 +5,13 @@ import { ReactNode } from "react";
 export function ChartCard({
   title,
   subtitle,
+  actions,
   children,
   className = "",
 }: {
   title: string;
   subtitle?: string;
+  actions?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -20,7 +22,10 @@ export function ChartCard({
           <h2 className="text-base font-semibold text-white">{title}</h2>
           {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
         </div>
-        <span className="chart-legend-bar" />
+        <div className="flex items-center gap-2">
+          {actions}
+          <span className="chart-legend-bar" />
+        </div>
       </header>
       <div className="min-h-[260px] overflow-x-auto">{children}</div>
     </section>

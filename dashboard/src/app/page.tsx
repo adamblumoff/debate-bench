@@ -32,6 +32,7 @@ import { ChartCard } from "@/components/ChartCard";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
 import { ManifestResponse } from "@/lib/apiTypes";
+import { PricePerfMetric } from "@/lib/specs/highlights";
 
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -118,6 +119,8 @@ function DashboardContent() {
   const [lastAdded, setLastAdded] = useState<number>();
   const [refreshingRuns, setRefreshingRuns] = useState(false);
   const [refreshRunsError, setRefreshRunsError] = useState<string | null>(null);
+  const [pricePerfMetric, setPricePerfMetric] =
+    useState<PricePerfMetric>("elo");
 
   const addModel = useCallback(
     (id: string) => {
@@ -216,9 +219,11 @@ function DashboardContent() {
             filteredDerived,
             topN,
             selectedCategories,
+            pricing,
+            pricePerfMetric,
           )
         : {},
-    [filteredDerived, topN, selectedCategories],
+    [filteredDerived, topN, selectedCategories, pricing, pricePerfMetric],
   );
   const highlightData = useMemo(
     () => buildHighlightLists(filteredDerived, pricing, topN),
@@ -287,6 +292,39 @@ function DashboardContent() {
             <KpiStrip kpi={kpi} />
 
             {/* Models section removed (Elo + win rate duplicated in highlights) */}
+
+            <section
+              id="economics"
+              className="grid gap-4 md:grid-cols-12 items-stretch"
+            >
+              <div className="md:col-span-12 min-w-0">
+                <ChartCard
+                  title="Price to performance"
+                  subtitle="Observed USD/1M tokens (fallback to snapshot) vs performance"
+                  className="chart-card h-full"
+                  actions={
+                    <div className="tab-switch">
+                      <button
+                        className={pricePerfMetric === "elo" ? "active" : ""}
+                        onClick={() => setPricePerfMetric("elo")}
+                      >
+                        Elo
+                      </button>
+                      <button
+                        className={
+                          pricePerfMetric === "win_rate" ? "active" : ""
+                        }
+                        onClick={() => setPricePerfMetric("win_rate")}
+                      >
+                        Win rate
+                      </button>
+                    </div>
+                  }
+                >
+                  {specs.pricePerf && <VegaLiteChart spec={specs.pricePerf} />}
+                </ChartCard>
+              </div>
+            </section>
 
             <section
               id="topics"

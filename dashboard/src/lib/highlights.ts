@@ -19,6 +19,8 @@ import {
 import {
   buildRatingVsWinSpec,
   buildTokenStackSpec,
+  buildPricePerfSpec,
+  PricePerfMetric,
 } from "@/lib/specs/highlights";
 
 export type HighlightSpecs = {
@@ -27,6 +29,7 @@ export type HighlightSpecs = {
   categoryHeat?: VisualizationSpec;
   tokens?: VisualizationSpec;
   ratingVsWin?: VisualizationSpec;
+  pricePerf?: VisualizationSpec;
   h2h?: VisualizationSpec;
   judgeHeat?: VisualizationSpec;
 };
@@ -358,6 +361,8 @@ export function buildHighlightSpecs(
   fullDerived?: DerivedData,
   topN: number = 6,
   selectedCategories: string[] = [],
+  pricing: PricingSnapshot,
+  pricePerfMetric: PricePerfMetric,
 ): HighlightSpecs {
   if (!highlightDerived || !fullDerived) return {};
   return {
@@ -366,6 +371,7 @@ export function buildHighlightSpecs(
     categoryHeat: buildCategoryHeatSpec(highlightDerived, selectedCategories),
     tokens: buildTokenStackSpec(highlightDerived, topN),
     ratingVsWin: buildRatingVsWinSpec(highlightDerived),
+    pricePerf: buildPricePerfSpec(highlightDerived, pricing, pricePerfMetric),
     h2h: buildH2HSpec(fullDerived),
     judgeHeat: buildJudgeHeatSpec(fullDerived),
   };
