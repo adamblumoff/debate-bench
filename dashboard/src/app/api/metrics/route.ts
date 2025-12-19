@@ -36,10 +36,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const refresh = url.searchParams.get("refresh") === "1";
   const full = url.searchParams.get("full") === "1";
+  const bias = url.searchParams.get("bias");
+  const includeBiasCv = bias === "full" || bias === "1";
   const runId = url.searchParams.get("run") || undefined;
   try {
     const payload = await getMetrics(refresh, runId, undefined, {
       includeRows: full,
+      includeBiasCv,
     });
     const cacheHeader = refresh
       ? "no-store"

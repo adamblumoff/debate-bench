@@ -17,6 +17,7 @@ type MetricsPayload = {
 type MetricsOptions = {
   includeRows?: boolean;
   includeCategories?: boolean;
+  includeBiasCv?: boolean;
 };
 
 const cache = new Map<string, { ts: number; payload: MetricsPayload }>();
@@ -35,6 +36,8 @@ async function computeMetrics(
   opts: MetricsOptions = {},
 ): Promise<MetricsPayload> {
   const includeCategories = opts.includeCategories !== false;
+  const includeRows = opts.includeRows !== false;
+  const includeBiasCv = opts.includeBiasCv === true;
 
   const s3 = new S3Client({
     region: run.region,
@@ -52,7 +55,10 @@ async function computeMetrics(
     label: `metrics_${run.id}`,
   });
 
-  const derived = buildDerived(debates);
+  const derived = buildDerived(debates, {
+    includeRows,
+    includeBiasCv,
+  });
   const costSummary = computeCostSummary(debates);
 
   const categorySet = new Set<string>();
@@ -67,7 +73,10 @@ async function computeMetrics(
       const subset = debates.filter(
         (d) => d.transcript.topic.category === category,
       );
-      derivedByCategory[category] = buildDerived(subset);
+      derivedByCategory[category] = buildDerived(subset, {
+        includeRows,
+        includeBiasCv,
+      });
     }
   }
 
@@ -87,13 +96,21 @@ async function getMetricsWithTtl(
   refresh: boolean,
   ttlMs: number,
   run: RunConfig,
+  opts: MetricsOptions,
 ) {
-  const key = run.id;
+  const includeRows = opts.includeRows !== false;
+  const includeCategories = opts.includeCategories !== false;
+  const includeBiasCv = opts.includeBiasCv === true;
+  const key = `${run.id}::rows=${includeRows}::cats=${includeCategories}::biascv=${includeBiasCv}`;
   const entry = cache.get(key);
   if (!refresh && entry && Date.now() - entry.ts < ttlMs) {
     return entry.payload;
   }
-  const payload = await computeMetrics(run, { includeCategories: true });
+  const payload = await computeMetrics(run, {
+    includeCategories,
+    includeRows,
+    includeBiasCv,
+  });
   cache.set(key, { ts: Date.now(), payload });
   return payload;
 }
@@ -109,7 +126,7 @@ export async function getMetrics(
       ? ttlMs
       : Number(process.env.METRICS_CACHE_MS || defaultTtl);
   const run = await resolveRun(runId, refresh);
-  const payload = await getMetricsWithTtl(refresh, ttl, run);
+  const payload = await getMetricsWithTtl(refresh, ttl, run, opts);
   if (opts.includeRows === false) {
     const strip = (d: DerivedData) => stripRows(d);
     const derivedByCategory: Record<string, DerivedData> = {};

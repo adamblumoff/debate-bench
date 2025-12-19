@@ -1,9 +1,16 @@
 "use client";
 
-import { Suspense, useMemo, useCallback, useState, useEffect } from "react";
+import {
+  Suspense,
+  useMemo,
+  useCallback,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEnsureData } from "@/store/useDataStore";
+import { useEnsureData, useDataStore } from "@/store/useDataStore";
 import { useHighlightsState } from "@/hooks/useHighlightsState";
 import { useCompareQuery } from "@/hooks/useCompareQuery";
 import { usePricingData } from "@/hooks/usePricingData";
@@ -79,8 +86,19 @@ function DashboardContent() {
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [manifest, runId, runFromUrl, router, searchParams]);
 
-  const { status, error, derived, derivedByCategory, meta, costSummary, load } =
-    useEnsureData(runId, runReady);
+  const {
+    status,
+    error,
+    derived,
+    derivedByCategory,
+    meta,
+    costSummary,
+    load,
+  } = useEnsureData(runId, runReady);
+  const loadBiasCv = useDataStore((s) => s.loadBiasCv);
+  const biasCvLoading = useDataStore(
+    (s) => s._biasCvLoading?.[runId || "default"] ?? false,
+  );
   const {
     activeTab,
     setActiveTab,
@@ -191,9 +209,36 @@ function DashboardContent() {
       .finally(() => setRefreshingRuns(false));
   }, [refreshManifest]);
 
-  const onRefreshData = useCallback(() => {
-    load(runId, true);
+  const onRefreshData = useCallback(async () => {
+    await load(runId, true);
   }, [load, runId]);
+
+  const biasCvRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!runId || status !== "ready") return;
+    if (
+      derived?.judgeBias?.some((j) => typeof j.adj_bias_mean === "number")
+    ) {
+      return;
+    }
+    const el = biasCvRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          loadBiasCv(runId);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "0px", threshold: 0.25 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [runId, status, derived?.judgeBias, loadBiasCv]);
+  const biasCvReady = useMemo(
+    () => derived?.judgeBias?.some((j) => typeof j.adj_bias_mean === "number"),
+    [derived?.judgeBias],
+  );
   const onDownloadData = useCallback(() => {
     const link = document.createElement("a");
     link.href = buildDownloadHref(runId);
@@ -363,14 +408,20 @@ function DashboardContent() {
                   {specs.sideBias && <VegaLiteChart spec={specs.sideBias} />}
                 </ChartCard>
               </div>
-              <div className="md:col-span-12 min-w-0">
+              <div className="md:col-span-12 min-w-0" ref={biasCvRef}>
                 <ChartCard
                   title="Judge side preference (CV mean)"
                   subtitle="5-fold CV mean of adjusted bias; topic×model interactions included."
                   className="chart-card h-full overflow-hidden"
                 >
-                  {specs.judgeSideBiasCv && (
+                  {biasCvReady && specs.judgeSideBiasCv ? (
                     <VegaLiteChart spec={specs.judgeSideBiasCv} />
+                  ) : (
+                    <div className="flex h-full min-h-[260px] items-center justify-center text-sm text-slate-400">
+                      {biasCvLoading
+                        ? "Loading CV bias…"
+                        : "CV bias will load when this section is in view."}
+                    </div>
                   )}
                 </ChartCard>
               </div>
