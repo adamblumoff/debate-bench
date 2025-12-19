@@ -45,11 +45,14 @@ export function useCompareQuery(max = MAX_COMPARE, enabled = true) {
     [max, enabled, selected, writeSelection],
   );
 
-  const removeModel = useCallback((id: string) => {
-    if (!enabled) return;
-    const next = selected.filter((m) => m !== id);
-    writeSelection(next);
-  }, [enabled, selected, writeSelection]);
+  const removeModel = useCallback(
+    (id: string) => {
+      if (!enabled) return;
+      const next = selected.filter((m) => m !== id);
+      writeSelection(next);
+    },
+    [enabled, selected, writeSelection],
+  );
 
   return { selected, addModel, removeModel };
 }

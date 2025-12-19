@@ -2,11 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { serverEnv } from "@/lib/env";
 import { resolveRun } from "@/lib/server/runs";
 import { getSignedObjectUrl } from "@/lib/server/s3";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const limit = rateLimit(req, "sign", {
+    capacity: Number(process.env.RL_SIGN_CAPACITY || 20),
+    refillMs: Number(process.env.RL_SIGN_REFILL_MS || 60_000),
+  });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": `${Math.ceil((limit.reset - Date.now()) / 1000)}`,
+        },
+      },
+    );
+  }
   const runId = req.nextUrl.searchParams.get("run") || undefined;
   let run;
   try {

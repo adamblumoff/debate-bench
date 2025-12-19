@@ -419,9 +419,9 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     }
     const c = costAgg.get(s.model_id);
     if (c && c.samples) {
-        s.mean_cost_usd = c.cost / c.samples;
-        s.total_cost_usd = c.cost;
-        s.cost_samples = c.samples;
+      s.mean_cost_usd = c.cost / c.samples;
+      s.total_cost_usd = c.cost;
+      s.cost_samples = c.samples;
     }
   });
 
@@ -465,12 +465,8 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
     ([key, counts]): JudgeBiasRow => {
       const [judge_id, topic_id] = key.split("|||");
       const samples = counts.pro + counts.con + counts.tie;
-      const pro_rate = samples
-        ? (counts.pro + 0.5 * counts.tie) / samples
-        : 0;
-      const con_rate = samples
-        ? (counts.con + 0.5 * counts.tie) / samples
-        : 0;
+      const pro_rate = samples ? (counts.pro + 0.5 * counts.tie) / samples : 0;
+      const con_rate = samples ? (counts.con + 0.5 * counts.tie) / samples : 0;
       return {
         judge_id,
         category: counts.category,
@@ -619,7 +615,8 @@ export function buildDerived(debates: DebateRecord[]): DerivedData {
         const raw = topicRawStats.get(jb.topic_id);
         jb.topic_avg_bias = raw && raw.n ? raw.sum / raw.n : undefined;
         const adj = topicAdjStats.get(jb.topic_id);
-        jb.topic_avg_adj_bias = adj && adj.n ? adj.sum / adj.n : jb.topic_avg_bias;
+        jb.topic_avg_adj_bias =
+          adj && adj.n ? adj.sum / adj.n : jb.topic_avg_bias;
       }
 
       // 5-fold CV for stability

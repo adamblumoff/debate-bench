@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Suspense,
-  useMemo,
-  useCallback,
-  useState,
-  useEffect,
-} from "react";
+import { Suspense, useMemo, useCallback, useState, useEffect } from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEnsureData } from "@/store/useDataStore";
@@ -213,7 +207,7 @@ function DashboardContent() {
 
   const specs = useMemo(
     () =>
-          filteredDerived
+      filteredDerived
         ? buildHighlightSpecs(
             filteredDerived,
             filteredDerived,

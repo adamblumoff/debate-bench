@@ -50,7 +50,11 @@ function buildCostTrendSpec(costSummary: CostSummary): VisualizationSpec {
             { field: "con_model_id", title: "Con" },
             { field: "category", title: "Category" },
             { field: "motion", title: "Motion" },
-            { field: "debater_cost_usd", title: "Debaters (USD)", format: ".4f" },
+            {
+              field: "debater_cost_usd",
+              title: "Debaters (USD)",
+              format: ".4f",
+            },
             { field: "judge_cost_usd", title: "Judges (USD)", format: ".4f" },
             { field: "total_cost_usd", title: "Total (USD)", format: ".4f" },
           ],
@@ -160,7 +164,9 @@ export function CostSummaryPanel({
 
   const totals = summary.totals;
   const judgeShare =
-    totals.total_cost_usd > 0 ? totals.judge_cost_usd / totals.total_cost_usd : 0;
+    totals.total_cost_usd > 0
+      ? totals.judge_cost_usd / totals.total_cost_usd
+      : 0;
   const topStages = summary.stages.slice(0, 3);
 
   const expensive = [...summary.debates]
@@ -176,8 +182,9 @@ export function CostSummaryPanel({
       {warnEstimated && (
         <div className="card highlight-card border border-amber-300/40 bg-amber-200/10 text-amber-100">
           <p className="text-xs">
-            Judge costs are estimated from token counts and pricing when provider usage data is
-            missing. Totals may differ from OpenRouter-reported costs.
+            Judge costs are estimated from token counts and pricing when
+            provider usage data is missing. Totals may differ from
+            OpenRouter-reported costs.
           </p>
         </div>
       )}

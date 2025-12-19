@@ -26,8 +26,7 @@ export function FilterBar({
   const [modelSearch, setModelSearch] = useState("");
   const [openMenu, setOpenMenu] = useState<"category" | "models" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const hasFilters =
-    selectedCategories.length > 0 || selectedModels.length > 0;
+  const hasFilters = selectedCategories.length > 0 || selectedModels.length > 0;
 
   const closeMenus = useCallback(() => setOpenMenu(null), []);
 
@@ -101,10 +100,7 @@ export function FilterBar({
         : `${selectedModels.length} models selected`;
 
   return (
-    <div
-      ref={rootRef}
-      className="filter-bar sticky top-0 z-20 backdrop-blur"
-    >
+    <div ref={rootRef} className="filter-bar sticky top-0 z-20 backdrop-blur">
       <div className="filter-row">
         <div className="flex flex-wrap items-start gap-3">
           <div className="category-block relative">
@@ -130,52 +126,54 @@ export function FilterBar({
               />
               {openMenu === "category" && (
                 <div className="absolute right-0 mt-2 w-[220px] rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-lg z-40">
-                <input
-                  type="search"
-                  placeholder="Search categories"
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                    onClick={() => onCategories(categories)}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                    onClick={() => onCategories([])}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
-                  {filteredCategories.map((c) => {
-                    const checked = selectedCategories.includes(c);
-                    return (
-                      <label
-                        key={c}
-                        className="flex items-center gap-2 text-sm text-slate-200"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleCategory(c)}
-                        />
-                        <span className={checked ? "text-white" : ""}>{c}</span>
-                      </label>
-                    );
-                  })}
-                  {filteredCategories.length === 0 && (
-                    <p className="text-xs text-slate-500 px-1 py-2">
-                      No categories match this search.
-                    </p>
-                  )}
-                </div>
+                  <input
+                    type="search"
+                    placeholder="Search categories"
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                      onClick={() => onCategories(categories)}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                      onClick={() => onCategories([])}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
+                    {filteredCategories.map((c) => {
+                      const checked = selectedCategories.includes(c);
+                      return (
+                        <label
+                          key={c}
+                          className="flex items-center gap-2 text-sm text-slate-200"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCategory(c)}
+                          />
+                          <span className={checked ? "text-white" : ""}>
+                            {c}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    {filteredCategories.length === 0 && (
+                      <p className="text-xs text-slate-500 px-1 py-2">
+                        No categories match this search.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </details>
@@ -204,52 +202,54 @@ export function FilterBar({
               />
               {openMenu === "models" && (
                 <div className="absolute right-0 mt-2 w-[220px] rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-lg z-40">
-                <input
-                  type="search"
-                  placeholder="Search models"
-                  value={modelSearch}
-                  onChange={(e) => setModelSearch(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                    onClick={() => onModels(models)}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                    onClick={() => onModels([])}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
-                  {filteredModels.map((m) => {
-                    const checked = selectedModels.includes(m);
-                    return (
-                      <label
-                        key={m}
-                        className="flex items-center gap-2 text-sm text-slate-200"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleModel(m)}
-                        />
-                        <span className={checked ? "text-white" : ""}>{m}</span>
-                      </label>
-                    );
-                  })}
-                  {filteredModels.length === 0 && (
-                    <p className="text-xs text-slate-500 px-1 py-2">
-                      No models match this search.
-                    </p>
-                  )}
-                </div>
+                  <input
+                    type="search"
+                    placeholder="Search models"
+                    value={modelSearch}
+                    onChange={(e) => setModelSearch(e.target.value)}
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                      onClick={() => onModels(models)}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                      onClick={() => onModels([])}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
+                    {filteredModels.map((m) => {
+                      const checked = selectedModels.includes(m);
+                      return (
+                        <label
+                          key={m}
+                          className="flex items-center gap-2 text-sm text-slate-200"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleModel(m)}
+                          />
+                          <span className={checked ? "text-white" : ""}>
+                            {m}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    {filteredModels.length === 0 && (
+                      <p className="text-xs text-slate-500 px-1 py-2">
+                        No models match this search.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </details>

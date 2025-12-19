@@ -19,9 +19,16 @@ function getKey(ip: string, name: string) {
   return `${name}:${ip}`;
 }
 
+function shouldTrustProxyHeaders(): boolean {
+  const raw = process.env.TRUST_PROXY ?? process.env.RL_TRUST_PROXY;
+  if (raw == null || raw === "") return true;
+  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+}
+
 function parseIP(req: Request): string {
   const anyReq = req as { ip?: string | null };
   if (anyReq && typeof anyReq.ip === "string" && anyReq.ip) return anyReq.ip;
+  if (!shouldTrustProxyHeaders()) return "unknown";
   const header =
     req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
   const ip = header

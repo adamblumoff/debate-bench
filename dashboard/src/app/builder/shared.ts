@@ -48,7 +48,14 @@ export function filterRowsByModels(
   // judge_bias: re-aggregate limited to selected models
   const agg = new Map<
     string,
-    { pro: number; con: number; tie: number; samples: number; motion?: string; category?: string }
+    {
+      pro: number;
+      con: number;
+      tie: number;
+      samples: number;
+      motion?: string;
+      category?: string;
+    }
   >();
   for (const row of derived.judgeRows) {
     if (
@@ -57,16 +64,14 @@ export function filterRowsByModels(
     )
       continue;
     const key = `${row.judge_id}|||${row.topic_id}`;
-    const entry =
-      agg.get(key) ||
-      {
-        pro: 0,
-        con: 0,
-        tie: 0,
-        samples: 0,
-        motion: undefined,
-        category: row.category,
-      };
+    const entry = agg.get(key) || {
+      pro: 0,
+      con: 0,
+      tie: 0,
+      samples: 0,
+      motion: undefined,
+      category: row.category,
+    };
     if (row.winner === "pro") entry.pro += 1;
     else if (row.winner === "con") entry.con += 1;
     else entry.tie += 1;
@@ -94,6 +99,9 @@ export function filterRowsByModels(
       bias: pro_rate - con_rate,
     } as DataRow;
   });
-  rows.sort((a, b) => Math.abs((b.bias as number) ?? 0) - Math.abs((a.bias as number) ?? 0));
+  rows.sort(
+    (a, b) =>
+      Math.abs((b.bias as number) ?? 0) - Math.abs((a.bias as number) ?? 0),
+  );
   return rows;
 }

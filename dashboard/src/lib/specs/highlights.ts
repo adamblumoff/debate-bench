@@ -311,9 +311,7 @@ export function buildPricePerfSpec(
           },
           {
             data: {
-              values: [
-                { x: xMid, y0: yMin, y1: yMax },
-              ],
+              values: [{ x: xMid, y0: yMin, y1: yMax }],
             },
             mark: {
               type: "rule" as const,
@@ -330,9 +328,7 @@ export function buildPricePerfSpec(
           },
           {
             data: {
-              values: [
-                { y: yMid, x0: xMin, x1: xMax },
-              ],
+              values: [{ y: yMid, x0: xMin, x1: xMax }],
             },
             mark: {
               type: "rule" as const,

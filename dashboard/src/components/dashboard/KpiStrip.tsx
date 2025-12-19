@@ -1,11 +1,9 @@
 type Props = {
-  kpi:
-    | {
-        topModel: { label: string; value: string; helper?: string };
-        sideGap: { label: string; value: string; helper?: string };
-        judgeSpan: { label: string; value: string; helper?: string };
-      }
-    | null;
+  kpi: {
+    topModel: { label: string; value: string; helper?: string };
+    sideGap: { label: string; value: string; helper?: string };
+    judgeSpan: { label: string; value: string; helper?: string };
+  } | null;
 };
 
 export function KpiStrip({ kpi }: Props) {

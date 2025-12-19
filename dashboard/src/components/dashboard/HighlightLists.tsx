@@ -42,10 +42,7 @@ export function MiniBarList({
           <div key={i.label} className="flex items-center gap-3 min-w-0">
             <div className="w-full min-w-0">
               <div className="flex justify-between gap-2 text-xs text-slate-400 min-w-0">
-                <span
-                  className="min-w-0 flex-1 truncate"
-                  title={i.label}
-                >
+                <span className="min-w-0 flex-1 truncate" title={i.label}>
                   {formatModelId(i.label)}
                 </span>
                 <span className="shrink-0 text-slate-200">
@@ -103,10 +100,7 @@ export function TokenBarList({
             <div key={i.label} className="flex items-center gap-3 min-w-0">
               <div className="w-full min-w-0">
                 <div className="flex justify-between gap-2 text-xs text-slate-400 min-w-0">
-                  <span
-                    className="min-w-0 flex-1 truncate"
-                    title={i.label}
-                  >
+                  <span className="min-w-0 flex-1 truncate" title={i.label}>
                     {formatModelId(i.label)}
                   </span>
                   <span className="shrink-0 text-slate-200">

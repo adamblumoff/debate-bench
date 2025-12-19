@@ -5,10 +5,9 @@ import dynamic from "next/dynamic";
 import { VisualizationSpec } from "vega-embed";
 import { withVizTheme } from "@/lib/vegaTheme";
 
-const VegaEmbed = dynamic(
-  () => import("react-vega").then((m) => m.VegaEmbed),
-  { ssr: false },
-);
+const VegaEmbed = dynamic(() => import("react-vega").then((m) => m.VegaEmbed), {
+  ssr: false,
+});
 
 export function VegaLiteChart({ spec }: { spec: VisualizationSpec }) {
   const themed = useMemo(() => withVizTheme(spec), [spec]);

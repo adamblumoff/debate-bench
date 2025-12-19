@@ -66,7 +66,11 @@ export function selectHighlightDerived(
     return derivedByCategory?.[category] || derived;
   }
   if (derivedByCategory) {
-    const merged = mergeDerivedByCategories(derived, derivedByCategory, selectedCategories);
+    const merged = mergeDerivedByCategories(
+      derived,
+      derivedByCategory,
+      selectedCategories,
+    );
     if (merged) return merged;
   }
   return filterDerivedByCategories(derived, selectedCategories);
@@ -117,12 +121,10 @@ export function mergeDerivedByCategories(
         cur.mean_completion_tokens,
         s.mean_completion_tokens,
       );
-      cur.mean_total_tokens = wAvg(
-        cur.mean_total_tokens,
-        s.mean_total_tokens,
-      );
-      cur.win_rate =
-        totalGames ? (cur.wins + 0.5 * cur.ties) / totalGames : cur.win_rate;
+      cur.mean_total_tokens = wAvg(cur.mean_total_tokens, s.mean_total_tokens);
+      cur.win_rate = totalGames
+        ? (cur.wins + 0.5 * cur.ties) / totalGames
+        : cur.win_rate;
       cur.pro_win_rate = cur.pro_games
         ? (cur.wins + 0.5 * cur.ties) / cur.pro_games
         : cur.pro_win_rate;
@@ -150,7 +152,10 @@ export function mergeDerivedByCategories(
   );
 
   // Merge head-to-head by summing samples and weighted win_rate.
-  const h2hMap = new Map<string, { row: string; col: string; win: number; samples: number }>();
+  const h2hMap = new Map<
+    string,
+    { row: string; col: string; win: number; samples: number }
+  >();
   for (const p of parts) {
     for (const cell of p.headToHead) {
       const key = `${cell.row}|||${cell.col}`;
@@ -228,9 +233,7 @@ export function filterDerivedByModels(
     headToHead: derived.headToHead.filter(
       (c) => allowed.has(c.row) && allowed.has(c.col),
     ),
-    topicWinrates: derived.topicWinrates.filter((t) =>
-      allowed.has(t.model_id),
-    ),
+    topicWinrates: derived.topicWinrates.filter((t) => allowed.has(t.model_id)),
     judgeAgreement: derived.judgeAgreement.filter(
       (j) => allowed.has(j.judge_a) && allowed.has(j.judge_b),
     ),
@@ -244,9 +247,10 @@ export function filterDerivedByModels(
   };
 }
 
-export function recomputeJudgeMetrics(
-  judgeRows: JudgeRowForBuilder[],
-): { judgeAgreement: JudgeAgreementRow[]; judgeBias: JudgeBiasRow[] } {
+export function recomputeJudgeMetrics(judgeRows: JudgeRowForBuilder[]): {
+  judgeAgreement: JudgeAgreementRow[];
+  judgeBias: JudgeBiasRow[];
+} {
   if (!judgeRows.length) return { judgeAgreement: [], judgeBias: [] };
 
   const rowsByDebate = new Map<string, JudgeRowForBuilder[]>();
@@ -279,9 +283,7 @@ export function recomputeJudgeMetrics(
     }
   }
 
-  const judgeAgreement: JudgeAgreementRow[] = Array.from(
-    agreePairs.entries(),
-  )
+  const judgeAgreement: JudgeAgreementRow[] = Array.from(agreePairs.entries())
     .map(([key, val]) => {
       const [a, b] = key.split("|||");
       return {
@@ -299,20 +301,25 @@ export function recomputeJudgeMetrics(
 
   const biasCounts = new Map<
     string,
-    { pro: number; con: number; tie: number; category: string; topic_id: string }
+    {
+      pro: number;
+      con: number;
+      tie: number;
+      category: string;
+      topic_id: string;
+    }
   >();
   for (const jr of judgeRows) {
     if (!jr.judge_id || !jr.topic_id) continue;
     const category = (jr.category as string) || "uncategorized";
     const key = `${jr.judge_id}|||${jr.topic_id}`;
-    const entry =
-      biasCounts.get(key) || {
-        pro: 0,
-        con: 0,
-        tie: 0,
-        category,
-        topic_id: jr.topic_id,
-      };
+    const entry = biasCounts.get(key) || {
+      pro: 0,
+      con: 0,
+      tie: 0,
+      category,
+      topic_id: jr.topic_id,
+    };
     entry.category = category;
     if (jr.winner === "pro") entry.pro += 1;
     else if (jr.winner === "con") entry.con += 1;
@@ -324,12 +331,8 @@ export function recomputeJudgeMetrics(
     ([key, counts]) => {
       const [judge_id, topic_id] = key.split("|||");
       const samples = counts.pro + counts.con + counts.tie;
-      const pro_rate = samples
-        ? (counts.pro + 0.5 * counts.tie) / samples
-        : 0;
-      const con_rate = samples
-        ? (counts.con + 0.5 * counts.tie) / samples
-        : 0;
+      const pro_rate = samples ? (counts.pro + 0.5 * counts.tie) / samples : 0;
+      const con_rate = samples ? (counts.con + 0.5 * counts.tie) / samples : 0;
       const bias = pro_rate - con_rate;
       return {
         judge_id,
@@ -418,7 +421,8 @@ export function buildHighlightLists(
       const perMillion =
         ((m.mean_cost_usd ?? 0) / (m.mean_total_tokens || 1)) * 1_000_000;
       const hintParts: string[] = ["Observed effective (USD/1M)"];
-      if (typeof m.cost_samples === "number") hintParts.push(`${m.cost_samples} turns`);
+      if (typeof m.cost_samples === "number")
+        hintParts.push(`${m.cost_samples} turns`);
       return {
         label: m.model_id,
         value: perMillion,
@@ -426,7 +430,7 @@ export function buildHighlightLists(
       };
     })
     .sort((a, b) => a.value - b.value)
-    .slice(0, topN)
+    .slice(0, topN);
 
   const cost =
     observedCostPerMillion.length > 0

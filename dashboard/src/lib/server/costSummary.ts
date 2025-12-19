@@ -22,9 +22,7 @@ export function computeCostSummary(
   const n = Math.max(0, Math.floor(limit));
   const slice = n > 0 ? debates.slice(-n) : debates;
 
-  const pricingMap = new Map(
-    pricingSnapshot.rows.map((r) => [r.model_id, r]),
-  );
+  const pricingMap = new Map(pricingSnapshot.rows.map((r) => [r.model_id, r]));
 
   const observedRate = new Map<string, { cost: number; tokens: number }>();
   for (const d of slice) {
@@ -33,7 +31,8 @@ export function computeCostSummary(
     const con = transcript.con_model_id;
     for (const turn of transcript.turns || []) {
       const modelId = turn.speaker === "pro" ? pro : con;
-      const prompt = typeof turn.prompt_tokens === "number" ? turn.prompt_tokens : 0;
+      const prompt =
+        typeof turn.prompt_tokens === "number" ? turn.prompt_tokens : 0;
       const completion =
         typeof turn.completion_tokens === "number" ? turn.completion_tokens : 0;
       const tokens = prompt + completion;
@@ -87,7 +86,10 @@ export function computeCostSummary(
   const perDebateTotals: number[] = [];
   const debateRows: CostSummary["debates"] = [];
 
-  const debaterCostByModel = new Map<string, { cost: number; tokens: number }>();
+  const debaterCostByModel = new Map<
+    string,
+    { cost: number; tokens: number }
+  >();
   const judgeCostByModel = new Map<string, { cost: number; tokens: number }>();
   const stageAgg = new Map<string, { cost: number; tokens: number }>();
 
@@ -109,7 +111,8 @@ export function computeCostSummary(
     for (const turn of transcript.turns || []) {
       const speaker = turn.speaker;
       const modelId = speaker === "pro" ? pro : con;
-      const prompt = typeof turn.prompt_tokens === "number" ? turn.prompt_tokens : 0;
+      const prompt =
+        typeof turn.prompt_tokens === "number" ? turn.prompt_tokens : 0;
       const completion =
         typeof turn.completion_tokens === "number" ? turn.completion_tokens : 0;
       const tokens = prompt + completion;
@@ -120,8 +123,10 @@ export function computeCostSummary(
       stageEntry.tokens += tokens;
       stageAgg.set(stage, stageEntry);
 
-      const modelEntry =
-        debaterCostByModel.get(modelId) || { cost: 0, tokens: 0 };
+      const modelEntry = debaterCostByModel.get(modelId) || {
+        cost: 0,
+        tokens: 0,
+      };
       modelEntry.tokens += tokens;
       debaterCostByModel.set(modelId, modelEntry);
 
@@ -182,9 +187,11 @@ export function computeCostSummary(
     const createdAt =
       typeof d.created_at === "string"
         ? d.created_at
-        : typeof (transcript as unknown as Record<string, unknown>).created_at ===
-            "string"
-          ? String((transcript as unknown as Record<string, unknown>).created_at)
+        : typeof (transcript as unknown as Record<string, unknown>)
+              .created_at === "string"
+          ? String(
+              (transcript as unknown as Record<string, unknown>).created_at,
+            )
           : undefined;
 
     debateRows.push({
@@ -217,13 +224,21 @@ export function computeCostSummary(
     { debaterCost: number; judgeCost: number; tokens: number }
   >();
   for (const [id, v] of debaterCostByModel.entries()) {
-    const cur = modelsMap.get(id) || { debaterCost: 0, judgeCost: 0, tokens: 0 };
+    const cur = modelsMap.get(id) || {
+      debaterCost: 0,
+      judgeCost: 0,
+      tokens: 0,
+    };
     cur.debaterCost += v.cost;
     cur.tokens += v.tokens;
     modelsMap.set(id, cur);
   }
   for (const [id, v] of judgeCostByModel.entries()) {
-    const cur = modelsMap.get(id) || { debaterCost: 0, judgeCost: 0, tokens: 0 };
+    const cur = modelsMap.get(id) || {
+      debaterCost: 0,
+      judgeCost: 0,
+      tokens: 0,
+    };
     cur.judgeCost += v.cost;
     cur.tokens += v.tokens;
     modelsMap.set(id, cur);

@@ -59,7 +59,8 @@ export function buildFieldTypes(
   if ("bias" in rows[0]) types["bias"] = "quantitative";
   if ("pro_rate" in rows[0]) types["pro_rate"] = "quantitative";
   if ("con_rate" in rows[0]) types["con_rate"] = "quantitative";
-  if ("topic_motion" in rows[0]) types["topic_motion"] = inferType(rows, "topic_motion");
+  if ("topic_motion" in rows[0])
+    types["topic_motion"] = inferType(rows, "topic_motion");
   return types;
 }
 
