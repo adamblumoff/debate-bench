@@ -357,8 +357,8 @@ export function recomputeJudgeMetrics(
 }
 
 export function buildHighlightSpecs(
-  highlightDerived?: DerivedData,
-  fullDerived?: DerivedData,
+  highlightDerived: DerivedData | undefined,
+  fullDerived: DerivedData | undefined,
   pricing: PricingSnapshot,
   pricePerfMetric: PricePerfMetric,
   topN: number = 6,
