@@ -25,6 +25,11 @@ dependencies = [
   "pandas>=2.1,<2.2"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4,<9.0"
+]
+
 [project.scripts]
 debatebench = "debatebench.cli:main"
 

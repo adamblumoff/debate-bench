@@ -5,10 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-import boto3
 import typer
-from botocore.config import Config
-from botocore.exceptions import BotoCoreError, NoCredentialsError
 
 from .common import console
 from ..settings import load_settings
@@ -50,6 +47,10 @@ def upload_results_command(
     """
     if not source.exists():
         raise typer.BadParameter(f"Source not found: {source}")
+
+    import boto3
+    from botocore.config import Config
+    from botocore.exceptions import BotoCoreError, NoCredentialsError
 
     settings = load_settings()
     bucket_name = bucket or settings.s3_bucket

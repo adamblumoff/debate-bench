@@ -11,6 +11,7 @@ import time
 import re
 
 from .models import DebaterAdapter
+from .costs import extract_cost_fields
 from .schema import MainConfig, Topic, Transcript, Turn
 
 
@@ -70,24 +71,6 @@ def _strip_thinking(text: str) -> str:
     return text_no_fence.strip()
 
 
-def _extract_cost_fields(usage: dict | None) -> tuple[float | None, str | None, dict | None]:
-    if not usage:
-        return None, None, None
-    cost = usage.get("cost")
-    currency = usage.get("currency") or usage.get("cost_currency")
-    cost_details = usage.get("cost_details")
-    if cost is None or currency is None or cost_details is None:
-        raw = usage.get("raw_response") or {}
-        raw_usage = raw.get("usage") or {}
-        if cost is None:
-            cost = raw_usage.get("cost")
-        if currency is None:
-            currency = raw_usage.get("currency") or raw_usage.get("cost_currency")
-        if cost_details is None:
-            cost_details = raw_usage.get("cost_details")
-    return cost, currency, cost_details
-
-
 def run_debate(
     topic: Topic,
     pro_adapter: DebaterAdapter,
@@ -144,7 +127,7 @@ def run_debate(
         if not content or not content.strip():
             raise EmptyResponseError(adapter.config.id, round_cfg.stage, speaker)
 
-        cost, currency, cost_details = _extract_cost_fields(usage if usage else None)
+        cost, currency, cost_details = extract_cost_fields(usage if usage else None)
         turn = Turn(
             index=idx,
             speaker=speaker,

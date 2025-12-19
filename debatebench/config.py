@@ -88,7 +88,12 @@ def _parse_main_config(data: dict) -> MainConfig:
         return default_main_config()
 
     # New nested style with benchmark/debate/scoring/elo keys
-    if "benchmark" in data or "debate" in data or "scoring" in data:
+    scoring_block = data.get("scoring")
+    nested_dims = (
+        isinstance(scoring_block, dict)
+        and isinstance(scoring_block.get("dimensions"), dict)
+    )
+    if "benchmark" in data or "debate" in data or nested_dims:
         benchmark = data.get("benchmark", {})
         debate = data.get("debate", {})
         scoring = data.get("scoring", {})
