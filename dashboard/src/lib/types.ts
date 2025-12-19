@@ -209,6 +209,10 @@ export interface CostStageRow {
 export interface CostSummary {
   debateCount: number;
   currency: "USD" | "mixed";
+  warnings?: {
+    estimated_judge_costs?: boolean;
+    missing_judge_costs?: boolean;
+  };
   totals: {
     debater_cost_usd: number;
     judge_cost_usd: number;

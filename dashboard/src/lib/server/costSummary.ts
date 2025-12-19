@@ -1,4 +1,5 @@
 import { DebateRecord, CostSummary } from "@/lib/types";
+import { pricingSnapshot } from "@/lib/pricing";
 
 function quantile(sorted: number[], q: number): number {
   if (!sorted.length) return 0;
@@ -21,6 +22,68 @@ export function computeCostSummary(
   const n = Math.max(0, Math.floor(limit));
   const slice = n > 0 ? debates.slice(-n) : debates;
 
+  const pricingMap = new Map(
+    pricingSnapshot.rows.map((r) => [r.model_id, r]),
+  );
+
+  const observedRate = new Map<string, { cost: number; tokens: number }>();
+  for (const d of slice) {
+    const transcript = d.transcript;
+    const pro = transcript.pro_model_id;
+    const con = transcript.con_model_id;
+    for (const turn of transcript.turns || []) {
+      const modelId = turn.speaker === "pro" ? pro : con;
+      const prompt = typeof turn.prompt_tokens === "number" ? turn.prompt_tokens : 0;
+      const completion =
+        typeof turn.completion_tokens === "number" ? turn.completion_tokens : 0;
+      const tokens = prompt + completion;
+      const cost = typeof turn.cost === "number" ? turn.cost : 0;
+      if (tokens > 0 && cost > 0) {
+        const entry = observedRate.get(modelId) || { cost: 0, tokens: 0 };
+        entry.cost += cost;
+        entry.tokens += tokens;
+        observedRate.set(modelId, entry);
+      }
+    }
+    for (const j of d.judges || []) {
+      const prompt = typeof j.prompt_tokens === "number" ? j.prompt_tokens : 0;
+      const completion =
+        typeof j.completion_tokens === "number" ? j.completion_tokens : 0;
+      const tokens = prompt + completion;
+      const cost = typeof j.cost === "number" ? j.cost : 0;
+      const modelId = j.judge_id;
+      if (tokens > 0 && cost > 0 && modelId) {
+        const entry = observedRate.get(modelId) || { cost: 0, tokens: 0 };
+        entry.cost += cost;
+        entry.tokens += tokens;
+        observedRate.set(modelId, entry);
+      }
+    }
+  }
+
+  const estimateCost = (
+    modelId: string | undefined,
+    promptTokens: number,
+    completionTokens: number,
+  ): number | undefined => {
+    if (!modelId) return undefined;
+    const pricing = pricingMap.get(modelId);
+    if (pricing) {
+      return (
+        (pricing.input_per_million * promptTokens +
+          pricing.output_per_million * completionTokens) /
+        1_000_000
+      );
+    }
+    const observed = observedRate.get(modelId);
+    const totalTokens = promptTokens + completionTokens;
+    if (observed && totalTokens > 0 && observed.tokens > 0) {
+      const rate = observed.cost / observed.tokens;
+      return rate * totalTokens;
+    }
+    return undefined;
+  };
+
   const perDebateTotals: number[] = [];
   const debateRows: CostSummary["debates"] = [];
 
@@ -29,6 +92,8 @@ export function computeCostSummary(
   const stageAgg = new Map<string, { cost: number; tokens: number }>();
 
   let currency: "USD" | "mixed" = "USD";
+  let estimatedJudgeCosts = false;
+  let missingJudgeCosts = false;
 
   let totalDebaterCost = 0;
   let totalJudgeCost = 0;
@@ -60,7 +125,9 @@ export function computeCostSummary(
       modelEntry.tokens += tokens;
       debaterCostByModel.set(modelId, modelEntry);
 
-      const cost = typeof turn.cost === "number" ? turn.cost : 0;
+      const rawCost = typeof turn.cost === "number" ? turn.cost : undefined;
+      const estCost = rawCost ?? estimateCost(modelId, prompt, completion);
+      const cost = typeof estCost === "number" ? estCost : 0;
       if (cost) {
         debaterCost += cost;
         modelEntry.cost += cost;
@@ -87,7 +154,16 @@ export function computeCostSummary(
       judgeEntry.tokens += tokens;
       judgeCostByModel.set(id, judgeEntry);
 
-      const cost = typeof j.cost === "number" ? j.cost : 0;
+      const rawCost = typeof j.cost === "number" ? j.cost : undefined;
+      const estCost = rawCost ?? estimateCost(id, prompt, completion);
+      const cost = typeof estCost === "number" ? estCost : 0;
+      if (rawCost === undefined) {
+        if (typeof estCost === "number" && estCost > 0) {
+          estimatedJudgeCosts = true;
+        } else {
+          missingJudgeCosts = true;
+        }
+      }
       if (cost) {
         judgeCost += cost;
         judgeEntry.cost += cost;
@@ -180,6 +256,13 @@ export function computeCostSummary(
   return {
     debateCount: slice.length,
     currency,
+    warnings:
+      estimatedJudgeCosts || missingJudgeCosts
+        ? {
+            estimated_judge_costs: estimatedJudgeCosts || undefined,
+            missing_judge_costs: missingJudgeCosts || undefined,
+          }
+        : undefined,
     totals: {
       debater_cost_usd: totalDebaterCost,
       judge_cost_usd: totalJudgeCost,

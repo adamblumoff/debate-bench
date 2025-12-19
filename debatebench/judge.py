@@ -11,6 +11,7 @@ from typing import Dict, List, Tuple, Optional
 
 from .models import JudgeAdapter
 from .schema import AggregatedResult, JudgeResult, JudgeScores, MainConfig, Transcript
+from .debate import _extract_cost_fields
 
 
 def _build_judge_prompt(
@@ -280,6 +281,7 @@ def run_single_judge(
     else:
         winner = "tie"
 
+    cost, currency, cost_details = _extract_cost_fields(usage if usage else None)
     return JudgeResult(
         judge_id=adapter.config.id,
         pro=JudgeScores(scores=pro_scores),
@@ -290,9 +292,9 @@ def run_single_judge(
         prompt_tokens=usage.get("prompt_tokens") if usage else None,
         completion_tokens=usage.get("completion_tokens") if usage else None,
         total_tokens=usage.get("total_tokens") if usage else None,
-        cost=usage.get("cost") if usage else None,
-        currency=usage.get("currency") if usage else None,
-        cost_details=usage.get("cost_details") if usage else None,
+        cost=cost,
+        currency=currency,
+        cost_details=cost_details,
         metadata={
             "raw_response": usage.get("raw_response"),
             "reasoning": usage.get("reasoning"),

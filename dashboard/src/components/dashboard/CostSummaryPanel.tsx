@@ -167,8 +167,20 @@ export function CostSummaryPanel({
     .sort((a, b) => b.total_cost_usd - a.total_cost_usd)
     .slice(0, 8);
 
+  const warnEstimated =
+    summary.warnings?.estimated_judge_costs ||
+    summary.warnings?.missing_judge_costs;
+
   return (
     <div className="space-y-3">
+      {warnEstimated && (
+        <div className="card highlight-card border border-amber-300/40 bg-amber-200/10 text-amber-100">
+          <p className="text-xs">
+            Judge costs are estimated from token counts and pricing when provider usage data is
+            missing. Totals may differ from OpenRouter-reported costs.
+          </p>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card highlight-card">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
