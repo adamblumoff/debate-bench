@@ -293,6 +293,12 @@ def run_single_judge(
         cost=usage.get("cost") if usage else None,
         currency=usage.get("currency") if usage else None,
         cost_details=usage.get("cost_details") if usage else None,
+        metadata={
+            "raw_response": usage.get("raw_response"),
+            "reasoning": usage.get("reasoning"),
+        }
+        if usage
+        else None,
     )
 
 

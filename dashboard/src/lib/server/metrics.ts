@@ -5,13 +5,13 @@ import { parseJsonlStream } from "@/lib/jsonl";
 import { DebateRecord, DerivedData } from "@/lib/types";
 import { buildDerived } from "@/lib/metrics";
 import { resolveRun, RunConfig } from "@/lib/server/runs";
-import { computeRecentCostSummary } from "@/lib/server/recentCost";
+import { computeCostSummary } from "@/lib/server/costSummary";
 
 type MetricsPayload = {
   derived: DerivedData;
   derivedByCategory: Record<string, DerivedData>;
   meta: { debateCount: number; modelCount: number; categories: string[] };
-  recentCost: ReturnType<typeof computeRecentCostSummary>;
+  costSummary: ReturnType<typeof computeCostSummary>;
 };
 
 type MetricsOptions = {
@@ -53,7 +53,7 @@ async function computeMetrics(
   });
 
   const derived = buildDerived(debates);
-  const recentCost = computeRecentCostSummary(debates, 140);
+  const costSummary = computeCostSummary(debates);
 
   const categorySet = new Set<string>();
   for (const d of debates) {
@@ -79,7 +79,7 @@ async function computeMetrics(
       modelCount: derived.models.length,
       categories: Array.from(categorySet).sort(),
     },
-    recentCost,
+    costSummary,
   };
 }
 
@@ -120,7 +120,7 @@ export async function getMetrics(
       derived: strip(payload.derived),
       derivedByCategory,
       meta: payload.meta,
-      recentCost: payload.recentCost,
+      costSummary: payload.costSummary,
     };
   }
   return payload;

@@ -114,6 +114,7 @@ class JudgeResult(BaseModel):
     cost: float | None = None
     currency: str | None = None
     cost_details: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class AggregatedResult(BaseModel):

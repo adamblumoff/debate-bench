@@ -5,7 +5,7 @@ import { VisualizationSpec } from "vega-embed";
 import { ChartCard } from "@/components/ChartCard";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { PricingSnapshot } from "@/lib/pricing";
-import { RecentCostSummary } from "@/lib/types";
+import { CostSummary } from "@/lib/types";
 
 function fmtUsd(v: number): string {
   if (!Number.isFinite(v)) return "$0.00";
@@ -24,11 +24,11 @@ function shortId(id: string): string {
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
 }
 
-function buildCostTrendSpec(recentCost: RecentCostSummary): VisualizationSpec {
+function buildCostTrendSpec(costSummary: CostSummary): VisualizationSpec {
   return {
     width: "container",
     height: 220,
-    data: { values: recentCost.debates },
+    data: { values: costSummary.debates },
     layer: [
       {
         mark: { type: "line", strokeWidth: 2.2 },
@@ -36,7 +36,7 @@ function buildCostTrendSpec(recentCost: RecentCostSummary): VisualizationSpec {
           x: {
             field: "seq",
             type: "quantitative",
-            axis: { title: `Debate (last ${recentCost.window})` },
+            axis: { title: `Debates (n=${costSummary.debateCount})` },
           },
           y: {
             field: "total_cost_usd",
@@ -73,8 +73,8 @@ function buildCostTrendSpec(recentCost: RecentCostSummary): VisualizationSpec {
   } satisfies VisualizationSpec;
 }
 
-function buildSpendByModelSpec(recentCost: RecentCostSummary): VisualizationSpec {
-  const top = recentCost.models.slice(0, 10);
+function buildSpendByModelSpec(costSummary: CostSummary): VisualizationSpec {
+  const top = costSummary.models.slice(0, 10);
   const values = top.flatMap((m) => [
     {
       model_id: m.model_id,
@@ -122,14 +122,14 @@ function buildSpendByModelSpec(recentCost: RecentCostSummary): VisualizationSpec
   } satisfies VisualizationSpec;
 }
 
-export function RecentCostPanel({
-  recentCost,
+export function CostSummaryPanel({
+  costSummary,
   pricing,
 }: {
-  recentCost?: RecentCostSummary;
+  costSummary?: CostSummary;
   pricing: PricingSnapshot;
 }) {
-  const summary = recentCost;
+  const summary = costSummary;
 
   const trendSpec = useMemo(
     () => (summary ? buildCostTrendSpec(summary) : null),
@@ -140,7 +140,7 @@ export function RecentCostPanel({
     [summary],
   );
 
-  if (!summary || summary.window === 0) {
+  if (!summary || summary.debateCount === 0) {
     return (
       <div className="card highlight-card snapshot-card flex flex-col">
         <div>
@@ -172,13 +172,13 @@ export function RecentCostPanel({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card highlight-card">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-            Recent spend
+            Total spend
           </p>
           <div className="mt-2 flex items-baseline justify-between gap-3">
             <div className="text-xl font-semibold text-white">
               {fmtUsd(totals.total_cost_usd)}
             </div>
-            <div className="pill">{`Last ${summary.window}`}</div>
+            <div className="pill">{`All ${summary.debateCount}`}</div>
           </div>
           <p className="text-xs text-slate-500 mt-2">
             Debaters {fmtUsd(totals.debater_cost_usd)} • Judges{" "}
@@ -239,7 +239,7 @@ export function RecentCostPanel({
               Most expensive debates
             </p>
             <p className="text-xs text-slate-500">
-              Top 8 by total cost (last {summary.window})
+              Top 8 by total cost (n={summary.debateCount})
             </p>
           </div>
           <a href="#pricing" className="btn-ghost">

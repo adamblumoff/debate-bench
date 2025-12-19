@@ -8,9 +8,9 @@ import { LoadState } from "@/components/LoadState";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { HighlightLists, HighlightSpecs } from "@/lib/highlights";
 import { PricingSnapshot } from "@/lib/pricing";
-import { DerivedData, RecentCostSummary } from "@/lib/types";
+import { CostSummary, DerivedData } from "@/lib/types";
 import { HighlightsTab } from "@/hooks/useHighlightsState";
-import { RecentCostPanel } from "@/components/dashboard/RecentCostPanel";
+import { CostSummaryPanel } from "@/components/dashboard/CostSummaryPanel";
 
 type Props = {
   status: "idle" | "loading" | "ready" | "error";
@@ -22,7 +22,7 @@ type Props = {
   onTab: (tab: HighlightsTab) => void;
   onAddModel?: (id: string) => void;
   pricing: PricingSnapshot;
-  recentCost?: RecentCostSummary;
+  costSummary?: CostSummary;
   topN: number;
   modelCount?: number;
   onResetFilters?: () => void;
@@ -38,7 +38,7 @@ export function HighlightsSection({
   onTab,
   onAddModel,
   pricing,
-  recentCost,
+  costSummary,
   topN,
   modelCount,
   onResetFilters,
@@ -184,7 +184,7 @@ export function HighlightsSection({
             />
           </div>
           <div className="col-span-12 md:col-span-8 min-w-0">
-            <RecentCostPanel recentCost={recentCost} pricing={pricing} />
+            <CostSummaryPanel costSummary={costSummary} pricing={pricing} />
           </div>
         </div>
       )}

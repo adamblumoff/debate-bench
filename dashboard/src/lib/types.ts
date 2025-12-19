@@ -175,7 +175,7 @@ export interface DerivedData {
   judgeRows: JudgeRowForBuilder[];
 }
 
-export interface RecentCostDebateRow {
+export interface CostDebateRow {
   seq: number;
   debate_id: string;
   topic_id: string;
@@ -191,7 +191,7 @@ export interface RecentCostDebateRow {
   created_at?: string;
 }
 
-export interface RecentCostModelRow {
+export interface CostModelRow {
   model_id: string;
   debater_cost_usd: number;
   judge_cost_usd: number;
@@ -200,14 +200,14 @@ export interface RecentCostModelRow {
   usd_per_million_tokens?: number;
 }
 
-export interface RecentCostStageRow {
+export interface CostStageRow {
   stage: string;
   cost_usd: number;
   tokens: number;
 }
 
-export interface RecentCostSummary {
-  window: number;
+export interface CostSummary {
+  debateCount: number;
   currency: "USD" | "mixed";
   totals: {
     debater_cost_usd: number;
@@ -219,7 +219,7 @@ export interface RecentCostSummary {
     median_cost_usd: number;
     p90_cost_usd: number;
   };
-  debates: RecentCostDebateRow[];
-  models: RecentCostModelRow[];
-  stages: RecentCostStageRow[];
+  debates: CostDebateRow[];
+  models: CostModelRow[];
+  stages: CostStageRow[];
 }

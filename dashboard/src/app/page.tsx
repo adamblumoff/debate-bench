@@ -85,7 +85,7 @@ function DashboardContent() {
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [manifest, runId, runFromUrl, router, searchParams]);
 
-  const { status, error, derived, derivedByCategory, meta, recentCost, load } =
+  const { status, error, derived, derivedByCategory, meta, costSummary, load } =
     useEnsureData(runId, runReady);
   const {
     activeTab,
@@ -281,7 +281,7 @@ function DashboardContent() {
           onTab={setActiveTab}
           onAddModel={ENABLE_COMPARE ? addModel : undefined}
           pricing={pricing}
-          recentCost={recentCost}
+          costSummary={costSummary}
           topN={topN}
           modelCount={meta?.modelCount}
           onResetFilters={resetFilters}

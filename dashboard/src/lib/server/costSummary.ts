@@ -1,4 +1,4 @@
-import { DebateRecord, RecentCostSummary } from "@/lib/types";
+import { DebateRecord, CostSummary } from "@/lib/types";
 
 function quantile(sorted: number[], q: number): number {
   if (!sorted.length) return 0;
@@ -14,15 +14,15 @@ function normalizeCurrency(v: unknown): "USD" | "mixed" {
   return "mixed";
 }
 
-export function computeRecentCostSummary(
+export function computeCostSummary(
   debates: DebateRecord[],
-  window: number = 140,
-): RecentCostSummary {
-  const n = Math.max(0, Math.floor(window));
-  const slice = n ? debates.slice(-n) : debates;
+  limit: number = 0,
+): CostSummary {
+  const n = Math.max(0, Math.floor(limit));
+  const slice = n > 0 ? debates.slice(-n) : debates;
 
   const perDebateTotals: number[] = [];
-  const debateRows: RecentCostSummary["debates"] = [];
+  const debateRows: CostSummary["debates"] = [];
 
   const debaterCostByModel = new Map<string, { cost: number; tokens: number }>();
   const judgeCostByModel = new Map<string, { cost: number; tokens: number }>();
@@ -178,7 +178,7 @@ export function computeRecentCostSummary(
     .sort((a, b) => b.cost_usd - a.cost_usd);
 
   return {
-    window: slice.length,
+    debateCount: slice.length,
     currency,
     totals: {
       debater_cost_usd: totalDebaterCost,
