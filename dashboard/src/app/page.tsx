@@ -213,14 +213,14 @@ function DashboardContent() {
 
   const specs = useMemo(
     () =>
-      filteredDerived
+          filteredDerived
         ? buildHighlightSpecs(
             filteredDerived,
             filteredDerived,
-            topN,
-            selectedCategories,
             pricing,
             pricePerfMetric,
+            topN,
+            selectedCategories,
           )
         : {},
     [filteredDerived, topN, selectedCategories, pricing, pricePerfMetric],

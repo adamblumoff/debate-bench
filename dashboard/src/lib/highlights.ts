@@ -359,10 +359,10 @@ export function recomputeJudgeMetrics(
 export function buildHighlightSpecs(
   highlightDerived?: DerivedData,
   fullDerived?: DerivedData,
-  topN: number = 6,
-  selectedCategories: string[] = [],
   pricing: PricingSnapshot,
   pricePerfMetric: PricePerfMetric,
+  topN: number = 6,
+  selectedCategories: string[] = [],
 ): HighlightSpecs {
   if (!highlightDerived || !fullDerived) return {};
   return {
