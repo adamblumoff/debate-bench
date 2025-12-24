@@ -15,6 +15,9 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from rich.table import Table
+from rich.console import Group
+from rich.live import Live
 
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
@@ -173,6 +176,29 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             ),
         )
 
+    def render_active(inflight: dict) -> Group:
+        table = Table(title="Active debates", expand=True, show_edge=False)
+        table.add_column("Slot", justify="right", width=4)
+        table.add_column("Topic", overflow="fold")
+        table.add_column("Pro", overflow="fold")
+        table.add_column("Con", overflow="fold")
+        table.add_column("Elapsed", justify="right", width=8)
+        if not inflight:
+            table.add_row("-", "-", "-", "-", "-")
+        else:
+            now = time.perf_counter()
+            for idx, (_, meta) in enumerate(inflight.items(), start=1):
+                task, _attempt_seed, _task_index, start_time = meta
+                elapsed = now - start_time
+                table.add_row(
+                    str(idx),
+                    task.topic.id,
+                    task.pro_model.id,
+                    task.con_model.id,
+                    f"{elapsed:.1f}s",
+                )
+        return Group(progress, table)
+
     def run_task(task, attempt_seed: int):
         record, aggregate = _run_debate_and_judge(
             setup=setup,
@@ -185,11 +211,11 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             panel_configs=task.panel_configs,
             remaining_candidates=task.remaining_candidates,
             failed_judges_path=failed_judges_path,
-            log=console.print,
+            log=None,
         )
         return record, aggregate
 
-    def submit_tasks(task_list, retry_offset: int = 0):
+    def submit_tasks(task_list, retry_offset: int = 0, live: Live | None = None):
         nonlocal completed_new, run_index, failed_debates, failed_total, skipped_total
         index = 0
         inflight = {}
@@ -203,18 +229,18 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         skipped_total += 1
                         progress.advance(progress_task, 1)
                         update_progress(active_count=len(inflight))
+                        if live:
+                            live.update(render_active(inflight))
                         continue
                     run_index += 1
                     task_index = run_index
                     attempt_seed = task.seed + retry_offset
                     update_progress(active_count=len(inflight) + 1)
-                    console.print(
-                        f"[yellow]Debate {task_index}/{total_runs}[/yellow] "
-                        f"Topic '{task.topic.id}' | PRO={task.pro_model.id} vs CON={task.con_model.id}"
-                    )
                     start_time = time.perf_counter()
                     future = pool.submit(run_task, task, attempt_seed)
                     inflight[future] = (task, attempt_seed, task_index, start_time)
+                    if live:
+                        live.update(render_active(inflight))
 
                 done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED)
                 for future in done:
@@ -225,41 +251,47 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         completed_new += 1
                         progress.advance(progress_task, 1)
                         write_progress()
-                        elapsed = (time.perf_counter() - start_time) * 1000
-                        console.print(
-                            f"[cyan]{task_index}/{total_runs}[/cyan] "
-                            f"Topic '{task.topic.id}' {task.pro_model.id} (Pro) vs {task.con_model.id} (Con) "
-                            f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
-                        )
                         update_progress(active_count=len(inflight))
+                        if live:
+                            live.update(render_active(inflight))
                     except EmptyResponseError as e:
                         failed_total += 1
                         update_progress(active_count=len(inflight))
-                        console.print(
-                            f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                        )
+                        if live:
+                            live.console.print(
+                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                            )
                         if opts.skip_on_empty:
                             banned_models.add(e.model_id)
-                            console.print(
-                                f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
-                            )
+                            if live:
+                                live.console.print(
+                                    f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
+                                )
                             write_progress()
                         else:
                             failed_debates.append(task)
+                        if live:
+                            live.update(render_active(inflight))
                     except Exception as e:
                         failed_total += 1
                         update_progress(active_count=len(inflight))
-                        console.print(
-                            f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                        )
+                        if live:
+                            live.console.print(
+                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                            )
                         failed_debates.append(task)
+                        if live:
+                            live.update(render_active(inflight))
 
-    with progress:
+    with Live(render_active({}), console=console, refresh_per_second=4) as live:
         update_progress(active_count=0)
-        submit_tasks(plan.tasks, retry_offset=0)
+        live.update(render_active({}))
+        submit_tasks(plan.tasks, retry_offset=0, live=live)
 
         if opts.retry_failed and failed_debates:
-            console.print(f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]")
+            live.console.print(
+                f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]"
+            )
             retry_list = list(failed_debates)
             failed_debates = []
             retry_tasks = []
@@ -268,7 +300,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     continue
                 retry_tasks.append(task)
             if retry_tasks:
-                submit_tasks(retry_tasks, retry_offset=17)
+                submit_tasks(retry_tasks, retry_offset=17, live=live)
 
 
 __all__ = ["execute_plan"]
