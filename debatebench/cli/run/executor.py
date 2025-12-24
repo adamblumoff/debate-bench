@@ -143,7 +143,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     failed_total = 0
     skipped_total = 0
     run_index = 0
-    total_turns = len(main_cfg.rounds)
+    total_rounds = len(main_cfg.rounds)
     status_lock = threading.Lock()
     task_status: dict[str, dict] = {}
 
@@ -195,7 +195,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         with status_lock:
             entry = task_status.setdefault(
                 task_id,
-                {"turn": 0, "stage": "-", "phase": "queued"},
+                {"round": 0, "stage": "-", "phase": "queued"},
             )
             entry.update(updates)
 
@@ -205,7 +205,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         table.add_column("Topic", overflow="fold")
         table.add_column("Pro", overflow="fold")
         table.add_column("Con", overflow="fold")
-        table.add_column("Turn", justify="right", width=6)
+        table.add_column("Round", justify="right", width=7)
         table.add_column("Stage", overflow="fold")
         table.add_column("Phase", overflow="fold")
         table.add_column("Progress", overflow="fold")
@@ -215,17 +215,17 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             for idx, (_, meta) in enumerate(inflight.items(), start=1):
                 task, _attempt_seed, _task_index, _start_time = meta
                 with status_lock:
-                    status = task_status.get(task.task_id, {"turn": 0, "stage": "-", "phase": "queued"})
-                turn = status.get("turn", 0)
+                    status = task_status.get(task.task_id, {"round": 0, "stage": "-", "phase": "queued"})
+                round_idx = status.get("round", 0)
                 stage = status.get("stage", "-")
                 phase = status.get("phase", "queued")
-                progress_bar = _progress_bar(turn, total_turns)
+                progress_bar = _progress_bar(round_idx, total_rounds)
                 table.add_row(
                     str(idx),
                     task.topic.id,
                     task.pro_model.id,
                     task.con_model.id,
-                    f"{turn}/{total_turns}",
+                    f"{round_idx}/{total_rounds}",
                     stage,
                     phase,
                     progress_bar,
@@ -271,14 +271,14 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     attempt_seed = task.seed + retry_offset
                     update_progress(active_count=len(inflight) + 1)
                     start_time = time.perf_counter()
-                    _update_status(task.task_id, phase="debating", turn=0, stage="-")
+                    _update_status(task.task_id, phase="debating", round=0, stage="-")
 
                     def log_fn(message: str, *, task_id: str = task.task_id):
                         match = re.search(r"Turn\\s+(\\d+):\\s+\\w+\\s+\\(([^)]+)\\)", message)
                         if match:
-                            turn = int(match.group(1))
+                            round_idx = int(match.group(1))
                             stage = match.group(2)
-                            _update_status(task_id, turn=turn, stage=stage, phase="debating")
+                            _update_status(task_id, round=round_idx, stage=stage, phase="debating")
                             if live:
                                 live.update(render_active(inflight))
 
