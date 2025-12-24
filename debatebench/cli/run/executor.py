@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import json
-import random
+import os
 import time
 from datetime import datetime, timezone
-from typing import List, Tuple
-
-import typer
+from typing import List
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
@@ -15,18 +14,7 @@ from ...models import build_debater_adapter, build_judge_adapter
 from ...schema import DebateRecord
 from ...storage import append_debate_record
 from ..common import console
-from .schedule import derive_debate_seed, make_pair_key, select_judges
 from .types import RunPlan, RunSetup
-
-
-def _resolve_orientation(model_a, model_b, opts, seed: int):
-    pro_model = model_a
-    con_model = model_b
-    if (not opts.balanced_sides) and opts.swap_sides:
-        debate_rng = random.Random(seed)
-        if debate_rng.random() < 0.5:
-            pro_model, con_model = con_model, pro_model
-    return pro_model, con_model
 
 
 def _run_debate_and_judge(
@@ -37,9 +25,8 @@ def _run_debate_and_judge(
     debate_seed: int,
     debater_adapters,
     judge_adapters,
-    judge_usage,
-    topic_usage,
-    pair_usage,
+    panel_configs,
+    remaining_candidates,
     failed_judges_path,
     log,
 ):
@@ -56,29 +43,14 @@ def _run_debate_and_judge(
         log=log,
     )
 
-    judge_source_pool = list(setup.judge_models)
-    if setup.options.judges_from_selection:
-        judge_source_pool = [j for j in setup.judge_models if j.id not in {pro_model.id, con_model.id}]
-    pair_key = make_pair_key(pro_model.id, con_model.id)
-    panel_configs = select_judges(
-        judge_source_pool,
-        main_cfg.num_judges,
-        debate_seed,
-        judge_usage,
-        setup.options.balanced_judges,
-        topic_id=topic.id,
-        pair_key=pair_key,
-        topic_usage=topic_usage,
-        pair_usage=pair_usage,
-    )
     panel_adapters = [judge_adapters[j.id] for j in panel_configs]
-    remaining_candidates = [
-        j for j in judge_source_pool if j.id not in {cfg.id for cfg in panel_configs}
-    ]
     remaining_adapters = [judge_adapters[j.id] for j in remaining_candidates]
 
     if log:
         log(f"  Judging with panel: {', '.join(j.id for j in panel_configs)}")
+
+    usage_ordering = {cfg.id: 0 for cfg in panel_configs}
+    usage_ordering.update({cfg.id: 1 for cfg in remaining_candidates})
 
     def sink_failed(payload):
         if not failed_judges_path:
@@ -104,17 +76,13 @@ def _run_debate_and_judge(
         transcript=transcript,
         config=main_cfg,
         expected=main_cfg.num_judges,
-        usage=judge_usage,
+        usage=usage_ordering,
         seed=debate_seed,
         log=log,
         failed_judges_sink=sink_failed if failed_judges_path else None,
     )
 
     panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
-    for jr in judge_results:
-        jid = jr.judge_id
-        topic_usage[(jid, topic.id)] = topic_usage.get((jid, topic.id), 0) + 1
-        pair_usage[(jid, pair_key)] = pair_usage.get((jid, pair_key), 0) + 1
 
     record = DebateRecord(
         transcript=transcript,
@@ -140,17 +108,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     judge_adapters = {j.id: build_judge_adapter(j, setup.settings) for j in setup.judge_models}
 
     total_runs = plan.total_runs
-    completed_counts = plan.completed_counts
-    judge_usage = plan.judge_usage
-    topic_usage = plan.topic_usage
-    pair_usage = plan.pair_usage
     existing_completed = plan.existing_completed
 
     progress_path = plan.progress_path or (setup.run_dir / "progress.json")
     failed_judges_path = setup.run_dir / "failed_judges.jsonl" if opts.log_failed_judges else None
 
     banned_models = set()
-    failed_debates: List[Tuple] = []
+    failed_debates: List = []
     completed_new = 0
     run_index = 0
 
@@ -170,108 +134,95 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             json.dump(payload, f, indent=2)
 
     write_progress()
+    max_workers = min(32, (os.cpu_count() or 4) * 4)
 
-    for topic in plan.topics_selected:
-        for (model_a, model_b) in plan.pairs:
-            if model_a.id in banned_models or model_b.id in banned_models:
-                continue
-            key = (topic.id, model_a.id, model_b.id)
-            already_done = completed_counts.get(key, 0)
-            if already_done >= plan.debates_per_pair:
-                continue
-            for rep in range(already_done, plan.debates_per_pair):
-                run_index += 1
-                debate_seed = derive_debate_seed(setup.run_tag, topic.id, model_a.id, model_b.id, rep)
-                pro_model, con_model = _resolve_orientation(model_a, model_b, opts, debate_seed)
+    def run_task(task, attempt_seed: int):
+        record, aggregate = _run_debate_and_judge(
+            setup=setup,
+            topic=task.topic,
+            pro_model=task.pro_model,
+            con_model=task.con_model,
+            debate_seed=attempt_seed,
+            debater_adapters=debater_adapters,
+            judge_adapters=judge_adapters,
+            panel_configs=task.panel_configs,
+            remaining_candidates=task.remaining_candidates,
+            failed_judges_path=failed_judges_path,
+            log=console.print,
+        )
+        return record, aggregate
 
-                console.print(
-                    f"[yellow]Debate {run_index}/{total_runs}[/yellow] "
-                    f"Topic '{topic.id}' | PRO={pro_model.id} vs CON={con_model.id}"
-                )
-                log = console.print
+    def submit_tasks(task_list, retry_offset: int = 0):
+        nonlocal completed_new, run_index, failed_debates
+        pending = [
+            t
+            for t in task_list
+            if t.pro_model.id not in banned_models and t.con_model.id not in banned_models
+        ]
+        index = 0
+        inflight = {}
 
-                try:
-                    t0 = time.perf_counter()
-                    record, aggregate = _run_debate_and_judge(
-                        setup=setup,
-                        topic=topic,
-                        pro_model=pro_model,
-                        con_model=con_model,
-                        debate_seed=debate_seed,
-                        debater_adapters=debater_adapters,
-                        judge_adapters=judge_adapters,
-                        judge_usage=judge_usage,
-                        topic_usage=topic_usage,
-                        pair_usage=pair_usage,
-                        failed_judges_path=failed_judges_path,
-                        log=log,
-                    )
-                    append_debate_record(setup.debates_path, record)
-                    completed_counts[key] = completed_counts.get(key, 0) + 1
-                    completed_new += 1
-                    write_progress()
-                    elapsed = (time.perf_counter() - t0) * 1000
-
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            while index < len(pending) or inflight:
+                while index < len(pending) and len(inflight) < max_workers:
+                    task = pending[index]
+                    index += 1
+                    run_index += 1
+                    task_index = run_index
+                    attempt_seed = task.seed + retry_offset
                     console.print(
-                        f"[cyan]{run_index}/{total_runs}[/cyan] "
-                        f"Topic '{topic.id}' {pro_model.id} (Pro) vs {con_model.id} (Con) "
-                        f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
+                        f"[yellow]Debate {task_index}/{total_runs}[/yellow] "
+                        f"Topic '{task.topic.id}' | PRO={task.pro_model.id} vs CON={task.con_model.id}"
                     )
-                except EmptyResponseError as e:
-                    console.print(
-                        f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}"
-                    )
-                    if opts.skip_on_empty:
-                        banned_models.add(e.model_id)
-                        console.print(
-                            f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
-                        )
+                    start_time = time.perf_counter()
+                    future = pool.submit(run_task, task, attempt_seed)
+                    inflight[future] = (task, attempt_seed, task_index, start_time)
+
+                done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED)
+                for future in done:
+                    task, attempt_seed, task_index, start_time = inflight.pop(future)
+                    try:
+                        record, aggregate = future.result()
+                        append_debate_record(setup.debates_path, record)
+                        completed_new += 1
                         write_progress()
-                    else:
-                        failed_debates.append((topic, pro_model, con_model, rep))
-                except Exception as e:
-                    console.print(f"[red]Debate failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
-                    failed_debates.append((topic, pro_model, con_model, rep))
+                        elapsed = (time.perf_counter() - start_time) * 1000
+                        console.print(
+                            f"[cyan]{task_index}/{total_runs}[/cyan] "
+                            f"Topic '{task.topic.id}' {task.pro_model.id} (Pro) vs {task.con_model.id} (Con) "
+                            f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
+                        )
+                    except EmptyResponseError as e:
+                        console.print(
+                            f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                        )
+                        if opts.skip_on_empty:
+                            banned_models.add(e.model_id)
+                            console.print(
+                                f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
+                            )
+                            write_progress()
+                        else:
+                            failed_debates.append(task)
+                    except Exception as e:
+                        console.print(
+                            f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                        )
+                        failed_debates.append(task)
+
+    submit_tasks(plan.tasks, retry_offset=0)
 
     if opts.retry_failed and failed_debates:
         console.print(f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]")
         retry_list = list(failed_debates)
         failed_debates = []
-        for topic, model_a, model_b, rep in retry_list:
-            if model_a.id in banned_models or model_b.id in banned_models:
+        retry_tasks = []
+        for task in retry_list:
+            if task.pro_model.id in banned_models or task.con_model.id in banned_models:
                 continue
-            key = (topic.id, model_a.id, model_b.id)
-            if completed_counts.get(key, 0) >= plan.debates_per_pair:
-                continue
-            retry_seed = derive_debate_seed(setup.run_tag, topic.id, model_a.id, model_b.id, rep) + 17
-            pro_model, con_model = _resolve_orientation(model_a, model_b, opts, retry_seed)
-
-            try:
-                t0 = time.perf_counter()
-                record, aggregate = _run_debate_and_judge(
-                    setup=setup,
-                    topic=topic,
-                    pro_model=pro_model,
-                    con_model=con_model,
-                    debate_seed=retry_seed,
-                    debater_adapters=debater_adapters,
-                    judge_adapters=judge_adapters,
-                    judge_usage=judge_usage,
-                    topic_usage=topic_usage,
-                    pair_usage=pair_usage,
-                    failed_judges_path=failed_judges_path,
-                    log=console.print,
-                )
-                append_debate_record(setup.debates_path, record)
-                completed_counts[key] = completed_counts.get(key, 0) + 1
-                completed_new += 1
-                write_progress()
-                elapsed = (time.perf_counter() - t0) * 1000
-                console.print(
-                    f"[green]Retry success[/green] Topic '{topic.id}' {pro_model.id} vs {con_model.id} -> {aggregate.winner} ({elapsed:.0f} ms)"
-                )
-            except Exception as e:
-                console.print(f"[red]Retry failed ({pro_model.id} vs {con_model.id} on {topic.id}): {e}")
+            retry_tasks.append(task)
+        if retry_tasks:
+            submit_tasks(retry_tasks, retry_offset=17)
 
 
 __all__ = ["execute_plan"]
