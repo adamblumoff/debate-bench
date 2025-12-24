@@ -10,7 +10,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
-from ...models import build_debater_adapter, build_judge_adapter
+from ...models import build_debater_adapter, build_judge_adapter, configure_openrouter_rate_limit
 from ...schema import DebateRecord
 from ...storage import append_debate_record
 from ..common import console
@@ -103,6 +103,14 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     """Run debates, manage retries/progress, and append records."""
     opts = setup.options
     main_cfg = setup.main_cfg
+
+    uses_free_models = any(
+        (model.model or "").endswith(":free")
+        for model in [*setup.debater_models, *setup.judge_models]
+    )
+    configure_openrouter_rate_limit(20 if uses_free_models else None)
+    if uses_free_models:
+        console.print("[cyan]OpenRouter free models detected; throttling to ~20 RPM.[/cyan]")
 
     debater_adapters = {m.id: build_debater_adapter(m, setup.settings) for m in setup.debater_models}
     judge_adapters = {j.id: build_judge_adapter(j, setup.settings) for j in setup.judge_models}
