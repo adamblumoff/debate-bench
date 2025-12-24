@@ -15,7 +15,11 @@ QUICK_TEST_CONFIG_PATH = Path("configs/quick-test-models.yaml")
 
 def apply_quick_test_selection(state: SelectionState, setup) -> SelectionState:
     opts = setup.options
-    state.topics_selected = [state.rng.choice(state.topics)]
+    if opts.sample_topics is not None:
+        sample_count = max(1, min(len(state.topics), opts.sample_topics))
+        state.topics_selected = state.rng.sample(state.topics, sample_count)
+    else:
+        state.topics_selected = [state.rng.choice(state.topics)]
     try:
         quick_test_cfg = yaml.safe_load(QUICK_TEST_CONFIG_PATH.read_text(encoding="utf-8")) or {}
     except FileNotFoundError as e:  # pragma: no cover - config is expected to exist
@@ -67,9 +71,14 @@ def apply_quick_test_selection(state: SelectionState, setup) -> SelectionState:
     if configured_num_judges is not None:
         state.main_cfg.num_judges = configured_num_judges
     state.main_cfg.num_judges = state.main_cfg.num_judges or len(state.judge_models) or 3
-    console.print(
-        f"[cyan]Quick test mode: 1 random topic using models from {QUICK_TEST_CONFIG_PATH}.[/cyan]"
-    )
+    if opts.sample_topics is not None:
+        console.print(
+            f"[cyan]Quick test mode: {len(state.topics_selected)} random topic(s) using models from {QUICK_TEST_CONFIG_PATH}.[/cyan]"
+        )
+    else:
+        console.print(
+            f"[cyan]Quick test mode: 1 random topic using models from {QUICK_TEST_CONFIG_PATH}.[/cyan]"
+        )
     return state
 
 
