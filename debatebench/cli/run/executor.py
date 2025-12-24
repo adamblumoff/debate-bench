@@ -138,8 +138,46 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     if uses_free_models:
         console.print("[cyan]OpenRouter free models detected; throttling to ~20 RPM.[/cyan]")
 
-    debater_adapters = {m.id: build_debater_adapter(m, setup.settings) for m in setup.debater_models}
-    judge_adapters = {j.id: build_judge_adapter(j, setup.settings) for j in setup.judge_models}
+    per_model_cap = 4
+    model_semaphores = {
+        cfg.id: threading.Semaphore(per_model_cap)
+        for cfg in [*setup.debater_models, *setup.judge_models]
+    }
+
+    class _DebaterLimiter:
+        def __init__(self, adapter, semaphore):
+            self._adapter = adapter
+            self._semaphore = semaphore
+            self.config = adapter.config
+
+        def generate(self, *args, **kwargs):
+            self._semaphore.acquire()
+            try:
+                return self._adapter.generate(*args, **kwargs)
+            finally:
+                self._semaphore.release()
+
+    class _JudgeLimiter:
+        def __init__(self, adapter, semaphore):
+            self._adapter = adapter
+            self._semaphore = semaphore
+            self.config = adapter.config
+
+        def judge(self, *args, **kwargs):
+            self._semaphore.acquire()
+            try:
+                return self._adapter.judge(*args, **kwargs)
+            finally:
+                self._semaphore.release()
+
+    debater_adapters = {
+        m.id: _DebaterLimiter(build_debater_adapter(m, setup.settings), model_semaphores[m.id])
+        for m in setup.debater_models
+    }
+    judge_adapters = {
+        j.id: _JudgeLimiter(build_judge_adapter(j, setup.settings), model_semaphores[j.id])
+        for j in setup.judge_models
+    }
 
     total_runs = plan.total_runs
     existing_completed = plan.existing_completed
@@ -277,6 +315,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             f"Completed {completed_new}/{total_runs} | "
             f"Failed {failed_total} | Skipped {skipped_total}"
         )
+        header.add_row(f"Per-model cap: {per_model_cap} in-flight calls")
         if limiter:
             limiter_label = f"Rate limit: {limiter} RPM"
             if backoff > 0:

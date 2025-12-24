@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from typer.models import OptionInfo
 
 from .common import console
 from ..settings import load_settings
@@ -45,6 +46,23 @@ def upload_results_command(
     credentials/config, or the provided --profile). Server-side encryption uses
     AWS-managed keys (SSE-S3) by default.
     """
+    if isinstance(source, OptionInfo):
+        source = Path("results")
+    if isinstance(bucket, OptionInfo):
+        bucket = None
+    if isinstance(prefix, OptionInfo):
+        prefix = ""
+    if isinstance(profile, OptionInfo):
+        profile = None
+    if isinstance(region, OptionInfo):
+        region = None
+    if isinstance(endpoint_url, OptionInfo):
+        endpoint_url = None
+    if isinstance(force_path_style, OptionInfo):
+        force_path_style = None
+    if isinstance(dry_run, OptionInfo):
+        dry_run = False
+
     if not source.exists():
         raise typer.BadParameter(f"Source not found: {source}")
 
