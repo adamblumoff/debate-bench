@@ -494,6 +494,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     submit_tasks(retry_tasks, retry_offset=17, live=live)
     except KeyboardInterrupt:
         console.print("[yellow]Run interrupted by user.[/yellow]")
+        os._exit(130)
 
 
 __all__ = ["execute_plan"]
