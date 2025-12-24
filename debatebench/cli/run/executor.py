@@ -7,6 +7,14 @@ import time
 from datetime import datetime, timezone
 from typing import List
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
@@ -124,6 +132,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     banned_models = set()
     failed_debates: List = []
     completed_new = 0
+    failed_total = 0
+    skipped_total = 0
     run_index = 0
 
     def write_progress():
@@ -143,6 +153,25 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
 
     write_progress()
     max_workers = min(32, (os.cpu_count() or 4) * 4)
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        transient=False,
+    )
+    progress_task = progress.add_task("Debates", total=total_runs)
+
+    def update_progress(active_count: int = 0) -> None:
+        progress.update(
+            progress_task,
+            description=(
+                f"Debates (active={active_count}, failed={failed_total}, skipped={skipped_total})"
+            ),
+        )
 
     def run_task(task, attempt_seed: int):
         record, aggregate = _run_debate_and_judge(
@@ -161,7 +190,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         return record, aggregate
 
     def submit_tasks(task_list, retry_offset: int = 0):
-        nonlocal completed_new, run_index, failed_debates
+        nonlocal completed_new, run_index, failed_debates, failed_total, skipped_total
         index = 0
         inflight = {}
 
@@ -171,10 +200,14 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     task = task_list[index]
                     index += 1
                     if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                        skipped_total += 1
+                        progress.advance(progress_task, 1)
+                        update_progress(active_count=len(inflight))
                         continue
                     run_index += 1
                     task_index = run_index
                     attempt_seed = task.seed + retry_offset
+                    update_progress(active_count=len(inflight) + 1)
                     console.print(
                         f"[yellow]Debate {task_index}/{total_runs}[/yellow] "
                         f"Topic '{task.topic.id}' | PRO={task.pro_model.id} vs CON={task.con_model.id}"
@@ -190,6 +223,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         record, aggregate = future.result()
                         append_debate_record(setup.debates_path, record)
                         completed_new += 1
+                        progress.advance(progress_task, 1)
                         write_progress()
                         elapsed = (time.perf_counter() - start_time) * 1000
                         console.print(
@@ -197,7 +231,10 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             f"Topic '{task.topic.id}' {task.pro_model.id} (Pro) vs {task.con_model.id} (Con) "
                             f"-> winner: {aggregate.winner} ({elapsed:.0f} ms)"
                         )
+                        update_progress(active_count=len(inflight))
                     except EmptyResponseError as e:
+                        failed_total += 1
+                        update_progress(active_count=len(inflight))
                         console.print(
                             f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                         )
@@ -210,24 +247,28 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         else:
                             failed_debates.append(task)
                     except Exception as e:
+                        failed_total += 1
+                        update_progress(active_count=len(inflight))
                         console.print(
                             f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                         )
                         failed_debates.append(task)
 
-    submit_tasks(plan.tasks, retry_offset=0)
+    with progress:
+        update_progress(active_count=0)
+        submit_tasks(plan.tasks, retry_offset=0)
 
-    if opts.retry_failed and failed_debates:
-        console.print(f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]")
-        retry_list = list(failed_debates)
-        failed_debates = []
-        retry_tasks = []
-        for task in retry_list:
-            if task.pro_model.id in banned_models or task.con_model.id in banned_models:
-                continue
-            retry_tasks.append(task)
-        if retry_tasks:
-            submit_tasks(retry_tasks, retry_offset=17)
+        if opts.retry_failed and failed_debates:
+            console.print(f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]")
+            retry_list = list(failed_debates)
+            failed_debates = []
+            retry_tasks = []
+            for task in retry_list:
+                if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                    continue
+                retry_tasks.append(task)
+            if retry_tasks:
+                submit_tasks(retry_tasks, retry_offset=17)
 
 
 __all__ = ["execute_plan"]
