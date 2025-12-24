@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import threading
 import time
 from datetime import datetime, timezone
 from typing import List
@@ -40,6 +42,7 @@ def _run_debate_and_judge(
     remaining_candidates,
     failed_judges_path,
     log,
+    status_hook=None,
 ):
     main_cfg = setup.main_cfg
     pro_adapter = debater_adapters[pro_model.id]
@@ -53,6 +56,8 @@ def _run_debate_and_judge(
         seed=setup.options.seed,
         log=log,
     )
+    if status_hook:
+        status_hook(phase="judging")
 
     panel_adapters = [judge_adapters[j.id] for j in panel_configs]
     remaining_adapters = [judge_adapters[j.id] for j in remaining_candidates]
@@ -138,6 +143,9 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     failed_total = 0
     skipped_total = 0
     run_index = 0
+    total_turns = len(main_cfg.rounds)
+    status_lock = threading.Lock()
+    task_status: dict[str, dict] = {}
 
     def write_progress():
         payload = {
@@ -176,30 +184,55 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             ),
         )
 
+    def _progress_bar(current: int, total: int, width: int = 10) -> str:
+        if total <= 0:
+            return "-" * width
+        filled = int(round(width * (current / total)))
+        filled = max(0, min(width, filled))
+        return "[" + ("█" * filled) + ("░" * (width - filled)) + "]"
+
+    def _update_status(task_id: str, **updates) -> None:
+        with status_lock:
+            entry = task_status.setdefault(
+                task_id,
+                {"turn": 0, "stage": "-", "phase": "queued"},
+            )
+            entry.update(updates)
+
     def render_active(inflight: dict) -> Group:
         table = Table(title="Active debates", expand=True, show_edge=False)
         table.add_column("Slot", justify="right", width=4)
         table.add_column("Topic", overflow="fold")
         table.add_column("Pro", overflow="fold")
         table.add_column("Con", overflow="fold")
-        table.add_column("Elapsed", justify="right", width=8)
+        table.add_column("Turn", justify="right", width=6)
+        table.add_column("Stage", overflow="fold")
+        table.add_column("Phase", overflow="fold")
+        table.add_column("Progress", overflow="fold")
         if not inflight:
-            table.add_row("-", "-", "-", "-", "-")
+            table.add_row("-", "-", "-", "-", "-", "-", "-", "-")
         else:
-            now = time.perf_counter()
             for idx, (_, meta) in enumerate(inflight.items(), start=1):
-                task, _attempt_seed, _task_index, start_time = meta
-                elapsed = now - start_time
+                task, _attempt_seed, _task_index, _start_time = meta
+                with status_lock:
+                    status = task_status.get(task.task_id, {"turn": 0, "stage": "-", "phase": "queued"})
+                turn = status.get("turn", 0)
+                stage = status.get("stage", "-")
+                phase = status.get("phase", "queued")
+                progress = _progress_bar(turn, total_turns)
                 table.add_row(
                     str(idx),
                     task.topic.id,
                     task.pro_model.id,
                     task.con_model.id,
-                    f"{elapsed:.1f}s",
+                    f"{turn}/{total_turns}",
+                    stage,
+                    phase,
+                    progress,
                 )
         return Group(progress, table)
 
-    def run_task(task, attempt_seed: int):
+    def run_task(task, attempt_seed: int, log_fn, status_hook):
         record, aggregate = _run_debate_and_judge(
             setup=setup,
             topic=task.topic,
@@ -211,7 +244,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             panel_configs=task.panel_configs,
             remaining_candidates=task.remaining_candidates,
             failed_judges_path=failed_judges_path,
-            log=None,
+            log=log_fn,
+            status_hook=status_hook,
         )
         return record, aggregate
 
@@ -237,7 +271,23 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     attempt_seed = task.seed + retry_offset
                     update_progress(active_count=len(inflight) + 1)
                     start_time = time.perf_counter()
-                    future = pool.submit(run_task, task, attempt_seed)
+                    _update_status(task.task_id, phase="debating", turn=0, stage="-")
+
+                    def log_fn(message: str, *, task_id: str = task.task_id):
+                        match = re.search(r"Turn\\s+(\\d+):\\s+\\w+\\s+\\(([^)]+)\\)", message)
+                        if match:
+                            turn = int(match.group(1))
+                            stage = match.group(2)
+                            _update_status(task_id, turn=turn, stage=stage, phase="debating")
+                            if live:
+                                live.update(render_active(inflight))
+
+                    def status_hook(**updates):
+                        _update_status(task.task_id, **updates)
+                        if live:
+                            live.update(render_active(inflight))
+
+                    future = pool.submit(run_task, task, attempt_seed, log_fn, status_hook)
                     inflight[future] = (task, attempt_seed, task_index, start_time)
                     if live:
                         live.update(render_active(inflight))
@@ -252,6 +302,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         progress.advance(progress_task, 1)
                         write_progress()
                         update_progress(active_count=len(inflight))
+                        _update_status(task.task_id, phase="done")
                         if live:
                             live.update(render_active(inflight))
                     except EmptyResponseError as e:
