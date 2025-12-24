@@ -365,120 +365,135 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         inflight = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            while index < len(task_list) or inflight:
-                drain_status(live, inflight)
-                while index < len(task_list) and len(inflight) < max_workers:
-                    task = task_list[index]
-                    index += 1
-                    if task.pro_model.id in banned_models or task.con_model.id in banned_models:
-                        skipped_total += 1
-                        progress.advance(progress_task, 1)
-                        update_progress(active_count=len(inflight))
+            try:
+                while index < len(task_list) or inflight:
+                    drain_status(live, inflight)
+                    while index < len(task_list) and len(inflight) < max_workers:
+                        task = task_list[index]
+                        index += 1
+                        if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                            skipped_total += 1
+                            progress.advance(progress_task, 1)
+                            update_progress(active_count=len(inflight))
+                            maybe_update(live, inflight)
+                            continue
+                        run_index += 1
+                        task_index = run_index
+                        attempt_seed = task.seed + retry_offset
+                        update_progress(active_count=len(inflight) + 1)
+                        start_time = time.perf_counter()
+                        _update_status(
+                            task.task_id,
+                            phase="retrying" if retry_offset > 0 else "debating",
+                            round=0,
+                            stage="-",
+                            error="",
+                            judges_done=0,
+                            judges_expected=main_cfg.num_judges,
+                            retrying=retry_offset > 0,
+                        )
+
+                        def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task.task_id):
+                            status_queue.put(
+                                (
+                                    "turn",
+                                    task_id,
+                                    {"round": round_idx, "stage": stage, "speaker": speaker},
+                                )
+                            )
+
+                        def status_hook(**updates):
+                            if updates.get("phase") == "judging":
+                                updates.setdefault("round", total_steps)
+                                updates.setdefault("stage", "judging")
+                            status_queue.put(("phase", task.task_id, updates))
+
+                        def judge_hook(done: int, expected: int, judge_id: str):
+                            status_queue.put(
+                                (
+                                    "judge",
+                                    task.task_id,
+                                    {"done": done, "expected": expected, "judge_id": judge_id},
+                                )
+                            )
+
+                        future = pool.submit(
+                            run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
+                        )
+                        inflight[future] = (task, attempt_seed, task_index, start_time)
                         maybe_update(live, inflight)
+
+                    done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED, timeout=0.2)
+                    if not done:
                         continue
-                    run_index += 1
-                    task_index = run_index
-                    attempt_seed = task.seed + retry_offset
-                    update_progress(active_count=len(inflight) + 1)
-                    start_time = time.perf_counter()
-                    _update_status(
-                        task.task_id,
-                        phase="retrying" if retry_offset > 0 else "debating",
-                        round=0,
-                        stage="-",
-                        error="",
-                        judges_done=0,
-                        judges_expected=main_cfg.num_judges,
-                        retrying=retry_offset > 0,
-                    )
-
-                    def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task.task_id):
-                        status_queue.put(
-                            (
-                                "turn",
-                                task_id,
-                                {"round": round_idx, "stage": stage, "speaker": speaker},
-                            )
-                        )
-
-                    def status_hook(**updates):
-                        if updates.get("phase") == "judging":
-                            updates.setdefault("round", total_steps)
-                            updates.setdefault("stage", "judging")
-                        status_queue.put(("phase", task.task_id, updates))
-
-                    def judge_hook(done: int, expected: int, judge_id: str):
-                        status_queue.put(
-                            ("judge", task.task_id, {"done": done, "expected": expected, "judge_id": judge_id})
-                        )
-
-                    future = pool.submit(
-                        run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
-                    )
-                    inflight[future] = (task, attempt_seed, task_index, start_time)
-                    maybe_update(live, inflight)
-
-                done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED, timeout=0.2)
-                if not done:
-                    continue
-                for future in done:
-                    task, attempt_seed, task_index, start_time = inflight.pop(future)
-                    try:
-                        record, aggregate = future.result()
-                        append_debate_record(setup.debates_path, record)
-                        completed_new += 1
-                        progress.advance(progress_task, 1)
-                        write_progress()
-                        update_progress(active_count=len(inflight))
-                        _update_status(task.task_id, phase="done")
-                        maybe_update(live, inflight)
-                    except EmptyResponseError as e:
-                        failed_total += 1
-                        update_progress(active_count=len(inflight))
-                        status_queue.put(("error", task.task_id, {"message": str(e)}))
-                        if live:
-                            live.console.print(
-                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                            )
-                        if opts.skip_on_empty:
-                            banned_models.add(e.model_id)
+                    for future in done:
+                        task, attempt_seed, task_index, start_time = inflight.pop(future)
+                        try:
+                            record, aggregate = future.result()
+                            append_debate_record(setup.debates_path, record)
+                            completed_new += 1
+                            progress.advance(progress_task, 1)
+                            write_progress()
+                            update_progress(active_count=len(inflight))
+                            _update_status(task.task_id, phase="done")
+                            maybe_update(live, inflight)
+                        except EmptyResponseError as e:
+                            failed_total += 1
+                            update_progress(active_count=len(inflight))
+                            status_queue.put(("error", task.task_id, {"message": str(e)}))
                             if live:
                                 live.console.print(
-                                    f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
+                                    f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                                 )
-                            write_progress()
-                        else:
+                            if opts.skip_on_empty:
+                                banned_models.add(e.model_id)
+                                if live:
+                                    live.console.print(
+                                        f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
+                                    )
+                                write_progress()
+                            else:
+                                failed_debates.append(task)
+                            maybe_update(live, inflight)
+                        except Exception as e:
+                            failed_total += 1
+                            status_queue.put(("error", task.task_id, {"message": str(e)}))
+                            update_progress(active_count=len(inflight))
+                            if live:
+                                live.console.print(
+                                    f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                                )
                             failed_debates.append(task)
-                        maybe_update(live, inflight)
-                    except Exception as e:
-                        failed_total += 1
-                        status_queue.put(("error", task.task_id, {"message": str(e)}))
-                        update_progress(active_count=len(inflight))
-                        if live:
-                            live.console.print(
-                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                            )
-                        failed_debates.append(task)
-                        maybe_update(live, inflight)
+                            maybe_update(live, inflight)
+            except KeyboardInterrupt:
+                if live:
+                    live.console.print("[yellow]Interrupted. Cancelling in-flight debates...[/yellow]")
+                for future in list(inflight.keys()):
+                    future.cancel()
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise
 
-    with Live(render_active({}), console=console, refresh_per_second=4) as live:
-        update_progress(active_count=0)
-        maybe_update(live, {}, force=True)
-        submit_tasks(plan.tasks, retry_offset=0, live=live)
+    try:
+        with Live(render_active({}), console=console, refresh_per_second=4) as live:
+            update_progress(active_count=0)
+            maybe_update(live, {}, force=True)
+            submit_tasks(plan.tasks, retry_offset=0, live=live)
 
-        if opts.retry_failed and failed_debates:
-            live.console.print(
-                f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]"
-            )
-            retry_list = list(failed_debates)
-            failed_debates = []
-            retry_tasks = []
-            for task in retry_list:
-                if task.pro_model.id in banned_models or task.con_model.id in banned_models:
-                    continue
-                retry_tasks.append(task)
-            if retry_tasks:
-                submit_tasks(retry_tasks, retry_offset=17, live=live)
+            if opts.retry_failed and failed_debates:
+                live.console.print(
+                    f"[yellow]Retrying {len(failed_debates)} failed debates once...[/yellow]"
+                )
+                retry_list = list(failed_debates)
+                failed_debates = []
+                retry_tasks = []
+                for task in retry_list:
+                    if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                        continue
+                    retry_tasks.append(task)
+                if retry_tasks:
+                    submit_tasks(retry_tasks, retry_offset=17, live=live)
+    except KeyboardInterrupt:
+        console.print("[yellow]Run interrupted by user.[/yellow]")
 
 
 __all__ = ["execute_plan"]
