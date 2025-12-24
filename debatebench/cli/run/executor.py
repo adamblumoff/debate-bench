@@ -162,19 +162,16 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
 
     def submit_tasks(task_list, retry_offset: int = 0):
         nonlocal completed_new, run_index, failed_debates
-        pending = [
-            t
-            for t in task_list
-            if t.pro_model.id not in banned_models and t.con_model.id not in banned_models
-        ]
         index = 0
         inflight = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            while index < len(pending) or inflight:
-                while index < len(pending) and len(inflight) < max_workers:
-                    task = pending[index]
+            while index < len(task_list) or inflight:
+                while index < len(task_list) and len(inflight) < max_workers:
+                    task = task_list[index]
                     index += 1
+                    if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                        continue
                     run_index += 1
                     task_index = run_index
                     attempt_seed = task.seed + retry_offset
