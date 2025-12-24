@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import threading
 import queue
 import time
@@ -473,6 +474,12 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 pool.shutdown(wait=False, cancel_futures=True)
                 raise
 
+    def _sigint_handler(_signum, _frame):
+        console.print("[yellow]Run interrupted by user.[/yellow]")
+        os._exit(130)
+
+    previous_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, _sigint_handler)
     try:
         with Live(render_active({}), console=console, refresh_per_second=4) as live:
             update_progress(active_count=0)
@@ -492,9 +499,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     retry_tasks.append(task)
                 if retry_tasks:
                     submit_tasks(retry_tasks, retry_offset=17, live=live)
-    except KeyboardInterrupt:
-        console.print("[yellow]Run interrupted by user.[/yellow]")
-        os._exit(130)
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
 
 
 __all__ = ["execute_plan"]
