@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import queue
 import time
 from datetime import datetime, timezone
 from typing import List
@@ -146,6 +147,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     total_rounds = len(main_cfg.rounds)
     status_lock = threading.Lock()
     task_status: dict[str, dict] = {}
+    status_queue: queue.Queue[tuple] = queue.Queue()
 
     def write_progress():
         payload = {
@@ -198,6 +200,22 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 {"round": 0, "stage": "-", "phase": "queued"},
             )
             entry.update(updates)
+
+    def drain_status(live: Live | None, inflight: dict) -> None:
+        updated = False
+        while True:
+            try:
+                event = status_queue.get_nowait()
+            except queue.Empty:
+                break
+            updated = True
+            kind, task_id, payload = event
+            if kind == "turn":
+                _update_status(task_id, round=payload["round"], stage=payload["stage"], phase="debating")
+            elif kind == "phase":
+                _update_status(task_id, phase=payload["phase"])
+        if updated and live:
+            live.update(render_active(inflight))
 
     def render_active(inflight: dict) -> Group:
         table = Table(title="Active debates", expand=True, show_edge=False)
@@ -256,6 +274,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             while index < len(task_list) or inflight:
+                drain_status(live, inflight)
                 while index < len(task_list) and len(inflight) < max_workers:
                     task = task_list[index]
                     index += 1
@@ -276,23 +295,25 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     def log_fn(message: str, *, task_id: str = task.task_id):
                         match = re.search(r"Turn\\s+(\\d+):\\s+\\w+\\s+\\(([^)]+)\\)", message)
                         if match:
-                            round_idx = int(match.group(1))
-                            stage = match.group(2)
-                            _update_status(task_id, round=round_idx, stage=stage, phase="debating")
-                            if live:
-                                live.update(render_active(inflight))
+                            status_queue.put(
+                                (
+                                    "turn",
+                                    task_id,
+                                    {"round": int(match.group(1)), "stage": match.group(2)},
+                                )
+                            )
 
                     def status_hook(**updates):
-                        _update_status(task.task_id, **updates)
-                        if live:
-                            live.update(render_active(inflight))
+                        status_queue.put(("phase", task.task_id, updates))
 
                     future = pool.submit(run_task, task, attempt_seed, log_fn, status_hook)
                     inflight[future] = (task, attempt_seed, task_index, start_time)
                     if live:
                         live.update(render_active(inflight))
 
-                done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED)
+                done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED, timeout=0.2)
+                if not done:
+                    continue
                 for future in done:
                     task, attempt_seed, task_index, start_time = inflight.pop(future)
                     try:
