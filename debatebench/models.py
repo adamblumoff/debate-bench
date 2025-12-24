@@ -82,13 +82,38 @@ class OpenRouterAdapter(ModelAdapter):
     DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
     _rate_limiter = None
+    _rate_limit_max_rpm: int | None = None
+    _backoff_lock = threading.Lock()
+    _backoff_until = 0.0
+    _backoff_reason = ""
 
     @classmethod
     def configure_rate_limiter(cls, max_rpm: int | None) -> None:
         if max_rpm is None:
             cls._rate_limiter = None
+            cls._rate_limit_max_rpm = None
         else:
             cls._rate_limiter = _RateLimiter(max_rpm)
+            cls._rate_limit_max_rpm = max_rpm
+
+    @classmethod
+    def note_backoff(cls, seconds: float, reason: str) -> None:
+        if seconds <= 0:
+            return
+        with cls._backoff_lock:
+            cls._backoff_until = max(cls._backoff_until, time.monotonic() + seconds)
+            cls._backoff_reason = reason
+
+    @classmethod
+    def get_rate_limit_status(cls) -> Dict[str, object]:
+        with cls._backoff_lock:
+            remaining = max(0.0, cls._backoff_until - time.monotonic())
+            reason = cls._backoff_reason if remaining > 0 else ""
+        return {
+            "max_rpm": cls._rate_limit_max_rpm,
+            "backoff_remaining": remaining,
+            "backoff_reason": reason,
+        }
 
     def __init__(
         self,
@@ -258,11 +283,16 @@ class OpenRouterAdapter(ModelAdapter):
                     if status == 429:
                         retry_after = _parse_retry_after(e.response.headers if e.response else {})
                         if retry_after is not None:
+                            self.note_backoff(retry_after, "429")
                             time.sleep(retry_after)
                         else:
-                            time.sleep(self.backoff * attempt)
+                            backoff = self.backoff * attempt
+                            self.note_backoff(backoff, "429")
+                            time.sleep(backoff)
                     else:
-                        time.sleep(self.backoff * attempt)
+                        backoff = self.backoff * attempt
+                        self.note_backoff(backoff, "retry")
+                        time.sleep(backoff)
                     continue
                 detail = f"HTTP {status}"
                 if body:
@@ -377,6 +407,10 @@ def build_judge_adapter(config: JudgeModelConfig, settings: Settings) -> JudgeAd
 
 def configure_openrouter_rate_limit(max_rpm: int | None) -> None:
     OpenRouterAdapter.configure_rate_limiter(max_rpm)
+
+
+def get_openrouter_rate_limit_status() -> Dict[str, object]:
+    return OpenRouterAdapter.get_rate_limit_status()
 
 
 def sample_judges(pool: List[JudgeModelConfig], n: int, seed: int | None = None) -> List[JudgeModelConfig]:

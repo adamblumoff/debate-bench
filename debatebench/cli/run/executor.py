@@ -23,7 +23,12 @@ from rich.live import Live
 
 from ...debate import EmptyResponseError, run_debate
 from ...judge import run_judge_panel
-from ...models import build_debater_adapter, build_judge_adapter, configure_openrouter_rate_limit
+from ...models import (
+    build_debater_adapter,
+    build_judge_adapter,
+    configure_openrouter_rate_limit,
+    get_openrouter_rate_limit_status,
+)
 from ...schema import DebateRecord
 from ...storage import append_debate_record
 from ..common import console
@@ -44,6 +49,7 @@ def _run_debate_and_judge(
     log,
     status_hook=None,
     progress_hook=None,
+    judge_hook=None,
 ):
     main_cfg = setup.main_cfg
     pro_adapter = debater_adapters[pro_model.id]
@@ -98,6 +104,7 @@ def _run_debate_and_judge(
         seed=debate_seed,
         log=log,
         failed_judges_sink=sink_failed if failed_judges_path else None,
+        progress_hook=judge_hook,
     )
 
     panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
@@ -199,9 +206,19 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         with status_lock:
             entry = task_status.setdefault(
                 task_id,
-                {"round": 0, "stage": "-", "phase": "queued", "error": ""},
+                {
+                    "round": 0,
+                    "stage": "-",
+                    "phase": "queued",
+                    "error": "",
+                    "last_update": time.monotonic(),
+                    "judges_done": 0,
+                    "judges_expected": main_cfg.num_judges,
+                    "retrying": False,
+                },
             )
             entry.update(updates)
+            entry["last_update"] = time.monotonic()
 
     def drain_status(live: Live | None, inflight: dict) -> None:
         updated = False
@@ -223,10 +240,37 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 )
             elif kind == "error":
                 _update_status(task_id, phase="error", error=payload["message"])
+            elif kind == "judge":
+                _update_status(
+                    task_id,
+                    phase="judging",
+                    round=total_steps,
+                    stage="judging",
+                    judges_done=payload["done"],
+                    judges_expected=payload["expected"],
+                )
         if updated and live:
             live.update(render_active(inflight))
 
     def render_active(inflight: dict) -> Group:
+        status = get_openrouter_rate_limit_status()
+        limiter = status.get("max_rpm")
+        backoff = status.get("backoff_remaining") or 0.0
+        backoff_reason = status.get("backoff_reason") or ""
+
+        header = Table(show_header=False, box=None, expand=True)
+        header.add_column(justify="left")
+        header.add_row(
+            f"Inflight {len(inflight)}/{max_workers} | "
+            f"Completed {completed_new}/{total_runs} | "
+            f"Failed {failed_total} | Skipped {skipped_total}"
+        )
+        if limiter:
+            limiter_label = f"Rate limit: {limiter} RPM"
+            if backoff > 0:
+                limiter_label += f" | Backoff {backoff:.1f}s ({backoff_reason})"
+            header.add_row(limiter_label)
+
         table = Table(title="Active debates", expand=True, show_edge=False)
         table.add_column("Slot", justify="right", width=4)
         table.add_column("Topic", overflow="fold")
@@ -235,21 +279,39 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         table.add_column("Round", justify="right", width=9)
         table.add_column("Stage", overflow="fold")
         table.add_column("Phase", overflow="fold")
+        table.add_column("Retry", justify="right", width=5)
+        table.add_column("Judges", justify="right", width=7)
+        table.add_column("Age", justify="right", width=6)
         table.add_column("Error", overflow="fold")
         table.add_column("Progress", overflow="fold")
         if not inflight:
-            table.add_row("-", "-", "-", "-", "-", "-", "-", "-", "-")
+            table.add_row("-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-")
         else:
             for idx, (_, meta) in enumerate(inflight.items(), start=1):
                 task, _attempt_seed, _task_index, _start_time = meta
                 with status_lock:
                     status = task_status.get(
-                        task.task_id, {"round": 0, "stage": "-", "phase": "queued", "error": ""}
+                        task.task_id,
+                        {
+                            "round": 0,
+                            "stage": "-",
+                            "phase": "queued",
+                            "error": "",
+                            "last_update": time.monotonic(),
+                            "judges_done": 0,
+                            "judges_expected": main_cfg.num_judges,
+                            "retrying": False,
+                        },
                     )
                 round_idx = status.get("round", 0)
                 stage = status.get("stage", "-")
                 phase = status.get("phase", "queued")
                 error = status.get("error", "")
+                retrying = status.get("retrying", False)
+                judges_done = status.get("judges_done", 0)
+                judges_expected = status.get("judges_expected", main_cfg.num_judges)
+                age = time.monotonic() - status.get("last_update", time.monotonic())
+                judges_label = "-" if phase != "judging" else f"{judges_done}/{judges_expected}"
                 progress_bar = _progress_bar(round_idx, total_steps)
                 table.add_row(
                     str(idx),
@@ -259,12 +321,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     f"{round_idx}/{total_steps}",
                     stage,
                     phase,
+                    "yes" if retrying else "-",
+                    judges_label,
+                    f"{age:.0f}s",
                     error,
                     progress_bar,
                 )
-        return Group(progress, table)
+        return Group(header, progress, table)
 
-    def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook):
+    def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook, judge_hook):
         record, aggregate = _run_debate_and_judge(
             setup=setup,
             topic=task.topic,
@@ -279,6 +344,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             log=log_fn,
             status_hook=status_hook,
             progress_hook=progress_hook,
+            judge_hook=judge_hook,
         )
         return record, aggregate
 
@@ -305,7 +371,16 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     attempt_seed = task.seed + retry_offset
                     update_progress(active_count=len(inflight) + 1)
                     start_time = time.perf_counter()
-                    _update_status(task.task_id, phase="debating", round=0, stage="-", error="")
+                    _update_status(
+                        task.task_id,
+                        phase="retrying" if retry_offset > 0 else "debating",
+                        round=0,
+                        stage="-",
+                        error="",
+                        judges_done=0,
+                        judges_expected=main_cfg.num_judges,
+                        retrying=retry_offset > 0,
+                    )
 
                     def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task.task_id):
                         status_queue.put(
@@ -322,7 +397,14 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             updates.setdefault("stage", "judging")
                         status_queue.put(("phase", task.task_id, updates))
 
-                    future = pool.submit(run_task, task, attempt_seed, None, status_hook, progress_hook)
+                    def judge_hook(done: int, expected: int, judge_id: str):
+                        status_queue.put(
+                            ("judge", task.task_id, {"done": done, "expected": expected, "judge_id": judge_id})
+                        )
+
+                    future = pool.submit(
+                        run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
+                    )
                     inflight[future] = (task, attempt_seed, task_index, start_time)
                     if live:
                         live.update(render_active(inflight))
