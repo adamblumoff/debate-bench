@@ -78,6 +78,7 @@ def run_debate(
     config: MainConfig,
     seed: Optional[int] = None,
     log=None,
+    progress_hook=None,
 ) -> Transcript:
     """
     Orchestrate a debate transcript according to the configured rounds.
@@ -92,6 +93,8 @@ def run_debate(
     for idx, round_cfg in enumerate(config.rounds):
         speaker = round_cfg.speaker
         adapter = adapter_map[speaker]
+        if progress_hook:
+            progress_hook(round_idx=idx + 1, speaker=speaker, stage=round_cfg.stage)
         if log:
             log(f"  Turn {idx+1}: {speaker.upper()} ({round_cfg.stage})")
         prompt = _build_prompt(topic, round_cfg.stage, speaker, turns, config)

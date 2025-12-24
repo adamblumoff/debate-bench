@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import threading
 import queue
 import time
@@ -44,6 +43,7 @@ def _run_debate_and_judge(
     failed_judges_path,
     log,
     status_hook=None,
+    progress_hook=None,
 ):
     main_cfg = setup.main_cfg
     pro_adapter = debater_adapters[pro_model.id]
@@ -56,6 +56,7 @@ def _run_debate_and_judge(
         config=main_cfg,
         seed=setup.options.seed,
         log=log,
+        progress_hook=progress_hook,
     )
     if status_hook:
         status_hook(phase="judging")
@@ -250,7 +251,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 )
         return Group(progress, table)
 
-    def run_task(task, attempt_seed: int, log_fn, status_hook):
+    def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook):
         record, aggregate = _run_debate_and_judge(
             setup=setup,
             topic=task.topic,
@@ -264,6 +265,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             failed_judges_path=failed_judges_path,
             log=log_fn,
             status_hook=status_hook,
+            progress_hook=progress_hook,
         )
         return record, aggregate
 
@@ -292,21 +294,19 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     start_time = time.perf_counter()
                     _update_status(task.task_id, phase="debating", round=0, stage="-")
 
-                    def log_fn(message: str, *, task_id: str = task.task_id):
-                        match = re.search(r"Turn\\s+(\\d+):\\s+\\w+\\s+\\(([^)]+)\\)", message)
-                        if match:
-                            status_queue.put(
-                                (
-                                    "turn",
-                                    task_id,
-                                    {"round": int(match.group(1)), "stage": match.group(2)},
-                                )
+                    def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task.task_id):
+                        status_queue.put(
+                            (
+                                "turn",
+                                task_id,
+                                {"round": round_idx, "stage": stage, "speaker": speaker},
                             )
+                        )
 
                     def status_hook(**updates):
                         status_queue.put(("phase", task.task_id, updates))
 
-                    future = pool.submit(run_task, task, attempt_seed, log_fn, status_hook)
+                    future = pool.submit(run_task, task, attempt_seed, None, status_hook, progress_hook)
                     inflight[future] = (task, attempt_seed, task_index, start_time)
                     if live:
                         live.update(render_active(inflight))
