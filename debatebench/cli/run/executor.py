@@ -219,7 +219,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 turn = status.get("turn", 0)
                 stage = status.get("stage", "-")
                 phase = status.get("phase", "queued")
-                progress = _progress_bar(turn, total_turns)
+                progress_bar = _progress_bar(turn, total_turns)
                 table.add_row(
                     str(idx),
                     task.topic.id,
@@ -228,7 +228,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     f"{turn}/{total_turns}",
                     stage,
                     phase,
-                    progress,
+                    progress_bar,
                 )
         return Group(progress, table)
 
