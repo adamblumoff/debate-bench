@@ -95,9 +95,7 @@ class RunPlan:
     debates_per_pair: int
     total_runs: int
     completed_counts: Dict[Tuple[str, str, str], int]
-    judge_usage: Dict[str, int]
-    topic_usage: Dict[Tuple[str, str], int] = field(default_factory=dict)
-    pair_usage: Dict[Tuple[str, str], int] = field(default_factory=dict)
+    tasks: List["DebateTask"] = field(default_factory=list)
     existing_completed: int = 0
     progress_path: Path | None = None
     schedule_preview: List[Dict] | None = None
@@ -112,6 +110,10 @@ class DebateTask:
     con_model: DebaterModelConfig
     rep: int
     seed: int
+    panel_configs: List[JudgeModelConfig] = field(default_factory=list)
+    remaining_candidates: List[JudgeModelConfig] = field(default_factory=list)
+    pair_key: str = ""
+    task_id: str = ""
 
 
 @dataclass
