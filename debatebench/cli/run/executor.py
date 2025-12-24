@@ -157,6 +157,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     status_lock = threading.Lock()
     task_status: dict[str, dict] = {}
     status_queue: queue.Queue[tuple] = queue.Queue()
+    refresh_interval = 0.25
+    last_refresh = time.monotonic()
 
     def write_progress():
         payload = {
@@ -220,6 +222,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             entry.update(updates)
             entry["last_update"] = time.monotonic()
 
+    def maybe_update(live: Live | None, inflight: dict, force: bool = False) -> None:
+        nonlocal last_refresh
+        if not live:
+            return
+        now = time.monotonic()
+        if force or (now - last_refresh) >= refresh_interval:
+            live.update(render_active(inflight))
+            last_refresh = now
+
     def drain_status(live: Live | None, inflight: dict) -> None:
         updated = False
         while True:
@@ -249,8 +260,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                     judges_done=payload["done"],
                     judges_expected=payload["expected"],
                 )
-        if updated and live:
-            live.update(render_active(inflight))
+        if updated:
+            maybe_update(live, inflight)
 
     def render_active(inflight: dict) -> Group:
         status = get_openrouter_rate_limit_status()
@@ -363,8 +374,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         skipped_total += 1
                         progress.advance(progress_task, 1)
                         update_progress(active_count=len(inflight))
-                        if live:
-                            live.update(render_active(inflight))
+                        maybe_update(live, inflight)
                         continue
                     run_index += 1
                     task_index = run_index
@@ -406,8 +416,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
                     )
                     inflight[future] = (task, attempt_seed, task_index, start_time)
-                    if live:
-                        live.update(render_active(inflight))
+                    maybe_update(live, inflight)
 
                 done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED, timeout=0.2)
                 if not done:
@@ -422,8 +431,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         write_progress()
                         update_progress(active_count=len(inflight))
                         _update_status(task.task_id, phase="done")
-                        if live:
-                            live.update(render_active(inflight))
+                        maybe_update(live, inflight)
                     except EmptyResponseError as e:
                         failed_total += 1
                         update_progress(active_count=len(inflight))
@@ -441,8 +449,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             write_progress()
                         else:
                             failed_debates.append(task)
-                        if live:
-                            live.update(render_active(inflight))
+                        maybe_update(live, inflight)
                     except Exception as e:
                         failed_total += 1
                         status_queue.put(("error", task.task_id, {"message": str(e)}))
@@ -452,12 +459,11 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                                 f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                             )
                         failed_debates.append(task)
-                        if live:
-                            live.update(render_active(inflight))
+                        maybe_update(live, inflight)
 
     with Live(render_active({}), console=console, refresh_per_second=4) as live:
         update_progress(active_count=0)
-        live.update(render_active({}))
+        maybe_update(live, {}, force=True)
         submit_tasks(plan.tasks, retry_offset=0, live=live)
 
         if opts.retry_failed and failed_debates:
