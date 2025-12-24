@@ -146,6 +146,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     skipped_total = 0
     run_index = 0
     total_rounds = len(main_cfg.rounds)
+    total_steps = total_rounds + 1
     status_lock = threading.Lock()
     task_status: dict[str, dict] = {}
     status_queue: queue.Queue[tuple] = queue.Queue()
@@ -214,7 +215,12 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             if kind == "turn":
                 _update_status(task_id, round=payload["round"], stage=payload["stage"], phase="debating")
             elif kind == "phase":
-                _update_status(task_id, phase=payload["phase"])
+                _update_status(
+                    task_id,
+                    phase=payload.get("phase", "queued"),
+                    round=payload.get("round", 0),
+                    stage=payload.get("stage", "-"),
+                )
             elif kind == "error":
                 _update_status(task_id, phase="error", error=payload["message"])
         if updated and live:
@@ -226,7 +232,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         table.add_column("Topic", overflow="fold")
         table.add_column("Pro", overflow="fold")
         table.add_column("Con", overflow="fold")
-        table.add_column("Round", justify="right", width=7)
+        table.add_column("Round", justify="right", width=9)
         table.add_column("Stage", overflow="fold")
         table.add_column("Phase", overflow="fold")
         table.add_column("Error", overflow="fold")
@@ -244,13 +250,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 stage = status.get("stage", "-")
                 phase = status.get("phase", "queued")
                 error = status.get("error", "")
-                progress_bar = _progress_bar(round_idx, total_rounds)
+                progress_bar = _progress_bar(round_idx, total_steps)
                 table.add_row(
                     str(idx),
                     task.topic.id,
                     task.pro_model.id,
                     task.con_model.id,
-                    f"{round_idx}/{total_rounds}",
+                    f"{round_idx}/{total_steps}",
                     stage,
                     phase,
                     error,
@@ -311,6 +317,9 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         )
 
                     def status_hook(**updates):
+                        if updates.get("phase") == "judging":
+                            updates.setdefault("round", total_steps)
+                            updates.setdefault("stage", "judging")
                         status_queue.put(("phase", task.task_id, updates))
 
                     future = pool.submit(run_task, task, attempt_seed, None, status_hook, progress_hook)
