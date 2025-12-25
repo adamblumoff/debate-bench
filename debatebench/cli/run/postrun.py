@@ -27,7 +27,7 @@ def run_postrun(setup: RunSetup) -> None:
     else:
         console.print("[green]Run complete.[/green]")
     max_workers = min(64, (os.cpu_count() or 4) * 8)
-    per_model_cap = 12
+    per_model_cap = max_workers
     write_timing_snapshot(
         debates_path=setup.debates_path,
         out_path=setup.run_dir / "timing_snapshot.json",

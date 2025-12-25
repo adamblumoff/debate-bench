@@ -184,7 +184,7 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
         schedule_preview_for_estimate, schedule_tasks_for_estimate = build_schedule(include_completed=False)
         snapshots = load_timing_snapshots(Path("results"))
         max_workers = min(64, (os.cpu_count() or 4) * 8)
-        per_model_cap = 12
+        per_model_cap = max_workers
         if schedule_tasks_for_estimate and snapshots:
             estimates, meta = estimate_wall_time(
                 schedule_tasks_for_estimate,
