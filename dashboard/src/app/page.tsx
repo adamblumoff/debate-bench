@@ -515,12 +515,6 @@ function DashboardContent() {
         ) : status === "error" ? (
           <div className="card text-slate-200">
             <LoadState status={status} error={error} />
-            {status === "idle" && (
-              <p className="text-sm text-slate-400">
-                Initializing data loader…
-              </p>
-            )}
-            {status === "loading" && <div className="mt-3 h-32 skeleton" />}
           </div>
         ) : (
           <DashboardSkeleton />
