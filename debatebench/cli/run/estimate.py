@@ -12,6 +12,16 @@ import requests
 
 from ...storage import load_debate_records
 
+MIN_DEBATES_FOR_ESTIMATES = 120
+
+
+def _count_jsonl_rows(path: Path) -> int:
+    try:
+        with path.open(encoding="utf-8") as f:
+            return sum(1 for _ in f)
+    except Exception:
+        return 0
+
 
 def format_duration(seconds: float) -> str:
     """Pretty-print seconds as human-friendly duration."""
@@ -31,7 +41,12 @@ def format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def historical_debate_durations(results_dir: Path, max_files: int = 5, max_records: int = 500) -> Tuple[float | None, int]:
+def historical_debate_durations(
+    results_dir: Path,
+    max_files: int = 5,
+    max_records: int = 500,
+    min_debates: int = MIN_DEBATES_FOR_ESTIMATES,
+) -> Tuple[float | None, int]:
     """
     Return (median_total_seconds, num_records) from recent debate files.
     Total seconds = sum(turn.duration_ms) + sum(judge.latency_ms) for each debate.
@@ -39,6 +54,8 @@ def historical_debate_durations(results_dir: Path, max_files: int = 5, max_recor
     totals = []
     files = sorted(results_dir.glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
     for idx, path in enumerate(files):
+        if _count_jsonl_rows(path) < min_debates:
+            continue
         try:
             records = load_debate_records(path)
         except Exception:
@@ -139,14 +156,20 @@ def write_timing_snapshot(
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def load_timing_snapshots(results_dir: Path, max_files: int = 10) -> list[Dict[str, Any]]:
+def load_timing_snapshots(
+    results_dir: Path, max_files: int = 10, min_debates: int = MIN_DEBATES_FOR_ESTIMATES
+) -> list[Dict[str, Any]]:
     snapshots = sorted(results_dir.glob("run_*/timing_snapshot.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     out = []
     for path in snapshots[:max_files]:
         try:
-            out.append(json.loads(path.read_text(encoding="utf-8")))
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
+        debate_totals = payload.get("debate_totals") or {}
+        if float(debate_totals.get("n", 0) or 0) < min_debates:
+            continue
+        out.append(payload)
     return out
 
 
@@ -333,7 +356,7 @@ def load_activity_pricing(activity_path: Optional[Path] = None) -> Tuple[Dict[st
     return pricing, activity_path
 
 
-def load_token_stats(debates_path: Optional[Path] = None):
+def load_token_stats(debates_path: Optional[Path] = None, min_debates: int = MIN_DEBATES_FOR_ESTIMATES):
     """
     Load historical average prompt/completion tokens per debater and judge from the
     most recent debates_*.jsonl (or a specific path if provided).
@@ -342,10 +365,14 @@ def load_token_stats(debates_path: Optional[Path] = None):
     judge_stats: judge_id -> {"prompt_avg": float, "completion_avg": float}
     """
     if debates_path is None:
-        candidates = sorted(Path("results").glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime)
-        if not candidates:
+        candidates = sorted(Path("results").glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        debates_path = None
+        for candidate in candidates:
+            if _count_jsonl_rows(candidate) >= min_debates:
+                debates_path = candidate
+                break
+        if debates_path is None:
             return {}, {}, None
-        debates_path = candidates[-1]
 
     debater_totals: Dict[str, Dict[str, float]] = {}
     debater_counts: Dict[str, int] = {}
