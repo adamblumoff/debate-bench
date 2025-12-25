@@ -26,6 +26,7 @@ Quick fixes for common issues when running DebateBench.
 ## Cost / time
 - **Costs look too high**: Use `--dry-run` to see per-model/per-judge estimates; lower `--debates-per-pair`, use fewer topics (`--sample-topics`), or cap tokens.
 - **Time estimates missing**: `--estimate-time` uses timing snapshots (`results/run_<tag>/timing_snapshot.json`) when available. If none exist, it falls back to recent debate medians or a heuristic; create a small run first.
+- **Estimates feel off**: Time and cost estimates are best-effort and can be inaccurate today; we plan to improve both.
 
 ## Resume / append
 - **Resume skipped everything**: Ensure `--run-tag` matches the debates file you expect, and that `--debates-per-pair` matches the original plan.

@@ -14,7 +14,7 @@ const display = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "DebateBench Dashboard",
+  title: "DebateBench",
   description: "Interactive, signed-S3-backed view of debate results",
   icons: {
     icon: "/favicon.ico",

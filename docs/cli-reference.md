@@ -47,7 +47,7 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 **Execution control**
 - `--resume` — skip debates already present in the debates file (useful after interruption).
 - `--dry-run` — plan only: prints cost/time estimates, writes `results/run_<tag>/dryrun_schedule.json`, and exits before any debates.
-- `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; falls back to recent medians (default on).
+- `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; falls back to recent medians (default on). Estimates are rough and may be inaccurate.
 - `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
 - `--postupload / --no-postupload` — after postrun, upload results to S3 (default on).
 - `--postupload-bucket TEXT` — S3 bucket for `--postupload` (optional; defaults from env or `debatebench-results`).
@@ -56,7 +56,7 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--postupload-region TEXT` — AWS region override (optional; defaults from env).
 - `--postupload-include-artifacts` — also upload `run_<tag>/`, `viz_<tag>/`, `plots_<tag>/`, and `ratings_<tag>.json` if present (default off).
 - `--postupload-dry-run` — list postupload keys without sending.
-- `--quick-test` — quick smoke test: random topic(s) and predefined debaters/judges from `configs/quick-test-models.yaml`; disables postupload and skips summaries/plots.
+- `--quick-test` — quick smoke test: random topic(s) and predefined debaters/judges from `configs/quick-test-models.yaml`; disables postupload and skips summaries/plots. Timing snapshots and ratings can still run.
 - `--judges-test` — judge-focused smoke: 1 topic, fixed debaters (Haiku vs Gemini 2.5 Flash Lite), judges (Gemini 3 Pro, GPT-5.1); balanced sides off.
 
 **Incremental append**
