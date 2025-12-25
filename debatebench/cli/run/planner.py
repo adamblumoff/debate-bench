@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import random
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,10 +15,12 @@ from ...storage import load_debate_records
 from ..common import console
 from .estimate import (
     estimate_cost,
+    estimate_wall_time,
     fetch_pricing,
     format_duration,
     historical_debate_durations,
     load_activity_pricing,
+    load_timing_snapshots,
     load_token_stats,
 )
 from .schedule import build_pairs, derive_debate_seed, make_pair_key, select_judges
@@ -90,21 +93,6 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
 
     progress_path = setup.run_dir / "progress.json"
     _write_progress(progress_path, setup.run_tag, setup.debates_path, total_runs, existing_completed, 0, set())
-
-    if opts.estimate_time:
-        median_sec, hist_n = historical_debate_durations(Path("results"))
-        per_debate_sec = median_sec if median_sec is not None else 60.0
-        est_total_sec = per_debate_sec * total_runs
-        buffered_sec = est_total_sec * 1.15
-        median_label = f"{format_duration(per_debate_sec)} per debate"
-        if hist_n:
-            median_label += f" (median of {hist_n} recent debates)"
-        else:
-            median_label += " (heuristic default)"
-        console.print(
-            f"[cyan]Estimated wall time:[/cyan] ~{format_duration(buffered_sec)} "
-            f"(planned {total_runs} debates; {median_label})"
-        )
 
     def build_schedule(include_completed: bool) -> tuple[list[Dict], list[DebateTask]]:
         usage_counts = judge_usage.copy()
@@ -190,6 +178,43 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
                     )
         return preview, tasks
 
+    schedule_preview_for_estimate = None
+    schedule_tasks_for_estimate: list[DebateTask] = []
+    if opts.estimate_time:
+        schedule_preview_for_estimate, schedule_tasks_for_estimate = build_schedule(include_completed=False)
+        snapshots = load_timing_snapshots(Path("results"))
+        max_workers = min(32, (os.cpu_count() or 4) * 4)
+        per_model_cap = 4
+        if schedule_tasks_for_estimate and snapshots:
+            estimates, meta = estimate_wall_time(
+                schedule_tasks_for_estimate,
+                main_cfg.rounds,
+                max_workers=max_workers,
+                per_model_cap=per_model_cap,
+                snapshots=snapshots,
+            )
+            buffered = {k: v * 1.15 for k, v in estimates.items()}
+            console.print(
+                f"[cyan]Estimated wall time:[/cyan] "
+                f"~{format_duration(buffered['p50'])} "
+                f"(p75 {format_duration(buffered['p75'])}, p90 {format_duration(buffered['p90'])}) "
+                f"| workers={max_workers}, per-model cap={per_model_cap}"
+            )
+        else:
+            median_sec, hist_n = historical_debate_durations(Path("results"))
+            per_debate_sec = median_sec if median_sec is not None else 60.0
+            est_total_sec = per_debate_sec * total_runs
+            buffered_sec = est_total_sec * 1.15
+            median_label = f"{format_duration(per_debate_sec)} per debate"
+            if hist_n:
+                median_label += f" (median of {hist_n} recent debates)"
+            else:
+                median_label += " (heuristic default)"
+            console.print(
+                f"[cyan]Estimated wall time:[/cyan] ~{format_duration(buffered_sec)} "
+                f"(planned {total_runs} debates; {median_label})"
+            )
+
     # Dry-run path: cost/time + schedule preview, then exit.
     if opts.dry_run:
         judge_calls = total_runs * main_cfg.num_judges
@@ -266,7 +291,10 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
         )
         return None, True
 
-    _schedule_preview, schedule_tasks = build_schedule(include_completed=False)
+    if schedule_tasks_for_estimate:
+        schedule_tasks = schedule_tasks_for_estimate
+    else:
+        _schedule_preview, schedule_tasks = build_schedule(include_completed=False)
 
     plan = RunPlan(
         topics_selected=setup.topics_selected,
