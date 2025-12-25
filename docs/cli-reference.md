@@ -47,7 +47,7 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 **Execution control**
 - `--resume` — skip debates already present in the debates file (useful after interruption).
 - `--dry-run` — plan only: prints cost/time estimates, writes `results/run_<tag>/dryrun_schedule.json`, and exits before any debates.
-- `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; falls back to recent medians (default on). Estimates are rough and may be inaccurate.
+- `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; uses only runs with ≥120 debates, otherwise falls back to recent medians from large runs (default on). Estimates are rough and may be inaccurate.
 - `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
 - `--postupload / --no-postupload` — after postrun, upload results to S3 (default on).
 - `--postupload-bucket TEXT` — S3 bucket for `--postupload` (optional; defaults from env or `debatebench-results`).
