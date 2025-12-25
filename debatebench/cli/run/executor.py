@@ -184,7 +184,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             json.dump(payload, f, indent=2)
 
     write_progress()
-    max_workers = min(32, (os.cpu_count() or 4) * 4)
+    max_workers = min(64, (os.cpu_count() or 4) * 8)
     progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),

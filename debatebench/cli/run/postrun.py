@@ -26,7 +26,7 @@ def run_postrun(setup: RunSetup) -> None:
         plot_command(viz_dir=setup.viz_dir, out_dir=setup.plots_dir)
     else:
         console.print("[green]Run complete.[/green]")
-    max_workers = min(32, (os.cpu_count() or 4) * 4)
+    max_workers = min(64, (os.cpu_count() or 4) * 8)
     per_model_cap = 12
     write_timing_snapshot(
         debates_path=setup.debates_path,
