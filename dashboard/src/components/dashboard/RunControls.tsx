@@ -57,11 +57,15 @@ export function RunControls({
     <div className="space-y-1">
       <div className="run-toolbar">
         <div className="run-left">
-          <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+          <span
+            id="run-selector-label"
+            className="text-[11px] uppercase tracking-[0.2em] text-slate-400"
+          >
             Run
           </span>
           <select
             className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100"
+            aria-labelledby="run-selector-label"
             value={runId || ""}
             onChange={(e) => onRunChange(e.target.value)}
             disabled={

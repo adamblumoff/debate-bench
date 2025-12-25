@@ -48,6 +48,80 @@ function buildDownloadHref(runId?: string) {
   return qs ? `/api/debates?${qs}` : "/api/debates";
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6" aria-hidden="true">
+      <section id="overview" className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="kpi-tile skeleton min-h-[120px]" />
+          ))}
+        </div>
+      </section>
+      <section className="grid gap-4 md:grid-cols-12 items-stretch">
+        <div className="md:col-span-12 min-w-0">
+          <ChartCard
+            title="Price to performance"
+            subtitle="Observed USD/1M tokens (fallback to snapshot) vs performance"
+            className="chart-card h-full"
+          >
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+      </section>
+      <section className="grid gap-4 md:grid-cols-12 items-stretch">
+        <div className="md:col-span-6 min-w-0">
+          <ChartCard
+            title="Head-to-head win rate"
+            subtitle="Row model vs column model"
+            className="chart-card h-full"
+          >
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+        <div className="md:col-span-6 min-w-0">
+          <ChartCard
+            title="Topic/category win rates"
+            subtitle="Per model × category heatmap"
+            className="chart-card h-full"
+          >
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+      </section>
+      <section className="grid gap-4 md:grid-cols-12">
+        <div className="md:col-span-6 min-w-0">
+          <ChartCard title="Judge agreement" className="chart-card h-full">
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+        <div className="md:col-span-6 min-w-0">
+          <ChartCard
+            title="Side bias (pro minus con win rate)"
+            className="chart-card h-full"
+          >
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+        <div className="md:col-span-12 min-w-0">
+          <ChartCard
+            title="Judge side preference (CV mean)"
+            subtitle="5-fold CV mean of adjusted bias; topic×model interactions included."
+            className="chart-card h-full"
+          >
+            <div className="skeleton h-[220px] w-full" />
+          </ChartCard>
+        </div>
+      </section>
+      <section id="pricing" className="space-y-3">
+        <div className="card">
+          <div className="skeleton h-[260px] w-full" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -434,7 +508,7 @@ function DashboardContent() {
               />
             </section>
           </div>
-        ) : (
+        ) : status === "error" ? (
           <div className="card text-slate-200">
             <LoadState status={status} error={error} />
             {status === "idle" && (
@@ -444,6 +518,8 @@ function DashboardContent() {
             )}
             {status === "loading" && <div className="mt-3 h-32 skeleton" />}
           </div>
+        ) : (
+          <DashboardSkeleton />
         )}
       </div>
 
