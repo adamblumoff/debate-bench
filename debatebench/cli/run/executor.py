@@ -138,7 +138,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     if uses_free_models:
         console.print("[cyan]OpenRouter free models detected; throttling to ~20 RPM.[/cyan]")
 
-    per_model_cap = 12
+    per_model_cap = 0 if opts.quick_test else 12
     model_inflight: dict[str, int] = {
         cfg.id: 0 for cfg in [*setup.debater_models, *setup.judge_models]
     }
@@ -285,7 +285,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             f"Failed {failed_total} | Skipped {skipped_total} | "
             f"Requeued {requeue_total}"
         )
-        header.add_row(f"Per-model cap: {per_model_cap} in-flight debates")
+        cap_label = "off" if per_model_cap == 0 else str(per_model_cap)
+        header.add_row(f"Per-model cap: {cap_label} in-flight debates")
         if limiter:
             limiter_label = f"Rate limit: {limiter} RPM"
             if backoff > 0:
@@ -376,6 +377,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
 
         def reserve_models(task) -> list[str] | None:
             models = sorted({task.pro_model.id, task.con_model.id, *[j.id for j in task.panel_configs]})
+            if per_model_cap == 0:
+                return models
             with model_lock:
                 if any(model_inflight[m] >= per_model_cap for m in models):
                     return None
@@ -384,6 +387,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             return models
 
         def release_models(models: list[str]) -> None:
+            if per_model_cap == 0:
+                return
             with model_lock:
                 for m in models:
                     model_inflight[m] = max(0, model_inflight.get(m, 0) - 1)
