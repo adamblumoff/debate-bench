@@ -15,6 +15,8 @@ QUICK_TEST_CONFIG_PATH = Path("configs/quick-test-models.yaml")
 
 def apply_quick_test_selection(state: SelectionState, setup) -> SelectionState:
     opts = setup.options
+    opts.postupload = False
+    opts.postupload_include_artifacts = False
     if opts.sample_topics is not None:
         sample_count = max(1, min(len(state.topics), opts.sample_topics))
         state.topics_selected = state.rng.sample(state.topics, sample_count)

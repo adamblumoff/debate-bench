@@ -162,7 +162,7 @@ def run_command(
         help="AWS region override for --postupload. Defaults from env (DEBATEBENCH_S3_REGION/S3_REGION).",
     ),
     postupload_include_artifacts: bool = typer.Option(
-        True,
+        False,
         help="When postuploading, also upload run_<tag>/, viz_<tag>/, plots_<tag>/, and ratings_<tag>.json if present.",
     ),
     postupload_dry_run: bool = typer.Option(

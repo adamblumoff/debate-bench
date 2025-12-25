@@ -18,9 +18,14 @@ from .types import RunSetup
 def run_postrun(setup: RunSetup) -> None:
     """Generate summaries/plots and optional ratings/leaderboard."""
     opts = setup.options
-    console.print(f"[green]Run complete. Writing summaries to {setup.viz_dir} and plots to {setup.plots_dir}")
-    summarize(debates_path=setup.debates_path, out_dir=setup.viz_dir)
-    plot_command(viz_dir=setup.viz_dir, out_dir=setup.plots_dir)
+    if not opts.quick_test:
+        console.print(
+            f"[green]Run complete. Writing summaries to {setup.viz_dir} and plots to {setup.plots_dir}"
+        )
+        summarize(debates_path=setup.debates_path, out_dir=setup.viz_dir)
+        plot_command(viz_dir=setup.viz_dir, out_dir=setup.plots_dir)
+    else:
+        console.print("[green]Run complete.[/green]")
     max_workers = min(32, (os.cpu_count() or 4) * 4)
     per_model_cap = 4
     write_timing_snapshot(
