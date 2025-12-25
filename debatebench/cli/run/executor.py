@@ -395,7 +395,9 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             retrying=retry_offset > 0,
                         )
 
-                        def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task.task_id):
+                        task_id = task.task_id
+
+                        def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task_id):
                             status_queue.put(
                                 (
                                     "turn",
@@ -408,13 +410,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             if updates.get("phase") == "judging":
                                 updates.setdefault("round", total_steps)
                                 updates.setdefault("stage", "judging")
-                            status_queue.put(("phase", task.task_id, updates))
+                            status_queue.put(("phase", task_id, updates))
 
                         def judge_hook(done: int, expected: int, judge_id: str):
                             status_queue.put(
                                 (
                                     "judge",
-                                    task.task_id,
+                                    task_id,
                                     {"done": done, "expected": expected, "judge_id": judge_id},
                                 )
                             )
