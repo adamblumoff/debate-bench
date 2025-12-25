@@ -156,6 +156,7 @@ def estimate_wall_time(
     max_workers: int,
     per_model_cap: int,
     snapshots: list[Dict[str, Any]],
+    fallback_per_debate: float | None = None,
 ) -> Tuple[Dict[str, float], Dict[str, str]]:
     model_stage = {}
     judge_lat = {}
@@ -198,7 +199,7 @@ def estimate_wall_time(
 
     if not snapshots:
         # Fallback: median per debate from recent history.
-        fallback = statistics.median(debate_totals) if debate_totals else 60.0
+        fallback = fallback_per_debate or (statistics.median(debate_totals) if debate_totals else 60.0)
         return {
             "p50": fallback,
             "p75": fallback * 1.2,
@@ -210,7 +211,7 @@ def estimate_wall_time(
     model_coverage = len(required_models & snap_models) / max(1, len(required_models))
     judge_coverage = len(required_judges & snap_judges) / max(1, len(required_judges))
     if model_coverage < 0.7 or judge_coverage < 0.7:
-        fallback = statistics.median(debate_totals) if debate_totals else 60.0
+        fallback = fallback_per_debate or (statistics.median(debate_totals) if debate_totals else 60.0)
         return {
             "p50": fallback,
             "p75": fallback * 1.2,

@@ -185,6 +185,8 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
         snapshots = load_timing_snapshots(Path("results"))
         max_workers = min(64, (os.cpu_count() or 4) * 8)
         per_model_cap = max_workers
+        median_sec, hist_n = historical_debate_durations(Path("results"))
+        per_debate_sec = median_sec if median_sec is not None else 60.0
         if schedule_tasks_for_estimate and snapshots:
             estimates, meta = estimate_wall_time(
                 schedule_tasks_for_estimate,
@@ -192,8 +194,16 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
                 max_workers=max_workers,
                 per_model_cap=per_model_cap,
                 snapshots=snapshots,
+                fallback_per_debate=per_debate_sec,
             )
             buffered = {k: v * 1.15 for k, v in estimates.items()}
+            if meta.get("source") == "fallback":
+                est_total_sec = per_debate_sec * total_runs / max(1, max_workers)
+                buffered = {
+                    "p50": est_total_sec * 1.3,
+                    "p75": est_total_sec * 1.5,
+                    "p90": est_total_sec * 1.7,
+                }
             console.print(
                 f"[cyan]Estimated wall time:[/cyan] "
                 f"~{format_duration(buffered['p50'])} "
@@ -201,10 +211,8 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
                 f"| workers={max_workers}, per-model cap={per_model_cap} | {meta.get('source','')}"
             )
         else:
-            median_sec, hist_n = historical_debate_durations(Path("results"))
-            per_debate_sec = median_sec if median_sec is not None else 60.0
-            est_total_sec = per_debate_sec * total_runs
-            buffered_sec = est_total_sec * 1.15
+            est_total_sec = per_debate_sec * total_runs / max(1, max_workers)
+            buffered_sec = est_total_sec * 1.3
             median_label = f"{format_duration(per_debate_sec)} per debate"
             if hist_n:
                 median_label += f" (median of {hist_n} recent debates)"
