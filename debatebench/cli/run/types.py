@@ -39,6 +39,7 @@ class RunOptions:
     openrouter_judge_max_tokens: Optional[int]
     topic_select: bool
     tui_wizard: bool
+    prod_run: bool
     apply_stage_token_limits: bool
     skip_on_empty: bool
     quick_test: bool

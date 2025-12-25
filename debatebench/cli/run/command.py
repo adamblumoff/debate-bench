@@ -102,6 +102,11 @@ def run_command(
         "--tui-wizard/--no-tui-wizard",
         help="Use a single curses wizard for topic/model/judge selection when available (default on).",
     ),
+    prod_run: bool = typer.Option(
+        False,
+        "--prod-run/--no-prod-run",
+        help="Run using config files only (no interactive selection). Forces balanced judges and judges-from-selection.",
+    ),
     apply_stage_token_limits: bool = typer.Option(
         False,
         help="Overwrite per-round token limits for opening/rebuttal/closing to --openrouter-max-tokens for this run.",
@@ -201,6 +206,7 @@ def run_command(
         openrouter_judge_max_tokens=openrouter_judge_max_tokens,
         topic_select=topic_select,
         tui_wizard=tui_wizard,
+        prod_run=prod_run,
         apply_stage_token_limits=apply_stage_token_limits,
         skip_on_empty=skip_on_empty,
         quick_test=quick_test,
