@@ -198,7 +198,7 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> tuple[RunPlan | None, 
                 f"[cyan]Estimated wall time:[/cyan] "
                 f"~{format_duration(buffered['p50'])} "
                 f"(p75 {format_duration(buffered['p75'])}, p90 {format_duration(buffered['p90'])}) "
-                f"| workers={max_workers}, per-model cap={per_model_cap}"
+                f"| workers={max_workers}, per-model cap={per_model_cap} | {meta.get('source','')}"
             )
         else:
             median_sec, hist_n = historical_debate_durations(Path("results"))

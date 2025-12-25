@@ -159,10 +159,16 @@ def estimate_wall_time(
 ) -> Tuple[Dict[str, float], Dict[str, str]]:
     model_stage = {}
     judge_lat = {}
+    snap_models = set()
+    snap_judges = set()
     debate_totals = []
     for snap in snapshots:
-        model_stage.update(snap.get("model_stage_latencies", {}) or {})
-        judge_lat.update(snap.get("judge_latencies", {}) or {})
+        ms = snap.get("model_stage_latencies", {}) or {}
+        jl = snap.get("judge_latencies", {}) or {}
+        model_stage.update(ms)
+        judge_lat.update(jl)
+        snap_models.update(ms.keys())
+        snap_judges.update(jl.keys())
         dt = snap.get("debate_totals") or {}
         if dt.get("p50"):
             debate_totals.append(float(dt["p50"]))
@@ -199,6 +205,22 @@ def estimate_wall_time(
             "p90": fallback * 1.4,
         }, {"source": "fallback"}
 
+    required_models = {t.pro_model.id for t in tasks} | {t.con_model.id for t in tasks}
+    required_judges = {j.id for t in tasks for j in t.panel_configs}
+    model_coverage = len(required_models & snap_models) / max(1, len(required_models))
+    judge_coverage = len(required_judges & snap_judges) / max(1, len(required_judges))
+    if model_coverage < 0.7 or judge_coverage < 0.7:
+        fallback = statistics.median(debate_totals) if debate_totals else 60.0
+        return {
+            "p50": fallback,
+            "p75": fallback * 1.2,
+            "p90": fallback * 1.4,
+        }, {
+            "source": "fallback",
+            "coverage_models": f"{model_coverage:.2f}",
+            "coverage_judges": f"{judge_coverage:.2f}",
+        }
+
     totals = {pct: 0.0 for pct in ("p50", "p75", "p90")}
     per_model_work = {pct: {} for pct in ("p50", "p75", "p90")}
     for task in tasks:
@@ -227,6 +249,8 @@ def estimate_wall_time(
         "source": "snapshots",
         "max_workers": str(max_workers),
         "per_model_cap": str(per_model_cap),
+        "coverage_models": f"{model_coverage:.2f}",
+        "coverage_judges": f"{judge_coverage:.2f}",
     }
     return estimates, meta
 
