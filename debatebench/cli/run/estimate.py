@@ -53,13 +53,15 @@ def historical_debate_durations(
     """
     totals = []
     files = sorted(results_dir.glob("debates_*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for idx, path in enumerate(files):
+    processed_files = 0
+    for path in files:
         if _count_jsonl_rows(path) < min_debates:
             continue
         try:
             records = load_debate_records(path)
         except Exception:
             continue
+        processed_files += 1
         for rec in records:
             turn_ms = sum(t.duration_ms or 0 for t in rec.transcript.turns)
             judge_ms = sum(j.latency_ms or 0 for j in rec.judges)
@@ -70,7 +72,7 @@ def historical_debate_durations(
                 break
         if len(totals) >= max_records:
             break
-        if idx + 1 >= max_files:
+        if processed_files >= max_files:
             break
     if not totals:
         return None, 0
