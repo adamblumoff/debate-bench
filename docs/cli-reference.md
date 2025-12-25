@@ -28,6 +28,7 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--openrouter-probe / --no-openrouter-probe` — 1-token probe per selected model; failures are dropped (default on).
 - `--topic-select / --no-topic-select` — interactive topic picker (default on).
 - `--tui-wizard / --no-tui-wizard` — curses wizard that combines topic/model/judge selection (default on; falls back to prompts if curses unavailable).
+- `--prod-run / --no-prod-run` — config-only mode: disables interactive selection and forces balanced judges + judges-from-selection.
 - `--judges-from-selection` — reuse selected debaters as judge pool; active debaters in a debate are excluded from sampling.
 - `--openrouter-judge-months INT` — judge catalog lookback (defaults to `--openrouter-months`).
 
@@ -46,16 +47,16 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 **Execution control**
 - `--resume` — skip debates already present in the debates file (useful after interruption).
 - `--dry-run` — plan only: prints cost/time estimates, writes `results/run_<tag>/dryrun_schedule.json`, and exits before any debates.
-- `--estimate-time / --no-estimate-time` — show wall-clock estimate from recent runs (default on, with 15% buffer).
+- `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; falls back to recent medians (default on).
 - `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
 - `--postupload / --no-postupload` — after postrun, upload results to S3 (default on).
 - `--postupload-bucket TEXT` — S3 bucket for `--postupload` (optional; defaults from env or `debatebench-results`).
 - `--postupload-prefix TEXT` — key prefix inside the bucket (optional; defaults from env or `runs/<run_tag>`).
 - `--postupload-profile TEXT` — AWS profile to use (optional; defaults from env; leave unset for Railway buckets).
 - `--postupload-region TEXT` — AWS region override (optional; defaults from env).
-- `--postupload-include-artifacts` — also upload `run_<tag>/`, `viz_<tag>/`, `plots_<tag>/`, and `ratings_<tag>.json` if present (default on).
+- `--postupload-include-artifacts` — also upload `run_<tag>/`, `viz_<tag>/`, `plots_<tag>/`, and `ratings_<tag>.json` if present (default off).
 - `--postupload-dry-run` — list postupload keys without sending.
-- `--quick-test` — quick smoke test: 1 random topic, predefined debaters/judges from `configs/quick-test-models.yaml`.
+- `--quick-test` — quick smoke test: random topic(s) and predefined debaters/judges from `configs/quick-test-models.yaml`; disables postupload and skips summaries/plots.
 - `--judges-test` — judge-focused smoke: 1 topic, fixed debaters (Haiku vs Gemini 2.5 Flash Lite), judges (Gemini 3 Pro, GPT-5.1); balanced sides off.
 
 **Incremental append**
@@ -142,5 +143,6 @@ All results utilities are also available under `debatebench results <command>`:
 - Debater turns: per-round token caps come from `configs/config.yaml`. In the nested schema, `debate.rounds[].max_tokens: null` is treated as 5,000 by the parser. The debater adapter fallback to 1,024 only matters if a round token limit ends up unset (e.g., by applying stage limits without setting `--openrouter-max-tokens`).
 - Judge temperature is forced to 0.0; judge responses are validated against a strict JSON schema. Non-JSON fallbacks are parsed best-effort; all-minimum-score replies are rejected.
 - Balanced judge sampling prioritizes least-used overall, then least-used for the topic and pair; random is uniform.
-- Progress and failures: `results/run_<tag>/progress.json` tracks counts and banned models; `results/run_<tag>/failed_judges.jsonl` appears when `--log-failed-judges` is set.
+- Progress and failures: live view shows active debates, per-debate rounds, judging progress, retries, and rate-limit/backoff status. `results/run_<tag>/progress.json` tracks counts and banned models; `results/run_<tag>/failed_judges.jsonl` appears when `--log-failed-judges` is set.
+- Timing snapshots: `results/run_<tag>/timing_snapshot.json` is written after each run and feeds `--estimate-time`.
 - Resume: `--resume` and incremental append both rely on the debates file; planning skips already-completed topic/pair/rep combos.

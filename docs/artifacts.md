@@ -16,6 +16,7 @@ Where DebateBench writes outputs and what each file contains.
   - `dryrun_schedule.json` — full planned debates and judge panels (only when `--dry-run`).
   - `progress.json` — rolling counters (completed prior/new, total planned, banned models, timestamp).
   - `failed_judges.jsonl` — judge failures when `--log-failed-judges` is enabled.
+  - `timing_snapshot.json` — p50/p75/p90 latency summaries by model, stage, and judge; used for wall-time estimates.
 
 ## Debate record (JSONL)
 Each line is a `DebateRecord`:

@@ -122,7 +122,7 @@ Rules:
 ---
 
 ## `quick-test-models.yaml`
-Used by `debatebench run --quick-test` to provide a tiny, cheap smoke test.
+Used by `debatebench run --quick-test` to provide a tiny, cheap smoke test (random topic(s), fixed debaters/judges).
 ```yaml
 num_judges: 3
 debaters: [...]

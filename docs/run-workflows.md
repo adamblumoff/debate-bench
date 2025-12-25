@@ -12,6 +12,7 @@ What happens:
 - Wizard asks for topics, debaters, judges (text-only OpenRouter models from last 4 months).
 - Each model is probed with a 1-token request; failures are dropped.
 - Balanced sides (A vs B and B vs A) and balanced judges.
+- Live view shows concurrent debates, per-debate round progress, judging status, retries, and rate-limit/backoff info.
 - Outputs: `results/debates_demo.jsonl`, `results/viz_demo/`, `results/plots_demo/`, `results/ratings_demo.json`, `results/run_demo/*`.
 
 ## 2) Scripted run (no prompts)
@@ -28,13 +29,14 @@ debatebench run \
 Notes:
 - Topics/models/judges come directly from config files.
 - Keep `--openrouter-probe` on (default) to drop unusable entries.
+- Alternatively, use `--prod-run` to force config-only selection with balanced judges and judges-from-selection.
 
 ## 3) Cheap smoke test (minutes, low cost)
-Use predefined light models from `configs/quick-test-models.yaml` (1 topic, debates-per-pair=1, balanced sides ON by default).
+Use predefined light models from `configs/quick-test-models.yaml` (random topic(s), debates-per-pair=1, balanced sides ON by default).
 ```bash
 debatebench run --quick-test --run-tag smoke
 ```
-Runs 1 random topic, fixed debater pair, 3 judges, with both orientations (pro/con swapped) because `--balanced-sides` remains on by default.
+Runs random topic(s) (honors `--sample-topics`), fixed debater pair, 3 judges, with both orientations (pro/con swapped) because `--balanced-sides` remains on by default. Postrun summaries/plots and postupload are skipped in quick-test mode.
 
 ## 4) Judge-only sanity test
 Focus on judge JSON compliance with a tiny match.
@@ -63,7 +65,7 @@ Planner infers topics, debates-per-pair, judge settings, and only schedules pair
 debatebench run --run-tag plan --debates-per-pair 1 --sample-topics 4 --dry-run
 ```
 Outputs:
-- Console: estimated wall time (median of recent runs + 15%), rough USD cost (live OpenRouter pricing + optional activity snapshot), per-model/per-judge cost share. During actual runs, observed OpenRouter costs are recorded per turn/judge when provided and override snapshots in the dashboard.
+- Console: estimated wall time from timing snapshots (p50/p75/p90 with buffer) or recent medians, rough USD cost (live OpenRouter pricing + optional activity snapshot), per-model/per-judge cost share. During actual runs, observed OpenRouter costs are recorded per turn/judge when provided and override snapshots in the dashboard.
 - File: `results/run_plan/dryrun_schedule.json` with every planned debate and judge panel.
 
 ## 8) Tighten or loosen token caps
@@ -83,7 +85,7 @@ debatebench upload-results --source results/run_demo --prefix runs/demo
 ```
 Add `--dry-run` to preview keys. For Railway buckets, ensure `DEBATEBENCH_S3_ENDPOINT` is set and path-style is enabled (`DEBATEBENCH_S3_FORCE_PATH_STYLE=true`), or pass `--endpoint-url` / `--force-path-style`.
 
-Note: `debatebench run` now defaults `--postupload` and `--postupload-include-artifacts` to on. Use `--no-postupload` to skip uploads for a specific run.
+Note: `debatebench run` defaults `--postupload` on and `--postupload-include-artifacts` off. Use `--no-postupload` to skip uploads for a specific run.
 
 ## 10) Inspect and share outputs
 - Show leaderboard:

@@ -156,6 +156,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     total_rounds = len(main_cfg.rounds)
     total_steps = total_rounds + 1
     status_lock = threading.Lock()
+    stop_requested = threading.Event()
     task_status: dict[str, dict] = {}
     status_queue: queue.Queue[tuple] = queue.Queue()
     refresh_interval = 0.25
@@ -368,9 +369,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             try:
                 while queue_tasks or inflight:
+                    if stop_requested.is_set():
+                        raise KeyboardInterrupt
                     drain_status(live, inflight)
                     attempts = 0
                     while queue_tasks and len(inflight) < max_workers:
+                        if stop_requested.is_set():
+                            raise KeyboardInterrupt
                         task = queue_tasks.pop(0)
                         attempts += 1
                         if task.pro_model.id in banned_models or task.con_model.id in banned_models:
@@ -478,8 +483,9 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 raise
 
     def _sigint_handler(_signum, _frame):
-        console.print("[yellow]Run interrupted by user.[/yellow]")
-        os._exit(130)
+        stop_requested.set()
+        console.print("[yellow]Run interrupted by user. Cancelling in-flight debates...[/yellow]")
+        raise KeyboardInterrupt
 
     previous_handler = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, _sigint_handler)
@@ -503,6 +509,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 if retry_tasks:
                     submit_tasks(retry_tasks, retry_offset=17, live=live)
     finally:
+        write_progress()
         signal.signal(signal.SIGINT, previous_handler)
 
 
