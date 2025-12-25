@@ -431,42 +431,42 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 for future in done:
                     task, attempt_seed, task_index, start_time = inflight.pop(future)
                     try:
-                            record, aggregate = future.result()
-                            append_debate_record(setup.debates_path, record)
-                            completed_new += 1
-                            progress.advance(progress_task, 1)
+                        record, aggregate = future.result()
+                        append_debate_record(setup.debates_path, record)
+                        completed_new += 1
+                        progress.advance(progress_task, 1)
+                        write_progress()
+                        update_progress(active_count=len(inflight))
+                        _update_status(task.task_id, phase="done")
+                        maybe_update(live, inflight)
+                    except EmptyResponseError as e:
+                        failed_total += 1
+                        update_progress(active_count=len(inflight))
+                        status_queue.put(("error", task.task_id, {"message": str(e)}))
+                        if live:
+                            live.console.print(
+                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                            )
+                        if opts.skip_on_empty:
+                            banned_models.add(e.model_id)
+                            if live:
+                                live.console.print(
+                                    f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
+                                )
                             write_progress()
-                            update_progress(active_count=len(inflight))
-                            _update_status(task.task_id, phase="done")
-                            maybe_update(live, inflight)
-                        except EmptyResponseError as e:
-                            failed_total += 1
-                            update_progress(active_count=len(inflight))
-                            status_queue.put(("error", task.task_id, {"message": str(e)}))
-                            if live:
-                                live.console.print(
-                                    f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                                )
-                            if opts.skip_on_empty:
-                                banned_models.add(e.model_id)
-                                if live:
-                                    live.console.print(
-                                        f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
-                                    )
-                                write_progress()
-                            else:
-                                failed_debates.append(task)
-                            maybe_update(live, inflight)
-                        except Exception as e:
-                            failed_total += 1
-                            status_queue.put(("error", task.task_id, {"message": str(e)}))
-                            update_progress(active_count=len(inflight))
-                            if live:
-                                live.console.print(
-                                    f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
-                                )
+                        else:
                             failed_debates.append(task)
-                            maybe_update(live, inflight)
+                        maybe_update(live, inflight)
+                    except Exception as e:
+                        failed_total += 1
+                        status_queue.put(("error", task.task_id, {"message": str(e)}))
+                        update_progress(active_count=len(inflight))
+                        if live:
+                            live.console.print(
+                                f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
+                            )
+                        failed_debates.append(task)
+                        maybe_update(live, inflight)
             except KeyboardInterrupt:
                 if live:
                     live.console.print("[yellow]Interrupted. Cancelling in-flight debates...[/yellow]")
