@@ -48,6 +48,13 @@ def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
         rng=rng,
     )
 
+    if opts.prod_run:
+        opts.tui_wizard = False
+        opts.topic_select = False
+        opts.openrouter_select = False
+        opts.judges_from_selection = True
+        opts.balanced_judges = True
+
     # Incremental append path
     if setup.incremental_mode:
         if opts.quick_test or opts.judges_test:
@@ -103,6 +110,7 @@ def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
         "openrouter_judge_max_tokens": opts.openrouter_judge_max_tokens,
         "topic_select": opts.topic_select,
         "tui_wizard": opts.tui_wizard,
+        "prod_run": opts.prod_run,
         "apply_stage_token_limits": opts.apply_stage_token_limits,
         "skip_on_empty": opts.skip_on_empty,
         "quick_test": opts.quick_test,

@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 import statistics
+import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Iterable, Any
 
 import requests
 
@@ -57,6 +58,202 @@ def historical_debate_durations(results_dir: Path, max_files: int = 5, max_recor
     if not totals:
         return None, 0
     return statistics.median(totals), len(totals)
+
+
+def _percentile(values: Iterable[float], pct: float) -> float:
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return 0.0
+    if len(vals) == 1:
+        return vals[0]
+    idx = min(len(vals) - 1, max(0, int(round(pct * (len(vals) - 1)))))
+    return vals[idx]
+
+
+def write_timing_snapshot(
+    debates_path: Path,
+    out_path: Path,
+    run_tag: str,
+    max_workers: int,
+    per_model_cap: int,
+) -> None:
+    if not debates_path.exists():
+        return
+    try:
+        records = load_debate_records(debates_path)
+    except Exception:
+        return
+
+    debate_totals = []
+    model_stage: Dict[str, Dict[str, list[float]]] = {}
+    judge_lat: Dict[str, list[float]] = {}
+
+    for rec in records:
+        tr = rec.transcript
+        turn_ms = 0.0
+        for t in tr.turns:
+            ms = t.duration_ms or 0.0
+            turn_ms += ms
+            model_id = tr.pro_model_id if t.speaker == "pro" else tr.con_model_id
+            if not model_id:
+                continue
+            bucket = model_stage.setdefault(model_id, {})
+            bucket.setdefault(t.stage, []).append(ms / 1000.0)
+            bucket.setdefault("_all", []).append(ms / 1000.0)
+        judge_ms = 0.0
+        for j in rec.judges:
+            if j.latency_ms is None:
+                continue
+            judge_ms += j.latency_ms
+            judge_lat.setdefault(j.judge_id, []).append(j.latency_ms / 1000.0)
+        total_ms = turn_ms + judge_ms
+        if total_ms > 0:
+            debate_totals.append(total_ms / 1000.0)
+
+    def _summarize(vals: Iterable[float]) -> Dict[str, float]:
+        vlist = list(vals)
+        return {
+            "p50": _percentile(vlist, 0.50),
+            "p75": _percentile(vlist, 0.75),
+            "p90": _percentile(vlist, 0.90),
+            "n": float(len(vlist)),
+        }
+
+    model_summary: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for mid, stage_map in model_stage.items():
+        model_summary[mid] = {stage: _summarize(vals) for stage, vals in stage_map.items()}
+
+    judge_summary = {jid: _summarize(vals) for jid, vals in judge_lat.items()}
+
+    payload: Dict[str, Any] = {
+        "run_tag": run_tag,
+        "debates_path": str(debates_path),
+        "created_at": time.time(),
+        "max_workers": max_workers,
+        "per_model_cap": per_model_cap,
+        "debate_totals": _summarize(debate_totals),
+        "model_stage_latencies": model_summary,
+        "judge_latencies": judge_summary,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def load_timing_snapshots(results_dir: Path, max_files: int = 10) -> list[Dict[str, Any]]:
+    snapshots = sorted(results_dir.glob("run_*/timing_snapshot.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for path in snapshots[:max_files]:
+        try:
+            out.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    return out
+
+
+def estimate_wall_time(
+    tasks,
+    rounds,
+    max_workers: int,
+    per_model_cap: int,
+    snapshots: list[Dict[str, Any]],
+    fallback_per_debate: float | None = None,
+) -> Tuple[Dict[str, float], Dict[str, str]]:
+    model_stage = {}
+    judge_lat = {}
+    snap_models = set()
+    snap_judges = set()
+    debate_totals = []
+    for snap in snapshots:
+        ms = snap.get("model_stage_latencies", {}) or {}
+        jl = snap.get("judge_latencies", {}) or {}
+        model_stage.update(ms)
+        judge_lat.update(jl)
+        snap_models.update(ms.keys())
+        snap_judges.update(jl.keys())
+        dt = snap.get("debate_totals") or {}
+        if dt.get("p50"):
+            debate_totals.append(float(dt["p50"]))
+
+    def get_model_stage(mid: str, stage: str, pct: str) -> float:
+        data = model_stage.get(mid, {})
+        if stage in data and pct in data[stage]:
+            return float(data[stage][pct])
+        if "_all" in data and pct in data["_all"]:
+            return float(data["_all"][pct])
+        return 0.0
+
+    def get_judge(jid: str, pct: str) -> float:
+        data = judge_lat.get(jid, {})
+        if pct in data:
+            return float(data[pct])
+        return 0.0
+
+    def debate_time(task, pct: str) -> float:
+        total = 0.0
+        for round_cfg in rounds:
+            model_id = task.pro_model.id if round_cfg.speaker == "pro" else task.con_model.id
+            total += get_model_stage(model_id, round_cfg.stage, pct)
+        for j in task.panel_configs:
+            total += get_judge(j.id, pct)
+        return total
+
+    if not snapshots:
+        # Fallback: median per debate from recent history.
+        fallback = fallback_per_debate or (statistics.median(debate_totals) if debate_totals else 60.0)
+        return {
+            "p50": fallback,
+            "p75": fallback * 1.2,
+            "p90": fallback * 1.4,
+        }, {"source": "fallback"}
+
+    required_models = {t.pro_model.id for t in tasks} | {t.con_model.id for t in tasks}
+    required_judges = {j.id for t in tasks for j in t.panel_configs}
+    model_coverage = len(required_models & snap_models) / max(1, len(required_models))
+    judge_coverage = len(required_judges & snap_judges) / max(1, len(required_judges))
+    if model_coverage < 0.7 or judge_coverage < 0.7:
+        fallback = fallback_per_debate or (statistics.median(debate_totals) if debate_totals else 60.0)
+        return {
+            "p50": fallback,
+            "p75": fallback * 1.2,
+            "p90": fallback * 1.4,
+        }, {
+            "source": "fallback",
+            "coverage_models": f"{model_coverage:.2f}",
+            "coverage_judges": f"{judge_coverage:.2f}",
+        }
+
+    totals = {pct: 0.0 for pct in ("p50", "p75", "p90")}
+    per_model_work = {pct: {} for pct in ("p50", "p75", "p90")}
+    for task in tasks:
+        for pct in ("p50", "p75", "p90"):
+            t = debate_time(task, pct)
+            totals[pct] += t
+            for round_cfg in rounds:
+                model_id = task.pro_model.id if round_cfg.speaker == "pro" else task.con_model.id
+                per_model_work[pct][model_id] = per_model_work[pct].get(model_id, 0.0) + get_model_stage(
+                    model_id, round_cfg.stage, pct
+                )
+            for j in task.panel_configs:
+                per_model_work[pct][j.id] = per_model_work[pct].get(j.id, 0.0) + get_judge(j.id, pct)
+
+    estimates = {}
+    for pct in ("p50", "p75", "p90"):
+        total_work = totals[pct]
+        global_time = total_work / max(1, max_workers)
+        model_times = [
+            work / max(1, per_model_cap) for work in per_model_work[pct].values()
+        ]
+        bottleneck = max(model_times) if model_times else 0.0
+        estimates[pct] = max(global_time, bottleneck)
+
+    meta = {
+        "source": "snapshots",
+        "max_workers": str(max_workers),
+        "per_model_cap": str(per_model_cap),
+        "coverage_models": f"{model_coverage:.2f}",
+        "coverage_judges": f"{judge_coverage:.2f}",
+    }
+    return estimates, meta
 
 
 def fetch_pricing(models_needed: set[str], settings) -> Dict[str, Tuple[float, float]]:
@@ -318,6 +515,9 @@ def estimate_cost(
 __all__ = [
     "format_duration",
     "historical_debate_durations",
+    "write_timing_snapshot",
+    "load_timing_snapshots",
+    "estimate_wall_time",
     "fetch_pricing",
     "load_activity_pricing",
     "load_token_stats",

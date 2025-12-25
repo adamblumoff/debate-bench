@@ -340,6 +340,7 @@ def run_judge_panel(
     seed: int | None = None,
     log=None,
     failed_judges_sink=None,
+    progress_hook=None,
 ) -> Tuple[List[JudgeResult], AggregatedResult]:
     """
     Try candidates in order until `expected` valid judge results are collected.
@@ -368,6 +369,8 @@ def run_judge_panel(
         try:
             res = run_single_judge(adapter, transcript, config)
             results.append(res)
+            if progress_hook:
+                progress_hook(len(results), expected, adapter.config.id)
             if usage is not None:
                 usage[adapter.config.id] = usage.get(adapter.config.id, 0) + 1
         except Exception as e:

@@ -31,7 +31,15 @@ def plot_command(
     # Winner counts
     df = pd.read_csv(viz_dir / "winner_counts.csv")
     fig, ax = plt.subplots()
-    sns.barplot(x="winner", y="count", data=df, palette=palettes["seq"], ax=ax)
+    sns.barplot(
+        x="winner",
+        y="count",
+        data=df,
+        hue="winner",
+        legend=False,
+        palette=palettes["seq"][: df["winner"].nunique()],
+        ax=ax,
+    )
     ax.set_title("Winner Distribution")
     style_axes(ax)
     save(fig, "winner_counts.png")
@@ -84,7 +92,15 @@ def plot_command(
     # Judge majority alignment
     df = pd.read_csv(viz_dir / "judge_majority_alignment.csv")
     fig, ax = plt.subplots()
-    sns.barplot(x="judge_id", y="alignment_rate", data=df, palette=palettes["seq"], ax=ax)
+    sns.barplot(
+        x="judge_id",
+        y="alignment_rate",
+        data=df,
+        hue="judge_id",
+        legend=False,
+        palette=palettes["seq"][: df["judge_id"].nunique()],
+        ax=ax,
+    )
     ax.set_title("Judge vs Panel Majority")
     ax.set_ylim(0, 1)
     style_axes(ax)
@@ -111,7 +127,15 @@ def plot_command(
         rows.append({"model_id": r.model_id, "side": "con", "wins": r.con_w})
     melt = pd.DataFrame(rows)
     fig, ax = plt.subplots(figsize=(8, 4 + 0.3 * len(df)))
-    sns.barplot(x="wins", y="model_id", hue="side", data=melt, orient="h", ax=ax, palette=palettes["seq"])
+    sns.barplot(
+        x="wins",
+        y="model_id",
+        hue="side",
+        data=melt,
+        orient="h",
+        ax=ax,
+        palette=palettes["seq"][: melt["side"].nunique()],
+    )
     ax.set_title("Wins by Side per Model")
     style_axes(ax)
     save(fig, "model_winrate_by_side.png")
@@ -119,7 +143,15 @@ def plot_command(
     # Dimension score gaps
     df = pd.read_csv(viz_dir / "dimension_score_gaps.csv")
     fig, ax = plt.subplots(figsize=(8, 4))
-    sns.boxplot(x="dimension", y="gap", data=df, palette=palettes["seq"], ax=ax)
+    sns.boxplot(
+        x="dimension",
+        y="gap",
+        data=df,
+        hue="dimension",
+        legend=False,
+        palette=palettes["seq"][: df["dimension"].nunique()],
+        ax=ax,
+    )
     ax.axhline(0, color="black", linewidth=1)
     ax.set_title("Score Gap (PRO minus CON) per Dimension")
     style_axes(ax)
@@ -128,7 +160,15 @@ def plot_command(
     # Turn timings
     df = pd.read_csv(viz_dir / "turn_timings.csv")
     fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
-    sns.barplot(x="mean_ms", y="model_id", hue="side", data=df, orient="h", ax=ax, palette=palettes["seq"])
+    sns.barplot(
+        x="mean_ms",
+        y="model_id",
+        hue="side",
+        data=df,
+        orient="h",
+        ax=ax,
+        palette=palettes["seq"][: df["side"].nunique()],
+    )
     ax.set_title("Mean Turn Duration (ms) by Model and Side")
     style_axes(ax)
     save(fig, "turn_timings.png")
@@ -137,7 +177,15 @@ def plot_command(
     df = pd.read_csv(viz_dir / "token_usage.csv")
     melt = df.melt(id_vars=["model_id", "side"], value_vars=["mean_prompt_tokens", "mean_completion_tokens"], var_name="kind", value_name="tokens")
     fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
-    sns.barplot(x="tokens", y="model_id", hue="kind", data=melt, orient="h", ax=ax, palette=palettes["seq"])
+    sns.barplot(
+        x="tokens",
+        y="model_id",
+        hue="kind",
+        data=melt,
+        orient="h",
+        ax=ax,
+        palette=palettes["seq"][: melt["kind"].nunique()],
+    )
     ax.set_title("Mean Token Usage by Model and Side")
     style_axes(ax)
     save(fig, "token_usage.png")
@@ -147,7 +195,15 @@ def plot_command(
     if cost_path.exists():
         df = pd.read_csv(cost_path)
         fig, ax = plt.subplots(figsize=(8, 4 + 0.2 * len(df)))
-        sns.barplot(x="mean_cost_usd", y="model_id", hue="side", data=df, orient="h", ax=ax, palette=palettes["seq"])
+        sns.barplot(
+            x="mean_cost_usd",
+            y="model_id",
+            hue="side",
+            data=df,
+            orient="h",
+            ax=ax,
+            palette=palettes["seq"][: df["side"].nunique()],
+        )
         ax.set_title("Mean Observed Cost (USD) by Model and Side")
         style_axes(ax)
         save(fig, "cost_usage.png")
