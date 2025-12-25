@@ -138,7 +138,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     if uses_free_models:
         console.print("[cyan]OpenRouter free models detected; throttling to ~20 RPM.[/cyan]")
 
-    per_model_cap = 4
+    per_model_cap = 12
     model_semaphores = {
         cfg.id: threading.Semaphore(per_model_cap)
         for cfg in [*setup.debater_models, *setup.judge_models]
