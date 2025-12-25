@@ -616,8 +616,7 @@ export function buildDerived(
           const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
           const variance =
             arr.length > 1
-              ? arr.reduce((a, b) => a + (b - mean) ** 2, 0) /
-                (arr.length - 1)
+              ? arr.reduce((a, b) => a + (b - mean) ** 2, 0) / (arr.length - 1)
               : 0;
           const std = Math.sqrt(variance);
           const ciLow = mean - 1.96 * std;

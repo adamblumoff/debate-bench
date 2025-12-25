@@ -1,6 +1,7 @@
 "use client";
 
 import { toTokens } from "@/lib/format";
+import posthog from "posthog-js";
 
 function formatModelId(id: string) {
   if (id.includes("/")) return id;
@@ -151,7 +152,13 @@ export function HighlightsTabs({
         <button
           key={t}
           className={active === t ? "active" : ""}
-          onClick={() => onChange(t)}
+          onClick={() => {
+            onChange(t);
+            posthog.capture("highlights_tab_changed", {
+              tab: t,
+              previous_tab: active,
+            });
+          }}
         >
           {t === "performance"
             ? "Performance"

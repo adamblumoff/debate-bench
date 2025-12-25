@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { RunConfig } from "@/lib/server/runs";
 import { Download } from "lucide-react";
+import posthog from "posthog-js";
 
 type Props = {
   runOptions: RunConfig[];
@@ -67,7 +70,14 @@ export function RunControls({
             className="bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100"
             aria-labelledby="run-selector-label"
             value={runId || ""}
-            onChange={(e) => onRunChange(e.target.value)}
+            onChange={(e) => {
+              const newRunId = e.target.value;
+              onRunChange(newRunId);
+              posthog.capture("run_changed", {
+                run_id: newRunId,
+                previous_run_id: runId,
+              });
+            }}
             disabled={
               manifestLoading ||
               refreshingRuns ||
@@ -109,7 +119,12 @@ export function RunControls({
           </button>
           <button
             className="btn-ghost subtle disabled:opacity-60"
-            onClick={onRefreshData}
+            onClick={() => {
+              onRefreshData();
+              posthog.capture("data_refreshed", {
+                run_id: runId,
+              });
+            }}
             disabled={disableDataRefresh}
           >
             Refresh data
@@ -125,6 +140,9 @@ export function RunControls({
               }
               e.preventDefault();
               onDownloadData();
+              posthog.capture("data_downloaded", {
+                run_id: runId,
+              });
             }}
             aria-disabled={disableDownloadData}
             aria-label="Download debates JSONL"

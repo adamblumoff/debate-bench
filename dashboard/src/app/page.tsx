@@ -34,6 +34,7 @@ import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
 import { ManifestResponse } from "@/lib/apiTypes";
 import { PricePerfMetric } from "@/lib/specs/highlights";
+import posthog from "posthog-js";
 
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -160,15 +161,8 @@ function DashboardContent() {
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [manifest, runId, runFromUrl, router, searchParams]);
 
-  const {
-    status,
-    error,
-    derived,
-    derivedByCategory,
-    meta,
-    costSummary,
-    load,
-  } = useEnsureData(runId, runReady);
+  const { status, error, derived, derivedByCategory, meta, costSummary, load } =
+    useEnsureData(runId, runReady);
   const loadBiasCv = useDataStore((s) => s.loadBiasCv);
   const biasCvLoading = useDataStore(
     (s) => s._biasCvLoading?.[runId || "default"] ?? false,
@@ -290,9 +284,7 @@ function DashboardContent() {
   const biasCvRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!runId || status !== "ready") return;
-    if (
-      derived?.judgeBias?.some((j) => typeof j.adj_bias_mean === "number")
-    ) {
+    if (derived?.judgeBias?.some((j) => typeof j.adj_bias_mean === "number")) {
       return;
     }
     const el = biasCvRef.current;
@@ -419,7 +411,13 @@ function DashboardContent() {
                     <div className="tab-switch">
                       <button
                         className={pricePerfMetric === "elo" ? "active" : ""}
-                        onClick={() => setPricePerfMetric("elo")}
+                        onClick={() => {
+                          setPricePerfMetric("elo");
+                          posthog.capture("price_perf_metric_changed", {
+                            metric: "elo",
+                            previous_metric: pricePerfMetric,
+                          });
+                        }}
                       >
                         Elo
                       </button>
@@ -427,7 +425,13 @@ function DashboardContent() {
                         className={
                           pricePerfMetric === "win_rate" ? "active" : ""
                         }
-                        onClick={() => setPricePerfMetric("win_rate")}
+                        onClick={() => {
+                          setPricePerfMetric("win_rate");
+                          posthog.capture("price_perf_metric_changed", {
+                            metric: "win_rate",
+                            previous_metric: pricePerfMetric,
+                          });
+                        }}
                       >
                         Win rate
                       </button>

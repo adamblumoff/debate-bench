@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MAX_COMPARE } from "@/lib/compareLimits";
+import posthog from "posthog-js";
 
 export function useCompareQuery(max = MAX_COMPARE, enabled = true) {
   const searchParams = useSearchParams();
@@ -41,6 +42,10 @@ export function useCompareQuery(max = MAX_COMPARE, enabled = true) {
       if (selected.includes(id)) return;
       const next = [...selected, id].slice(-max);
       writeSelection(next);
+      posthog.capture("model_added_to_compare", {
+        model_id: id,
+        total_selected: next.length,
+      });
     },
     [max, enabled, selected, writeSelection],
   );
@@ -50,6 +55,10 @@ export function useCompareQuery(max = MAX_COMPARE, enabled = true) {
       if (!enabled) return;
       const next = selected.filter((m) => m !== id);
       writeSelection(next);
+      posthog.capture("model_removed_from_compare", {
+        model_id: id,
+        remaining_selected: next.length,
+      });
     },
     [enabled, selected, writeSelection],
   );

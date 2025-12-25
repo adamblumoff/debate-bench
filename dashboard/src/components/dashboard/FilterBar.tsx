@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
+import posthog from "posthog-js";
 
 type Props = {
   categories: string[];
@@ -62,21 +63,49 @@ export function FilterBar({
 
   const toggleModel = (id: string) => {
     if (selectedModels.includes(id)) {
-      onModels(selectedModels.filter((m) => m !== id));
+      const next = selectedModels.filter((m) => m !== id);
+      onModels(next);
+      posthog.capture("model_filter_changed", {
+        action: "removed",
+        model_id: id,
+        selected_count: next.length,
+      });
       return;
     }
-    onModels([...selectedModels, id]);
+    const next = [...selectedModels, id];
+    onModels(next);
+    posthog.capture("model_filter_changed", {
+      action: "added",
+      model_id: id,
+      selected_count: next.length,
+    });
   };
 
   const toggleCategory = (id: string) => {
     if (selectedCategories.includes(id)) {
-      onCategories(selectedCategories.filter((c) => c !== id));
+      const next = selectedCategories.filter((c) => c !== id);
+      onCategories(next);
+      posthog.capture("category_filter_changed", {
+        action: "removed",
+        category: id,
+        selected_count: next.length,
+      });
       return;
     }
-    onCategories([...selectedCategories, id]);
+    const next = [...selectedCategories, id];
+    onCategories(next);
+    posthog.capture("category_filter_changed", {
+      action: "added",
+      category: id,
+      selected_count: next.length,
+    });
   };
 
   const handleReset = () => {
+    posthog.capture("filters_reset", {
+      previous_categories_count: selectedCategories.length,
+      previous_models_count: selectedModels.length,
+    });
     if (onResetFilters) {
       onResetFilters();
       return;

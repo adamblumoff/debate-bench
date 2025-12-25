@@ -1,4 +1,9 @@
-import { JudgeAgreementRow, JudgeBiasRow, JudgeRowForBuilder, Winner } from "@/lib/types";
+import {
+  JudgeAgreementRow,
+  JudgeBiasRow,
+  JudgeRowForBuilder,
+  Winner,
+} from "@/lib/types";
 
 export function recomputeJudgeMetrics(judgeRows: JudgeRowForBuilder[]): {
   judgeAgreement: JudgeAgreementRow[];

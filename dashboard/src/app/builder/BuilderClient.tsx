@@ -14,6 +14,7 @@ import { MAX_COMPARE } from "@/lib/compareLimits";
 import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { useFieldGuards } from "./useFieldGuards";
+import posthog from "posthog-js";
 
 type DatasetKey = "debates" | "judges" | "judge_bias";
 type ChartType = "bar" | "scatter" | "heatmap";
@@ -130,10 +131,21 @@ export default function BuilderClient({
             setSpec(res.spec);
             setAvailableFields(res.fields);
             if (res.fieldTypes) setFieldTypesState(res.fieldTypes);
+            posthog.capture("chart_built", {
+              dataset: ds,
+              chart_type: ct,
+              x_field: xf,
+              y_field: yf,
+              color_field: cf,
+              models_count: selected.length,
+            });
           })
           .catch((err) => {
             if (myRequest !== requestId.current) return;
             setError(err instanceof Error ? err.message : "Update failed");
+            posthog.captureException(
+              err instanceof Error ? err : new Error("Chart build failed"),
+            );
           });
       });
     },
@@ -236,7 +248,12 @@ export default function BuilderClient({
               value={chartType}
               onChange={(e) => {
                 const ct = e.target.value as ChartType;
+                const previousChartType = chartType;
                 setChartType(ct);
+                posthog.capture("chart_type_changed", {
+                  chart_type: ct,
+                  previous_chart_type: previousChartType,
+                });
                 if (ct === "scatter" && !yField) {
                   const fallback =
                     fieldOptions.find((f) => f !== xField) ??

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { MIN_COMPARE, MAX_COMPARE } from "@/lib/compareLimits";
 import { DerivedData } from "@/lib/types";
 import { toPercent, toTokens } from "@/lib/format";
+import posthog from "posthog-js";
 
 type Props = {
   models: string[];
@@ -36,15 +37,33 @@ export function CompareDrawer({
           .slice(0, MAX_COMPARE)
       : [];
 
-  useEffect(() => {
-    if (lastAdded) setOpen(true);
-  }, [lastAdded, setOpen]);
+  // Track if drawer was previously open to avoid duplicate events
+  const wasOpenRef = useRef(open);
+
+  const handleMouseEnter = () => {
+    if (!wasOpenRef.current) {
+      posthog.capture("compare_drawer_opened", {
+        models_count: models.length,
+      });
+    }
+    wasOpenRef.current = true;
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    wasOpenRef.current = false;
+    setOpen(false);
+  };
+
+  // Suppress unused lastAdded warning - prop is kept for backward compatibility
+  // The parent component now controls drawer opening directly via setOpen
+  void lastAdded;
 
   return (
     <div
       className={`compare-drawer-left ${open ? "open" : ""}`}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="compare-tab">
         Compare {rows.length ? `(${rows.length})` : ""}
