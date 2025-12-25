@@ -158,6 +158,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     completed_new = 0
     failed_total = 0
     skipped_total = 0
+    requeue_total = 0
     run_index = 0
     total_rounds = len(main_cfg.rounds)
     total_steps = total_rounds + 1
@@ -281,7 +282,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         header.add_row(
             f"Inflight {len(inflight)}/{max_workers} | "
             f"Completed {completed_new}/{total_runs} | "
-            f"Failed {failed_total} | Skipped {skipped_total}"
+            f"Failed {failed_total} | Skipped {skipped_total} | "
+            f"Requeued {requeue_total}"
         )
         header.add_row(f"Per-model cap: {per_model_cap} in-flight debates")
         if limiter:
@@ -368,7 +370,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         return record, aggregate
 
     def submit_tasks(task_list, retry_offset: int = 0, live: Live | None = None):
-        nonlocal completed_new, run_index, failed_debates, failed_total, skipped_total
+        nonlocal completed_new, run_index, failed_debates, failed_total, skipped_total, requeue_total
         queue_tasks = list(task_list)
         inflight = {}
 
@@ -403,6 +405,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         reserved = reserve_models(task)
                         if reserved is None:
                             queue_tasks.append(task)
+                            requeue_total += 1
                             if attempts >= len(queue_tasks):
                                 time.sleep(0.1)
                             continue
