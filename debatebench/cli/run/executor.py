@@ -139,45 +139,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         console.print("[cyan]OpenRouter free models detected; throttling to ~20 RPM.[/cyan]")
 
     per_model_cap = 12
-    model_semaphores = {
-        cfg.id: threading.Semaphore(per_model_cap)
-        for cfg in [*setup.debater_models, *setup.judge_models]
+    model_inflight: dict[str, int] = {
+        cfg.id: 0 for cfg in [*setup.debater_models, *setup.judge_models]
     }
+    model_lock = threading.Lock()
 
-    class _DebaterLimiter:
-        def __init__(self, adapter, semaphore):
-            self._adapter = adapter
-            self._semaphore = semaphore
-            self.config = adapter.config
-
-        def generate(self, *args, **kwargs):
-            self._semaphore.acquire()
-            try:
-                return self._adapter.generate(*args, **kwargs)
-            finally:
-                self._semaphore.release()
-
-    class _JudgeLimiter:
-        def __init__(self, adapter, semaphore):
-            self._adapter = adapter
-            self._semaphore = semaphore
-            self.config = adapter.config
-
-        def judge(self, *args, **kwargs):
-            self._semaphore.acquire()
-            try:
-                return self._adapter.judge(*args, **kwargs)
-            finally:
-                self._semaphore.release()
-
-    debater_adapters = {
-        m.id: _DebaterLimiter(build_debater_adapter(m, setup.settings), model_semaphores[m.id])
-        for m in setup.debater_models
-    }
-    judge_adapters = {
-        j.id: _JudgeLimiter(build_judge_adapter(j, setup.settings), model_semaphores[j.id])
-        for j in setup.judge_models
-    }
+    debater_adapters = {m.id: build_debater_adapter(m, setup.settings) for m in setup.debater_models}
+    judge_adapters = {j.id: build_judge_adapter(j, setup.settings) for j in setup.judge_models}
 
     total_runs = plan.total_runs
     existing_completed = plan.existing_completed
@@ -315,7 +283,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             f"Completed {completed_new}/{total_runs} | "
             f"Failed {failed_total} | Skipped {skipped_total}"
         )
-        header.add_row(f"Per-model cap: {per_model_cap} in-flight calls")
+        header.add_row(f"Per-model cap: {per_model_cap} in-flight debates")
         if limiter:
             limiter_label = f"Rate limit: {limiter} RPM"
             if backoff > 0:
@@ -339,7 +307,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             table.add_row("-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-")
         else:
             for idx, (_, meta) in enumerate(inflight.items(), start=1):
-                task, _attempt_seed, _task_index, _start_time = meta
+                task, _attempt_seed, _task_index, _start_time, _reserved = meta
                 with status_lock:
                     status = task_status.get(
                         task.task_id,
@@ -401,21 +369,42 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
 
     def submit_tasks(task_list, retry_offset: int = 0, live: Live | None = None):
         nonlocal completed_new, run_index, failed_debates, failed_total, skipped_total
-        index = 0
+        queue_tasks = list(task_list)
         inflight = {}
+
+        def reserve_models(task) -> list[str] | None:
+            models = sorted({task.pro_model.id, task.con_model.id, *[j.id for j in task.panel_configs]})
+            with model_lock:
+                if any(model_inflight[m] >= per_model_cap for m in models):
+                    return None
+                for m in models:
+                    model_inflight[m] += 1
+            return models
+
+        def release_models(models: list[str]) -> None:
+            with model_lock:
+                for m in models:
+                    model_inflight[m] = max(0, model_inflight.get(m, 0) - 1)
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             try:
-                while index < len(task_list) or inflight:
+                while queue_tasks or inflight:
                     drain_status(live, inflight)
-                    while index < len(task_list) and len(inflight) < max_workers:
-                        task = task_list[index]
-                        index += 1
+                    attempts = 0
+                    while queue_tasks and len(inflight) < max_workers:
+                        task = queue_tasks.pop(0)
+                        attempts += 1
                         if task.pro_model.id in banned_models or task.con_model.id in banned_models:
                             skipped_total += 1
                             progress.advance(progress_task, 1)
                             update_progress(active_count=len(inflight))
                             maybe_update(live, inflight)
+                            continue
+                        reserved = reserve_models(task)
+                        if reserved is None:
+                            queue_tasks.append(task)
+                            if attempts >= len(queue_tasks):
+                                time.sleep(0.1)
                             continue
                         run_index += 1
                         task_index = run_index
@@ -460,14 +449,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         future = pool.submit(
                             run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
                         )
-                        inflight[future] = (task, attempt_seed, task_index, start_time)
+                        inflight[future] = (task, attempt_seed, task_index, start_time, reserved)
                         maybe_update(live, inflight)
 
                     done, _ = wait(inflight.keys(), return_when=FIRST_COMPLETED, timeout=0.2)
                     if not done:
                         continue
                     for future in done:
-                        task, attempt_seed, task_index, start_time = inflight.pop(future)
+                        task, attempt_seed, task_index, start_time, reserved = inflight.pop(future)
+                        release_models(reserved)
                         try:
                             record, aggregate = future.result()
                             append_debate_record(setup.debates_path, record)
