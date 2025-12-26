@@ -3,7 +3,7 @@
 Run debate-style LLM evaluations, collect judge scores, and compute Elo-style ratings with a reproducible CLI. Requires an OpenRouter API key and real model endpoints; there is no synthetic fallback path in the current CLI.
 
 ## Requirements
-- Python 3.9+
+- Python 3.12
 - Dependencies (installed via `pip install -e .`): Typer, Pydantic v2, pandas/seaborn/matplotlib.
 - `.env` with `OPENROUTER_API_KEY` (required for real runs) and optional `OPENROUTER_SITE_URL` / `OPENROUTER_SITE_NAME` for referral headers.
 - Optional AWS creds for `upload-results`.
@@ -53,7 +53,5 @@ debatebench inspect-debate <debate_uuid>
 ## Where to go next
 - CLI details: `docs/cli-reference.md`
 - Config schema and prompts: `docs/config-guide.md`
-- Common workflows and examples: `docs/run-workflows.md`
-- Artifact map and CSV schemas: `docs/artifacts.md`
 - Troubleshooting: `docs/troubleshooting.md`
 - Dashboard ingestion (Next.js): `docs/dashboard-ingestion.md`
