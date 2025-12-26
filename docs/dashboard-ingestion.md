@@ -57,18 +57,6 @@ DEBATEBENCH_S3_FORCE_PATH_STYLE=true                        # recommended for Ra
 ```
 The CLI also falls back to `S3_BUCKET`, `S3_PREFIX`, `AWS_PROFILE`, and `S3_REGION` if present.
 
-## Start the dashboard locally
-```bash
-cd dashboard
-pnpm install
-pnpm dev
-# open http://localhost:3000
-```
-
-## Deploy
-- Set the same env vars on your host (e.g., Vercel). Ensure the deploy IAM role can sign `GetObject` on the configured key.
-- The API signs only allowlisted keys from env; bucket objects remain private.
-
 ## Mapping CLI outputs to the dashboard
 - Primary input: `debates_<tag>.jsonl`.
 - Derived metrics inside the dashboard include: Elo, win rates, side bias, head-to-head, judge agreement, topic/category splits, token usage, and cost snapshot.
@@ -83,3 +71,8 @@ pnpm dev
 - Using a key that is not allowlisted by `S3_KEY`: the signer will reject it.
 - Uploading an empty or partial debates file: the dashboard will show zeros; verify with `debatebench inspect-debate --latest` before uploading.
 - Large files: the dashboard parses JSONL server-side to build aggregates; ~3,000 debates (a few MB) is the assumed v1 limit.
+
+## Related docs
+- Overview: `docs/dashboard.md`
+- API endpoints: `docs/dashboard-api.md`
+- Local dev workflow: `docs/dev-workflow.md`

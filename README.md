@@ -54,4 +54,8 @@ debatebench inspect-debate <debate_uuid>
 - CLI details: `docs/cli-reference.md`
 - Config schema and prompts: `docs/config-guide.md`
 - Troubleshooting: `docs/troubleshooting.md`
+- Results schema: `docs/results-schema.md`
+- Dashboard overview: `docs/dashboard.md`
 - Dashboard ingestion (Next.js): `docs/dashboard-ingestion.md`
+- Dashboard API: `docs/dashboard-api.md`
+- Dev workflow: `docs/dev-workflow.md`
