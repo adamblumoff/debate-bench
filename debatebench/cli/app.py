@@ -11,6 +11,7 @@ from .inspect import inspect_debate
 from .summarize import summarize
 from .plot import plot_command
 from .upload import upload_results_command
+from .sample import sample_debates
 
 app = typer.Typer(help="DebateBench CLI")
 results_app = typer.Typer(name="results", help="Results, inspection, and upload utilities.")
@@ -24,6 +25,7 @@ app.command("inspect-debate")(inspect_debate)
 app.command("summarize")(summarize)
 app.command("plot")(plot_command)
 app.command("upload-results")(upload_results_command)
+app.command("sample-debates")(sample_debates)
 
 # Sub-app aliases (legacy flat commands remain supported)
 results_app.command("rate")(rate_command)
@@ -32,6 +34,7 @@ results_app.command("inspect-debate")(inspect_debate)
 results_app.command("summarize")(summarize)
 results_app.command("plot")(plot_command)
 results_app.command("upload-results")(upload_results_command)
+results_app.command("sample-debates")(sample_debates)
 
 app.add_typer(results_app, name="results")
 
