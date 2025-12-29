@@ -36,7 +36,7 @@ def build_schedule(
                 debate_rng = random.Random(debate_seed)
                 pro_model = model_a
                 con_model = model_b
-                if (not opts.balanced_sides) and opts.swap_sides and debate_rng.random() < 0.5:
+                if opts.side_policy == "random" and debate_rng.random() < 0.5:
                     pro_model, con_model = con_model, pro_model
                 judge_source_pool = list(setup.judge_models)
                 if opts.judges_from_selection:
@@ -63,7 +63,7 @@ def build_schedule(
                             main_cfg.num_judges,
                             debate_seed,
                             usage_counts,
-                            opts.balanced_judges,
+                                opts.judge_policy == "balanced",
                             topic_id=topic.id,
                             pair_key=pair_key,
                             topic_usage=topic_usage,

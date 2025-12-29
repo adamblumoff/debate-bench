@@ -53,13 +53,16 @@ def apply_standard_selection(state: SelectionState, setup) -> SelectionState:
             )
 
     used_wizard = False
-    if opts.tui_wizard:
+    use_wizard = opts.ui == "wizard"
+    use_prompts = opts.ui == "prompts"
+    use_topics = opts.ui != "none"
+    if use_wizard:
         try:
             wizard_result = selection_wizard(
-                topics=state.topics if opts.topic_select else [],
+                topics=state.topics if use_topics else [],
                 model_catalog=debater_catalog if opts.openrouter_select else [],
                 judge_catalog=judge_catalog if (not opts.judges_from_selection) else [],
-                enable_topics=opts.topic_select,
+                enable_topics=use_topics,
                 enable_models=opts.openrouter_select,
                 enable_judges=not opts.judges_from_selection,
             )
@@ -114,7 +117,7 @@ def apply_standard_selection(state: SelectionState, setup) -> SelectionState:
 
     if not used_wizard:
         state.topics_selected = state.topics
-        if opts.topic_select:
+        if use_topics and use_prompts:
             state.topics_selected = _interactive_select_topics(state.topics, console)
             if not state.topics_selected:
                 raise typer.BadParameter("All topics were disabled; nothing to run.")

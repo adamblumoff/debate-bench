@@ -54,10 +54,10 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
             raise typer.BadParameter(f"New model '{opts.new_model_id}' disappeared after selection.")
         incumbents = [m for m in setup.debater_models if m.id != opts.new_model_id]
         combined_order = incumbents + [new_model_cfg]
-        all_pairs = build_pairs(combined_order, opts.balanced_sides)
+        all_pairs = build_pairs(combined_order, opts.side_policy == "balanced")
         pairs = [p for p in all_pairs if opts.new_model_id in {p[0].id, p[1].id}]
     else:
-        pairs = build_pairs(setup.debater_models, opts.balanced_sides)
+        pairs = build_pairs(setup.debater_models, opts.side_policy == "balanced")
 
     completed_counts = {}
     judge_usage = {}
@@ -166,7 +166,7 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
             main_cfg.rounds,
             len(setup.topics_selected),
             debates_per_pair,
-            opts.balanced_sides,
+            opts.side_policy == "balanced",
             pairs,
             pricing_override=pricing_map,
             token_stats=(deb_stats, judge_stats),

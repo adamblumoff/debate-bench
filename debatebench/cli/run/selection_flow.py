@@ -42,8 +42,8 @@ def _print_selection_summary(state: SelectionState, opts: RunOptions) -> None:
         f"{len(state.debater_models)} debaters, "
         f"{len(state.judge_models)} judges, "
         f"debates_per_pair={state.debates_per_pair}, "
-        f"balanced_sides={opts.balanced_sides}, "
-        f"balanced_judges={opts.balanced_judges}."
+        f"side_policy={opts.side_policy}, "
+        f"judge_policy={opts.judge_policy}."
     )
 
 
@@ -75,11 +75,10 @@ def perform_selection(setup: RunSetup) -> SelectionResult:
     )
 
     if opts.prod_run:
-        opts.tui_wizard = False
-        opts.topic_select = False
+        opts.ui = "none"
         opts.openrouter_select = False
         opts.judges_from_selection = True
-        opts.balanced_judges = True
+        opts.judge_policy = "balanced"
 
     if setup.incremental_mode and (opts.quick_test or opts.judges_test):
         raise typer.BadParameter("--new-model cannot be combined with --quick-test or --judges-test.")
@@ -107,8 +106,8 @@ def perform_selection(setup: RunSetup) -> SelectionResult:
             )
         state.debates_per_pair = 1
 
-    if opts.apply_stage_token_limits:
-        _apply_stage_limits(state.main_cfg, opts.openrouter_max_tokens)
+    if opts.stage_max_tokens is not None:
+        _apply_stage_limits(state.main_cfg, opts.stage_max_tokens)
 
     _print_selection_summary(state, opts)
 
@@ -123,10 +122,7 @@ def perform_selection(setup: RunSetup) -> SelectionResult:
         "sample_topics": opts.sample_topics,
         "debates_per_pair": state.debates_per_pair,
         "seed": opts.seed,
-        "swap_sides": opts.swap_sides,
-        "balanced_sides": opts.balanced_sides,
         "side_policy": opts.side_policy,
-        "balanced_judges": opts.balanced_judges,
         "judge_policy": opts.judge_policy,
         "openrouter_select": opts.openrouter_select,
         "openrouter_months": opts.openrouter_months,
@@ -136,11 +132,8 @@ def perform_selection(setup: RunSetup) -> SelectionResult:
         "judges_from_selection": opts.judges_from_selection,
         "openrouter_judge_months": opts.openrouter_judge_months,
         "openrouter_judge_max_tokens": opts.openrouter_judge_max_tokens,
-        "topic_select": opts.topic_select,
-        "tui_wizard": opts.tui_wizard,
         "ui": opts.ui,
         "prod_run": opts.prod_run,
-        "apply_stage_token_limits": opts.apply_stage_token_limits,
         "stage_max_tokens": opts.stage_max_tokens,
         "skip_on_empty": opts.skip_on_empty,
         "quick_test": opts.quick_test,

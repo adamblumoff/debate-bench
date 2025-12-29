@@ -43,8 +43,7 @@ def _make_setup(sample_topics=None):
         openrouter_max_tokens=None,
         openrouter_judge_max_tokens=None,
         openrouter_judge_months=None,
-        topic_select=False,
-        tui_wizard=False,
+        ui="none",
         sample_topics=sample_topics,
         judges_from_selection=True,
     )

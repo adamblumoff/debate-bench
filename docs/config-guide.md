@@ -57,7 +57,7 @@ elo:
 ```
 
 Notes:
-- Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--apply-stage-token-limits` can overwrite opening/rebuttal/closing token limits to `--openrouter-max-tokens` for a run.
+- Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--stage-max-tokens` can overwrite opening/rebuttal/closing token limits for a run.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.
 - Scoring dimensions: ids should be short, lowercase-friendly; min/max define the integer range judges must return. Winner is computed from mean scores (no winner field required).
@@ -76,7 +76,7 @@ Array of topics:
 ```
 Notes:
 - `id` should be stable across runs; `category` is optional and used in some plots.
-- Interactive selection (`--topic-select`) starts with all topics disabled; you toggle ones to include.
+- Interactive selection uses `--ui` (`wizard` or `prompts`). Prompts start with all topics disabled; you toggle ones to include.
 - `--sample-topics N` randomly samples after selection.
 
 ---
@@ -141,7 +141,7 @@ Keep model IDs valid in your OpenRouter account; temperatures are usually lower 
 ## Token limits: how precedence works
 Debaters:
 1) The CLI passes the per-round `max_tokens`/`token_limit` from `configs/config.yaml` as `max_tokens` on each turn request.
-2) If `--apply-stage-token-limits` is set, opening/rebuttal/closing rounds are overwritten to `--openrouter-max-tokens` for that run.
+2) If `--stage-max-tokens` is set, opening/rebuttal/closing rounds are overwritten for that run.
 3) If a round token limit is ever unset/`None` (unusual), the OpenRouter adapter falls back to the model `token_limit`, then `parameters.max_tokens`, then 1,024.
 
 Judges:

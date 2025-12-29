@@ -93,15 +93,55 @@ def apply_incremental_selection(state: SelectionState, setup) -> SelectionState:
         )
 
     # Carry forward base CLI toggles to mirror baseline schedule semantics.
-    opts.balanced_sides = state.base_cli_args.get("balanced_sides", opts.balanced_sides)
-    opts.swap_sides = state.base_cli_args.get("swap_sides", opts.swap_sides)
-    opts.balanced_judges = state.base_cli_args.get("balanced_judges", opts.balanced_judges)
+    base_side_policy = state.base_cli_args.get("side_policy")
+    if base_side_policy:
+        opts.side_policy = base_side_policy
+    else:
+        balanced_sides = state.base_cli_args.get("balanced_sides")
+        swap_sides = state.base_cli_args.get("swap_sides")
+        if balanced_sides:
+            opts.side_policy = "balanced"
+        elif swap_sides:
+            opts.side_policy = "random"
+        else:
+            opts.side_policy = "fixed"
+
+    base_judge_policy = state.base_cli_args.get("judge_policy")
+    if base_judge_policy:
+        opts.judge_policy = base_judge_policy
+    else:
+        balanced_judges = state.base_cli_args.get("balanced_judges")
+        opts.judge_policy = "balanced" if balanced_judges else "random"
+
     opts.judges_from_selection = state.base_cli_args.get("judges_from_selection", opts.judges_from_selection)
-    opts.apply_stage_token_limits = state.base_cli_args.get("apply_stage_token_limits", opts.apply_stage_token_limits)
     opts.openrouter_max_tokens = state.base_cli_args.get("openrouter_max_tokens", opts.openrouter_max_tokens)
     opts.openrouter_judge_max_tokens = state.base_cli_args.get(
         "openrouter_judge_max_tokens", opts.openrouter_judge_max_tokens
     )
+
+    base_ui = state.base_cli_args.get("ui")
+    if base_ui:
+        opts.ui = base_ui
+    else:
+        tui_wizard = state.base_cli_args.get("tui_wizard")
+        topic_select = state.base_cli_args.get("topic_select")
+        if tui_wizard:
+            opts.ui = "wizard"
+        elif topic_select:
+            opts.ui = "prompts"
+        else:
+            opts.ui = "none"
+
+    base_stage_max = state.base_cli_args.get("stage_max_tokens")
+    if base_stage_max is not None:
+        opts.stage_max_tokens = base_stage_max
+    else:
+        apply_stage = state.base_cli_args.get("apply_stage_token_limits")
+        if apply_stage:
+            opts.stage_max_tokens = opts.openrouter_max_tokens
+    if opts.stage_max_tokens is not None and opts.openrouter_max_tokens is None:
+        opts.openrouter_max_tokens = opts.stage_max_tokens
+
     state.judge_output_max_tokens = opts.openrouter_judge_max_tokens
 
     new_model_cfg = next((m for m in state.debater_models if m.id == opts.new_model_id), None)
@@ -208,7 +248,7 @@ def apply_quick_test_selection(state: SelectionState, setup) -> SelectionState:
 def apply_judges_test_selection(state: SelectionState, setup) -> SelectionState:
     opts = setup.options
     state.topics_selected = [state.rng.choice(state.topics)]
-    opts.balanced_sides = False  # single orientation: pro=first model, con=second
+    opts.side_policy = "fixed"  # single orientation: pro=first model, con=second
     state.debates_per_pair = 1
     state.debater_models = [
         DebaterModelConfig(

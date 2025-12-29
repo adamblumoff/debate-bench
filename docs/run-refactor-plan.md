@@ -34,7 +34,7 @@ Goal: simplify the CLI run flow by isolating concerns (selection, planning, exec
   - `--side-policy {balanced, random, fixed}` replaces `--balanced-sides` + `--swap-sides`
   - `--judge-policy {balanced, random}` replaces `--balanced-judges/--random-judges`
   - `--ui {wizard, prompts, none}` replaces `--tui-wizard` + `--topic-select`
-- Consider replacing `--apply-stage-token-limits` with `--stage-max-tokens` (explicit value).
+- Replace `--apply-stage-token-limits` with `--stage-max-tokens` (explicit value).
 - Consider moving `--postupload*` to a dedicated command if run flags get too crowded.
 
 ## Notes

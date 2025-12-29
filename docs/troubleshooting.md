@@ -13,12 +13,12 @@ Quick fixes for common issues when running DebateBench.
 
 ## Judges & panels
 - **“Need at least N judges after exclusions”**: When using `--judges-from-selection`, active debaters are excluded from the judge pool. Add more models or turn off that flag.
-- **Unbalanced judge usage**: Use default `--balanced-judges` to even usage by topic/pair; `--random-judges` is uniform sampling.
+- **Unbalanced judge usage**: Use `--judge-policy balanced` to even usage by topic/pair; `--judge-policy random` is uniform sampling.
 - **Judge JSON parse failures**: Enable `--log-failed-judges` to capture raw replies in `results/run_<tag>/failed_judges.jsonl`. Judges are retried with alternates until the expected count is reached; if not, the debate fails.
 
 ## Debate execution
 - **Empty turn / banned model**: If a model returns empty content after retries, the run fails unless `--skip-on-empty` is set, which bans that model for the remainder. Check `progress.json` for `banned_models`.
-- **Long or runaway turns**: Tighten per-round `max_tokens` in `configs/config.yaml`, or run with `--apply-stage-token-limits --openrouter-max-tokens <N>`. (Note: `--openrouter-max-tokens` alone does not override `configs/config.yaml` stage caps.)
+- **Long or runaway turns**: Tighten per-round `max_tokens` in `configs/config.yaml`, or run with `--stage-max-tokens <N>`. (Note: `--openrouter-max-tokens` alone does not override `configs/config.yaml` stage caps.)
 - **High variance outputs**: Lower `--openrouter-temperature` (debater) or use deterministic models. Judges are already forced to temperature 0.
 - **429s or rate limiting**: The OpenRouter adapter backs off automatically (respects `Retry-After` when provided). The live view shows backoff seconds and reason; repeated 429s usually mean too much concurrency for the account tier.
 - **Free models feel slow**: If any model id ends with `:free`, the runner throttles to ~20 RPM to avoid OpenRouter rate-limit churn.
@@ -33,7 +33,7 @@ Quick fixes for common issues when running DebateBench.
 - **Incremental append errors**: Confirm `results/run_<tag>/config_snapshot/cli_args.json` and `effective_selection.json` exist, and that the new model ID is present in `configs/models.yaml`.
 
 ## CLI UX
-- **Curses wizard not available**: The CLI falls back to prompt-based selection. You can also disable it with `--no-tui-wizard`.
+- **Curses wizard not available**: The CLI falls back to prompt-based selection. You can also disable it with `--ui prompts` or `--ui none`.
 - **Terminal colors garbled**: Rich output uses ANSI colors; set `TERM=xterm-256color` or run with `NO_COLOR=1` to disable colors.
 - **Live view flicker**: Refresh is throttled, but on slow terminals you can disable Rich color via `NO_COLOR=1` to reduce redraw cost.
 

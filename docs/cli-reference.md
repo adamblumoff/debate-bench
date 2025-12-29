@@ -19,31 +19,25 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--debates-per-pair INT` — debates per ordered model pair per topic. Default 1 (or inferred when `--new-model`).
 - `--sample-topics INT` — randomly sample this many topics (after interactive selection).
 - `--seed INT` — RNG seed (12345).
-- `--side-policy {balanced,random,fixed}` — side assignment policy (preferred).
-- `--balanced-sides / --no-balanced-sides` — permutations vs combinations (deprecated; replaced by `--side-policy`).
-- `--swap-sides` — when not balanced, randomly swap pro/con per debate (deprecated; replaced by `--side-policy random`).
+- `--side-policy {balanced,random,fixed}` — side assignment policy.
 
 **Selection**
 - `--openrouter-select / --no-openrouter-select` — interactive debater picker from OpenRouter (default on). If off, uses `configs/models.yaml`.
 - `--openrouter-months INT` — catalog lookback in months (4).
 - `--openrouter-probe / --no-openrouter-probe` — 1-token probe per selected model; failures are dropped (default on).
-- `--ui {wizard,prompts,none}` — selection UI mode (preferred).
-- `--topic-select / --no-topic-select` — interactive topic picker (deprecated; replaced by `--ui prompts` or `--ui none`).
-- `--tui-wizard / --no-tui-wizard` — curses wizard selection (deprecated; replaced by `--ui wizard`).
+- `--ui {wizard,prompts,none}` — selection UI mode.
 - `--prod-run / --no-prod-run` — config-only mode: disables interactive selection and forces balanced judges + judges-from-selection.
 - `--judges-from-selection` — reuse selected debaters as judge pool; active debaters in a debate are excluded from sampling.
 - `--openrouter-judge-months INT` — judge catalog lookback (defaults to `--openrouter-months`).
 
 **Token/temperature**
 - `--openrouter-temperature FLOAT` — temperature for OpenRouter-selected debaters (0.7). Judges are forced to temperature 0.0 in the adapter.
-- `--openrouter-max-tokens INT` — token limit assigned to OpenRouter-selected debater configs. To cap debate turns, prefer `--stage-max-tokens`.
+- `--openrouter-max-tokens INT` — token limit assigned to OpenRouter-selected debater configs. To cap debate turns, use `--stage-max-tokens`.
 - `--openrouter-judge-max-tokens INT` — max tokens assigned to OpenRouter-selected judges (and quick-test judges). If you run with `--no-openrouter-select`, set judge caps in `configs/judges.yaml` (`token_limit` / `parameters.max_tokens`).
-- `--stage-max-tokens INT` — explicit per-stage max tokens (preferred).
-- `--apply-stage-token-limits` — overwrite per-round limits to `--openrouter-max-tokens` (deprecated; replaced by `--stage-max-tokens`).
+- `--stage-max-tokens INT` — explicit per-stage max tokens.
 
 **Judging**
-- `--judge-policy {balanced,random}` — judge selection policy (preferred).
-- `--balanced-judges / --random-judges` — balanced uses least-used-first, further balancing by topic and pair; random is uniform (deprecated; replaced by `--judge-policy`).
+- `--judge-policy {balanced,random}` — judge selection policy.
 - `--log-failed-judges` — append raw judge failures to `results/run_<tag>/failed_judges.jsonl`.
 - `--skip-on-empty` — if a debater returns empty content after retries, ban that model for the rest of the run instead of aborting.
 - `--retry-failed / --no-retry-failed` — retry failed debates once after the main loop. Default retry.

@@ -27,10 +27,7 @@ class RunOptions:
     sample_topics: Optional[int]
     debates_per_pair: Optional[int]
     seed: Optional[int]
-    swap_sides: bool
-    balanced_sides: bool
     side_policy: Optional[str]
-    balanced_judges: bool
     judge_policy: Optional[str]
     openrouter_select: bool
     openrouter_months: int
@@ -40,11 +37,8 @@ class RunOptions:
     judges_from_selection: bool
     openrouter_judge_months: Optional[int]
     openrouter_judge_max_tokens: Optional[int]
-    topic_select: bool
-    tui_wizard: bool
     ui: Optional[str]
     prod_run: bool
-    apply_stage_token_limits: bool
     stage_max_tokens: Optional[int]
     skip_on_empty: bool
     quick_test: bool
