@@ -18,7 +18,7 @@ class DummyAdapter:
         self._responses = iter(responses)
         self.calls = 0
 
-    def generate(self, prompt, turns, max_tokens=None):
+    def generate(self, prompt, turns, max_tokens=None, temperature=None):
         self.calls += 1
         return next(self._responses)
 

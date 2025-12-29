@@ -30,16 +30,19 @@ class ScoringConfig(BaseModel):
 class EloConfig(BaseModel):
     initial_rating: float = 400.0
     k_factor: float = 32.0
+    min_games_for_display: int = 0
 
 
 class MainConfig(BaseModel):
     benchmark_version: str = "v0"
     rubric_version: str = "v0"
+    benchmark_name: Optional[str] = None
     rounds: List[RoundConfig]
     scoring: ScoringConfig
     num_judges: int = 3
     elo: EloConfig = EloConfig()
     language: str = "en"
+    debate_temperature: Optional[float] = None
     system_prompt_pro: Optional[str] = None
     system_prompt_con: Optional[str] = None
     judge_system_prompt: Optional[str] = None

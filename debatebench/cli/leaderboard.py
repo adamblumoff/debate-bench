@@ -22,7 +22,13 @@ def show_leaderboard(
     Display leaderboard from ratings file.
     """
     ratings = read_ratings(ratings_path)
-    rows = sorted(ratings.models.items(), key=lambda kv: kv[1].rating, reverse=True)
+    min_games = getattr(ratings.elo, "min_games_for_display", 0) or 0
+    rows = [
+        item
+        for item in ratings.models.items()
+        if item[1].games_played >= min_games
+    ]
+    rows = sorted(rows, key=lambda kv: kv[1].rating, reverse=True)
     if top:
         rows = rows[:top]
 

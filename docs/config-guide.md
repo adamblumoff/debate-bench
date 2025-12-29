@@ -14,12 +14,12 @@ How DebateBench reads configuration files and how to author them safely. All pat
 ## `config.yaml` schema (nested style)
 ```yaml
 benchmark:
-  name: "DebateBench"   # optional label; currently ignored by runtime
+  name: "DebateBench"   # optional label; shown in artifacts when stored
   version: "v0.1"
 
 debate:
   language: "en"
-  temperature: 0.7      # optional default; currently ignored by runtime
+  temperature: 0.7      # optional default used for debater temperature unless model parameters override
   rounds:
     - role: pro
       stage: opening
@@ -55,11 +55,11 @@ scoring:
 elo:
   initial_rating: 400
   k_factor: 32
-  min_games_for_display: 5   # optional; currently ignored by runtime
+  min_games_for_display: 5   # optional; leaderboard hides models with fewer games
 ```
 
 Notes:
-- Config parsing is strict; unknown keys are rejected. Optional fields noted above are accepted but currently ignored unless otherwise stated.
+- Config parsing is strict; unknown keys are rejected.
 - Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--stage-max-tokens` can overwrite opening/rebuttal/closing token limits for a run.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.

@@ -111,8 +111,10 @@ def parse_main_config_data(data: dict) -> MainConfig:
         _reject_unknown_keys(elo, {"initial_rating", "k_factor", "min_games_for_display"}, "elo")
 
         benchmark_version = benchmark.get("version", "v0")
+        benchmark_name = benchmark.get("name")
         rubric_version = benchmark.get("rubric_version", benchmark_version)
         language = debate.get("language", "en")
+        debate_temperature = debate.get("temperature")
         system_prompt_pro = debate.get("system_prompt_pro")
         system_prompt_con = debate.get("system_prompt_con")
 
@@ -147,16 +149,19 @@ def parse_main_config_data(data: dict) -> MainConfig:
         elo_cfg = EloConfig(
             initial_rating=elo.get("initial_rating", 400.0),
             k_factor=elo.get("k_factor", 32.0),
+            min_games_for_display=elo.get("min_games_for_display", 0),
         )
 
         return MainConfig(
             benchmark_version=benchmark_version,
             rubric_version=rubric_version,
+            benchmark_name=benchmark_name,
             rounds=rounds if rounds else default_main_config().rounds,
             scoring=scoring_cfg,
             num_judges=num_judges,
             elo=elo_cfg,
             language=language,
+            debate_temperature=debate_temperature,
             system_prompt_pro=system_prompt_pro,
             system_prompt_con=system_prompt_con,
             judge_system_prompt=judge_system_prompt,
@@ -167,11 +172,13 @@ def parse_main_config_data(data: dict) -> MainConfig:
         {
             "benchmark_version",
             "rubric_version",
+            "benchmark_name",
             "rounds",
             "scoring",
             "num_judges",
             "elo",
             "language",
+            "debate_temperature",
             "system_prompt_pro",
             "system_prompt_con",
             "judge_system_prompt",

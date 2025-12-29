@@ -8,9 +8,10 @@ from debatebench import config as cfg
 
 def test_load_main_config_nested_schema(tmp_path):
     payload = {
-        "benchmark": {"version": "v1", "rubric_version": "v1r"},
+        "benchmark": {"version": "v1", "rubric_version": "v1r", "name": "Bench"},
         "debate": {
             "language": "en",
+            "temperature": 0.6,
             "system_prompt_pro": "pro prompt",
             "system_prompt_con": "con prompt",
             "rounds": [
@@ -26,7 +27,7 @@ def test_load_main_config_nested_schema(tmp_path):
             "judges_per_debate": 4,
             "judge_system_prompt": "json only",
         },
-        "elo": {"initial_rating": 500, "k_factor": 24},
+        "elo": {"initial_rating": 500, "k_factor": 24, "min_games_for_display": 3},
     }
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
@@ -34,11 +35,14 @@ def test_load_main_config_nested_schema(tmp_path):
     main_cfg = cfg.load_main_config(path)
     assert main_cfg.benchmark_version == "v1"
     assert main_cfg.rubric_version == "v1r"
+    assert main_cfg.benchmark_name == "Bench"
     assert main_cfg.system_prompt_pro == "pro prompt"
     assert main_cfg.system_prompt_con == "con prompt"
     assert main_cfg.num_judges == 4
     assert main_cfg.elo.initial_rating == 500
     assert main_cfg.elo.k_factor == 24
+    assert main_cfg.elo.min_games_for_display == 3
+    assert main_cfg.debate_temperature == 0.6
     assert len(main_cfg.rounds) == 2
     assert main_cfg.rounds[0].token_limit == 123
     assert main_cfg.rounds[1].token_limit == 321

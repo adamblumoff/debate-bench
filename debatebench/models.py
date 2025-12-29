@@ -17,7 +17,13 @@ class ModelAdapter:
 
 
 class DebaterAdapter(ModelAdapter):
-    def generate(self, prompt: str, turns: List[Turn], max_tokens: int | None = None):
+    def generate(
+        self,
+        prompt: str,
+        turns: List[Turn],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ):
         """Return (content, usage_dict)."""
         return "", {}
 
@@ -56,9 +62,18 @@ class OpenRouterAdapter(ModelAdapter):
 
 
 class OpenRouterDebaterAdapter(OpenRouterAdapter, DebaterAdapter):
-    def generate(self, prompt: str, turns: List[Turn], max_tokens: int | None = None):
+    def generate(
+        self,
+        prompt: str,
+        turns: List[Turn],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ):
         params = self.config.parameters or {}
-        temperature = params.get("temperature", 0.7)
+        if "temperature" in params:
+            temperature = params.get("temperature")
+        elif temperature is None:
+            temperature = 0.7
         token_limit = max_tokens or self.config.token_limit or params.get("max_tokens") or 1024
         messages = [{"role": "user", "content": prompt}]
         return self._client.request(

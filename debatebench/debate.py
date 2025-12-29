@@ -106,7 +106,12 @@ def run_debate(
         while attempts < max_attempts:
             attempts += 1
             t0 = time.perf_counter()
-            content, usage = adapter.generate(prompt, turns, max_tokens=round_cfg.token_limit)
+            content, usage = adapter.generate(
+                prompt,
+                turns,
+                max_tokens=round_cfg.token_limit,
+                temperature=config.debate_temperature,
+            )
             duration_ms = (time.perf_counter() - t0) * 1000
 
             # If content is empty but reasoning was returned (thinking routes), synthesize from reasoning.
