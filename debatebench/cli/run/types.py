@@ -29,7 +29,9 @@ class RunOptions:
     seed: Optional[int]
     swap_sides: bool
     balanced_sides: bool
+    side_policy: Optional[str]
     balanced_judges: bool
+    judge_policy: Optional[str]
     openrouter_select: bool
     openrouter_months: int
     openrouter_temperature: float
@@ -40,8 +42,10 @@ class RunOptions:
     openrouter_judge_max_tokens: Optional[int]
     topic_select: bool
     tui_wizard: bool
+    ui: Optional[str]
     prod_run: bool
     apply_stage_token_limits: bool
+    stage_max_tokens: Optional[int]
     skip_on_empty: bool
     quick_test: bool
     judges_test: bool

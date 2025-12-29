@@ -12,6 +12,69 @@ from .postrun import run_postrun
 from .selection_flow import perform_selection
 from .setup import prepare_run
 from .types import RunOptions
+from ..common import console
+
+
+def _normalize_options(options: RunOptions) -> None:
+    if options.side_policy:
+        policy = options.side_policy.lower()
+        if policy == "balanced":
+            options.balanced_sides = True
+            options.swap_sides = False
+        elif policy == "random":
+            options.balanced_sides = False
+            options.swap_sides = True
+        elif policy == "fixed":
+            options.balanced_sides = False
+            options.swap_sides = False
+        else:
+            raise typer.BadParameter("side_policy must be one of: balanced, random, fixed.")
+    else:
+        if options.swap_sides or not options.balanced_sides:
+            console.print("[yellow]Deprecated:[/yellow] use --side-policy instead of --balanced-sides/--swap-sides.")
+        if options.swap_sides and options.balanced_sides:
+            console.print("[yellow]Note:[/yellow] --swap-sides is ignored when --balanced-sides is enabled.")
+
+    if options.judge_policy:
+        policy = options.judge_policy.lower()
+        if policy == "balanced":
+            options.balanced_judges = True
+        elif policy == "random":
+            options.balanced_judges = False
+        else:
+            raise typer.BadParameter("judge_policy must be one of: balanced, random.")
+    else:
+        if options.balanced_judges is False:
+            console.print("[yellow]Deprecated:[/yellow] use --judge-policy instead of --random-judges.")
+
+    if options.ui:
+        mode = options.ui.lower()
+        if mode == "wizard":
+            options.tui_wizard = True
+            options.topic_select = True
+        elif mode == "prompts":
+            options.tui_wizard = False
+            options.topic_select = True
+        elif mode == "none":
+            options.tui_wizard = False
+            options.topic_select = False
+        else:
+            raise typer.BadParameter("ui must be one of: wizard, prompts, none.")
+    else:
+        if options.tui_wizard is False or options.topic_select is False:
+            console.print("[yellow]Deprecated:[/yellow] use --ui instead of --tui-wizard/--topic-select.")
+
+    if options.stage_max_tokens is not None:
+        if options.openrouter_max_tokens is not None and options.openrouter_max_tokens != options.stage_max_tokens:
+            console.print("[yellow]Note:[/yellow] --stage-max-tokens overrides --openrouter-max-tokens.")
+        options.openrouter_max_tokens = options.stage_max_tokens
+        options.apply_stage_token_limits = True
+    else:
+        if options.apply_stage_token_limits and options.openrouter_max_tokens is None:
+            console.print(
+                "[yellow]Note:[/yellow] --apply-stage-token-limits ignored because --openrouter-max-tokens is not set."
+            )
+            options.apply_stage_token_limits = False
 
 
 def run_command(
@@ -57,10 +120,22 @@ def run_command(
     balanced_sides: bool = typer.Option(
         True, help="Ensure each model pair plays both sides (permutations). Disable for combinations."
     ),
+    side_policy: str | None = typer.Option(
+        None,
+        "--side-policy",
+        help="Side assignment policy: balanced, random, or fixed (replaces --balanced-sides/--swap-sides).",
+        case_sensitive=False,
+    ),
     balanced_judges: bool = typer.Option(
         True,
         "--balanced-judges/--random-judges",
         help="Balance judge usage across the run (default). Disable to sample judges uniformly at random.",
+    ),
+    judge_policy: str | None = typer.Option(
+        None,
+        "--judge-policy",
+        help="Judge selection policy: balanced or random (replaces --balanced-judges/--random-judges).",
+        case_sensitive=False,
     ),
     openrouter_select: bool = typer.Option(
         True,
@@ -102,6 +177,12 @@ def run_command(
         "--tui-wizard/--no-tui-wizard",
         help="Use a single curses wizard for topic/model/judge selection when available (default on).",
     ),
+    ui: str | None = typer.Option(
+        None,
+        "--ui",
+        help="Selection UI: wizard, prompts, or none (replaces --tui-wizard/--topic-select).",
+        case_sensitive=False,
+    ),
     prod_run: bool = typer.Option(
         False,
         "--prod-run/--no-prod-run",
@@ -110,6 +191,11 @@ def run_command(
     apply_stage_token_limits: bool = typer.Option(
         False,
         help="Overwrite per-round token limits for opening/rebuttal/closing to --openrouter-max-tokens for this run.",
+    ),
+    stage_max_tokens: Optional[int] = typer.Option(
+        None,
+        "--stage-max-tokens",
+        help="Explicit per-stage max tokens (replaces --apply-stage-token-limits + --openrouter-max-tokens).",
     ),
     skip_on_empty: bool = typer.Option(
         False,
@@ -195,7 +281,9 @@ def run_command(
         seed=seed if seed is not None else 12345,
         swap_sides=swap_sides,
         balanced_sides=balanced_sides,
+        side_policy=side_policy,
         balanced_judges=balanced_judges,
+        judge_policy=judge_policy,
         openrouter_select=openrouter_select,
         openrouter_months=openrouter_months,
         openrouter_temperature=openrouter_temperature,
@@ -206,8 +294,10 @@ def run_command(
         openrouter_judge_max_tokens=openrouter_judge_max_tokens,
         topic_select=topic_select,
         tui_wizard=tui_wizard,
+        ui=ui,
         prod_run=prod_run,
         apply_stage_token_limits=apply_stage_token_limits,
+        stage_max_tokens=stage_max_tokens,
         skip_on_empty=skip_on_empty,
         quick_test=quick_test,
         judges_test=judges_test,
@@ -225,6 +315,8 @@ def run_command(
         postupload_dry_run=postupload_dry_run,
         estimate_time=estimate_time,
     )
+
+    _normalize_options(options)
 
     setup = prepare_run(options)
     selection_result = perform_selection(setup)
