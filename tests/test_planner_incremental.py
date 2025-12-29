@@ -99,8 +99,8 @@ def test_build_plan_incremental_filters_pairs(tmp_path):
         rng=random.Random(123),
     )
 
-    plan, dry_run = build_plan(setup, debates_per_pair=1)
-    assert dry_run is False
-    assert plan is not None
-    pair_ids = {(t.pro_model.id, t.con_model.id) for t in plan.tasks}
+    result = build_plan(setup, debates_per_pair=1)
+    assert result.dry_run_only is False
+    assert result.plan is not None
+    pair_ids = {(t.pro_model.id, t.con_model.id) for t in result.plan.tasks}
     assert all("c" in pair for pair in pair_ids)

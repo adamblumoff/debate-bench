@@ -12,10 +12,10 @@ from ..plot import plot_command
 from .estimate import write_timing_snapshot
 from ..rate import rate_command
 from ..summarize import summarize
-from .types import RunSetup
+from .types import RunSetup, PostrunResult
 
 
-def run_postrun(setup: RunSetup) -> None:
+def run_postrun(setup: RunSetup) -> PostrunResult:
     """Generate summaries/plots and optional ratings/leaderboard."""
     opts = setup.options
     if not opts.quick_test:
@@ -50,7 +50,7 @@ def run_postrun(setup: RunSetup) -> None:
             console.print(
                 "[yellow]Postupload skipped: no bucket configured. Set DEBATEBENCH_S3_BUCKET (or pass --postupload-bucket) to enable uploads.[/yellow]"
             )
-            return
+            return PostrunResult(ratings_path=setup.ratings_path if opts.postrate else None, uploaded=False)
 
         # If user didn't pass a prefix and no env prefix is set, default to runs/<tag>.
         raw_prefix = opts.postupload_prefix or setup.settings.s3_prefix or f"runs/{setup.run_tag}"
@@ -79,7 +79,7 @@ def run_postrun(setup: RunSetup) -> None:
             console.print(
                 f"[yellow]Postupload failed (continuing without aborting run): {e}[/yellow]"
             )
-            return
+            return PostrunResult(ratings_path=setup.ratings_path if opts.postrate else None, uploaded=False)
 
         if opts.postupload_include_artifacts:
             artifact_sources: list[Path] = [setup.run_dir, setup.viz_dir, setup.plots_dir]
@@ -103,6 +103,8 @@ def run_postrun(setup: RunSetup) -> None:
                     console.print(
                         f"[yellow]Postupload failed for {src} (continuing): {e}[/yellow]"
                     )
+
+    return PostrunResult(ratings_path=setup.ratings_path if opts.postrate else None, uploaded=opts.postupload)
 
 
 __all__ = ["run_postrun"]

@@ -98,8 +98,8 @@ def test_build_plan_basic(tmp_path):
         rng=random.Random(123),
     )
 
-    plan, dry_run = build_plan(setup, debates_per_pair=1)
-    assert dry_run is False
-    assert plan is not None
-    assert plan.total_runs == 2
-    assert len(plan.tasks) == 2
+    result = build_plan(setup, debates_per_pair=1)
+    assert result.dry_run_only is False
+    assert result.plan is not None
+    assert result.plan.total_runs == 2
+    assert len(result.plan.tasks) == 2

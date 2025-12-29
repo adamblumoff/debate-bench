@@ -16,8 +16,6 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-from rich.table import Table
-from rich.console import Group
 from rich.live import Live
 
 from ...debate import EmptyResponseError
@@ -31,10 +29,11 @@ from ...storage import append_debate_record
 from ..common import console
 from .executor_io import write_progress
 from .executor_task import run_debate_and_judge
-from .types import RunPlan, RunSetup
+from .executor_ui import render_active, update_progress
+from .types import RunPlan, RunSetup, ExecutionResult
 
 
-def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
+def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
     """Run debates, manage retries/progress, and append records."""
     opts = setup.options
     main_cfg = setup.main_cfg
@@ -93,21 +92,6 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     )
     progress_task = progress.add_task("Debates", total=total_runs)
 
-    def update_progress(active_count: int = 0) -> None:
-        progress.update(
-            progress_task,
-            description=(
-                f"Debates (active={active_count}, failed={failed_total}, skipped={skipped_total})"
-            ),
-        )
-
-    def _progress_bar(current: int, total: int, width: int = 10) -> str:
-        if total <= 0:
-            return "-" * width
-        filled = int(round(width * (current / total)))
-        filled = max(0, min(width, filled))
-        return "[" + ("█" * filled) + ("░" * (width - filled)) + "]"
-
     def _update_status(task_id: str, **updates) -> None:
         with status_lock:
             entry = task_status.setdefault(
@@ -132,7 +116,22 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             return
         now = time.monotonic()
         if force or (now - last_refresh) >= refresh_interval:
-            live.update(render_active(inflight))
+            live.update(
+                render_active(
+                    inflight=inflight,
+                    task_status=task_status,
+                    status_lock=status_lock,
+                    main_cfg=main_cfg,
+                    max_workers=max_workers,
+                    total_runs=total_runs,
+                    completed_new=completed_new,
+                    failed_total=failed_total,
+                    skipped_total=skipped_total,
+                    total_steps=total_steps,
+                    progress=progress,
+                    get_rate_status=get_openrouter_rate_limit_status,
+                )
+            )
             last_refresh = now
 
     def drain_status(live: Live | None, inflight: dict) -> None:
@@ -166,83 +165,6 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 )
         if updated:
             maybe_update(live, inflight)
-
-    def render_active(inflight: dict) -> Group:
-        status = get_openrouter_rate_limit_status()
-        limiter = status.get("max_rpm")
-        backoff = status.get("backoff_remaining") or 0.0
-        backoff_reason = status.get("backoff_reason") or ""
-
-        header = Table(show_header=False, box=None, expand=True)
-        header.add_column(justify="left")
-        header.add_row(
-            f"Inflight {len(inflight)}/{max_workers} | "
-            f"Completed {completed_new}/{total_runs} | "
-            f"Failed {failed_total} | Skipped {skipped_total}"
-        )
-        if limiter:
-            limiter_label = f"Rate limit: {limiter} RPM"
-            if backoff > 0:
-                limiter_label += f" | Backoff {backoff:.1f}s ({backoff_reason})"
-            header.add_row(limiter_label)
-
-        table = Table(title="Active debates", expand=True, show_edge=False)
-        table.add_column("Slot", justify="right", width=4)
-        table.add_column("Topic", overflow="fold")
-        table.add_column("Pro", overflow="fold")
-        table.add_column("Con", overflow="fold")
-        table.add_column("Round", justify="right", width=9)
-        table.add_column("Stage", overflow="fold")
-        table.add_column("Phase", overflow="fold")
-        table.add_column("Retry", justify="right", width=5)
-        table.add_column("Judges", justify="right", width=7)
-        table.add_column("Age", justify="right", width=6)
-        table.add_column("Error", overflow="fold")
-        table.add_column("Progress", overflow="fold")
-        if not inflight:
-            table.add_row("-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-")
-        else:
-            for idx, (_, meta) in enumerate(inflight.items(), start=1):
-                task, _attempt_seed, _task_index, _start_time = meta
-                with status_lock:
-                    status = task_status.get(
-                        task.task_id,
-                        {
-                            "round": 0,
-                            "stage": "-",
-                            "phase": "queued",
-                            "error": "",
-                            "last_update": time.monotonic(),
-                            "judges_done": 0,
-                            "judges_expected": main_cfg.num_judges,
-                            "retrying": False,
-                        },
-                    )
-                round_idx = status.get("round", 0)
-                stage = status.get("stage", "-")
-                phase = status.get("phase", "queued")
-                error = status.get("error", "")
-                retrying = status.get("retrying", False)
-                judges_done = status.get("judges_done", 0)
-                judges_expected = status.get("judges_expected", main_cfg.num_judges)
-                age = time.monotonic() - status.get("last_update", time.monotonic())
-                judges_label = "-" if phase != "judging" else f"{judges_done}/{judges_expected}"
-                progress_bar = _progress_bar(round_idx, total_steps)
-                table.add_row(
-                    str(idx),
-                    task.topic.id,
-                    task.pro_model.id,
-                    task.con_model.id,
-                    f"{round_idx}/{total_steps}",
-                    stage,
-                    phase,
-                    "yes" if retrying else "-",
-                    judges_label,
-                    f"{age:.0f}s",
-                    error,
-                    progress_bar,
-                )
-        return Group(header, progress, table)
 
     def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook, judge_hook):
         record, aggregate = run_debate_and_judge(
@@ -283,13 +205,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         if task.pro_model.id in banned_models or task.con_model.id in banned_models:
                             skipped_total += 1
                             progress.advance(progress_task, 1)
-                            update_progress(active_count=len(inflight))
+                            update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             maybe_update(live, inflight)
                             continue
                         run_index += 1
                         task_index = run_index
                         attempt_seed = task.seed + retry_offset
-                        update_progress(active_count=len(inflight) + 1)
+                        update_progress(progress, progress_task, len(inflight) + 1, failed_total, skipped_total)
                         start_time = time.perf_counter()
                         _update_status(
                             task.task_id,
@@ -353,12 +275,12 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                                 completed_prior=existing_completed,
                                 banned_models=banned_models,
                             )
-                            update_progress(active_count=len(inflight))
+                            update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             _update_status(task.task_id, phase="done")
                             maybe_update(live, inflight)
                         except EmptyResponseError as e:
                             failed_total += 1
-                            update_progress(active_count=len(inflight))
+                            update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             status_queue.put(("error", task.task_id, {"message": str(e)}))
                             if live:
                                 live.console.print(
@@ -385,7 +307,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                         except Exception as e:
                             failed_total += 1
                             status_queue.put(("error", task.task_id, {"message": str(e)}))
-                            update_progress(active_count=len(inflight))
+                            update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             if live:
                                 live.console.print(
                                     f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
@@ -408,8 +330,25 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     previous_handler = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, _sigint_handler)
     try:
-        with Live(render_active({}), console=console, refresh_per_second=4) as live:
-            update_progress(active_count=0)
+        with Live(
+            render_active(
+                inflight={},
+                task_status=task_status,
+                status_lock=status_lock,
+                main_cfg=main_cfg,
+                max_workers=max_workers,
+                total_runs=total_runs,
+                completed_new=completed_new,
+                failed_total=failed_total,
+                skipped_total=skipped_total,
+                total_steps=total_steps,
+                progress=progress,
+                get_rate_status=get_openrouter_rate_limit_status,
+            ),
+            console=console,
+            refresh_per_second=4,
+        ) as live:
+            update_progress(progress, progress_task, 0, failed_total, skipped_total)
             maybe_update(live, {}, force=True)
             submit_tasks(plan.tasks, retry_offset=0, live=live)
 
@@ -437,6 +376,13 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
             banned_models=banned_models,
         )
         signal.signal(signal.SIGINT, previous_handler)
+
+    return ExecutionResult(
+        completed_new=completed_new,
+        failed_total=failed_total,
+        skipped_total=skipped_total,
+        banned_models=sorted(banned_models),
+    )
 
 
 __all__ = ["execute_plan"]

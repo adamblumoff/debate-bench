@@ -227,12 +227,12 @@ def run_command(
     )
 
     setup = prepare_run(options)
-    setup, final_debates_per_pair = perform_selection(setup)
-    plan, dry_run_only = build_plan(setup, final_debates_per_pair)
-    if dry_run_only or plan is None:
+    selection_result = perform_selection(setup)
+    plan_result = build_plan(selection_result.setup, selection_result.debates_per_pair)
+    if plan_result.dry_run_only or plan_result.plan is None:
         return
-    execute_plan(setup, plan)
-    run_postrun(setup)
+    execute_plan(selection_result.setup, plan_result.plan)
+    run_postrun(selection_result.setup)
 
 
 __all__ = ["run_command"]

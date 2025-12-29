@@ -16,7 +16,7 @@ from .selection_modes import (
 )
 from .selection_standard import apply_standard_selection
 from .selection_state import SelectionState
-from .types import RunOptions, RunSetup
+from .types import RunOptions, RunSetup, SelectionResult, RunMode
 
 def _clamp_num_judges(main_cfg, judge_models):
     main_cfg.num_judges = min(max(main_cfg.num_judges, 2), len(judge_models))
@@ -47,7 +47,17 @@ def _print_selection_summary(state: SelectionState, opts: RunOptions) -> None:
     )
 
 
-def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
+def _resolve_mode(setup: RunSetup, opts: RunOptions) -> RunMode:
+    if setup.incremental_mode:
+        return RunMode.INCREMENTAL
+    if opts.quick_test:
+        return RunMode.QUICK_TEST
+    if opts.judges_test:
+        return RunMode.JUDGES_TEST
+    return RunMode.STANDARD
+
+
+def perform_selection(setup: RunSetup) -> SelectionResult:
     """Resolve models/topics, handle quick/incremental modes, and persist snapshots."""
     opts: RunOptions = setup.options
     rng = setup.rng if isinstance(setup.rng, random.Random) else random.Random(opts.seed)
@@ -71,21 +81,19 @@ def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
         opts.judges_from_selection = True
         opts.balanced_judges = True
 
-    # Incremental append path
-    if setup.incremental_mode:
-        if opts.quick_test or opts.judges_test:
-            raise typer.BadParameter("--new-model cannot be combined with --quick-test or --judges-test.")
-        state = apply_incremental_selection(state, setup)
-    else:
-        if opts.quick_test and opts.judges_test:
-            raise typer.BadParameter("Choose only one of --quick-test or --judges-test.")
+    if setup.incremental_mode and (opts.quick_test or opts.judges_test):
+        raise typer.BadParameter("--new-model cannot be combined with --quick-test or --judges-test.")
+    if opts.quick_test and opts.judges_test:
+        raise typer.BadParameter("Choose only one of --quick-test or --judges-test.")
 
-        if opts.quick_test:
-            state = apply_quick_test_selection(state, setup)
-        elif opts.judges_test:
-            state = apply_judges_test_selection(state, setup)
-        else:
-            state = apply_standard_selection(state, setup)
+    mode = _resolve_mode(setup, opts)
+    handlers = {
+        RunMode.INCREMENTAL: apply_incremental_selection,
+        RunMode.QUICK_TEST: apply_quick_test_selection,
+        RunMode.JUDGES_TEST: apply_judges_test_selection,
+        RunMode.STANDARD: apply_standard_selection,
+    }
+    state = handlers[mode](state, setup)
 
     _clamp_num_judges(state.main_cfg, state.judge_models)
 
@@ -158,7 +166,7 @@ def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
     setup.existing_records = state.existing_records
     setup.base_cli_args = state.base_cli_args
 
-    return setup, state.debates_per_pair
+    return SelectionResult(setup=setup, debates_per_pair=state.debates_per_pair)
 
 
 __all__ = ["perform_selection", "_infer_debates_per_pair"]

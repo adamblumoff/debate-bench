@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -57,6 +58,13 @@ class RunOptions:
     postupload_include_artifacts: bool
     postupload_dry_run: bool
     estimate_time: bool
+
+
+class RunMode(str, Enum):
+    STANDARD = "standard"
+    QUICK_TEST = "quick_test"
+    JUDGES_TEST = "judges_test"
+    INCREMENTAL = "incremental"
 
 
 @dataclass
@@ -124,3 +132,37 @@ class JudgePanelPlan:
     panel_configs: List[JudgeModelConfig]
     remaining_candidates: List[JudgeModelConfig]
     pair_key: str
+
+
+@dataclass
+class SelectionResult:
+    """Output of the selection phase."""
+
+    setup: RunSetup
+    debates_per_pair: int
+
+
+@dataclass
+class PlanResult:
+    """Output of the planning phase."""
+
+    plan: RunPlan | None
+    dry_run_only: bool
+
+
+@dataclass
+class ExecutionResult:
+    """Execution summary for a run."""
+
+    completed_new: int
+    failed_total: int
+    skipped_total: int
+    banned_models: List[str]
+
+
+@dataclass
+class PostrunResult:
+    """Postrun summary."""
+
+    ratings_path: Path | None
+    uploaded: bool
