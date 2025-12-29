@@ -8,8 +8,12 @@ from typing import Optional
 import typer
 
 from ..common import console
-from .selection_incremental import apply_incremental_selection, _infer_debates_per_pair
-from .selection_quick import apply_judges_test_selection, apply_quick_test_selection
+from .selection_modes import (
+    apply_incremental_selection,
+    apply_judges_test_selection,
+    apply_quick_test_selection,
+    _infer_debates_per_pair,
+)
 from .selection_standard import apply_standard_selection
 from .selection_state import SelectionState
 from .types import RunOptions, RunSetup
@@ -29,6 +33,18 @@ def _apply_stage_limits(main_cfg, max_tokens: Optional[int]):
         lim = stage_limits.get(r.stage, r.token_limit)
         new_rounds.append(r.copy(update={"token_limit": lim}))
     main_cfg.rounds = new_rounds
+
+
+def _print_selection_summary(state: SelectionState, opts: RunOptions) -> None:
+    console.print(
+        "[cyan]Selection:[/cyan] "
+        f"{len(state.topics_selected)} topics, "
+        f"{len(state.debater_models)} debaters, "
+        f"{len(state.judge_models)} judges, "
+        f"debates_per_pair={state.debates_per_pair}, "
+        f"balanced_sides={opts.balanced_sides}, "
+        f"balanced_judges={opts.balanced_judges}."
+    )
 
 
 def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
@@ -85,6 +101,8 @@ def perform_selection(setup: RunSetup) -> tuple[RunSetup, int]:
 
     if opts.apply_stage_token_limits:
         _apply_stage_limits(state.main_cfg, opts.openrouter_max_tokens)
+
+    _print_selection_summary(state, opts)
 
     cli_args = {
         "config_path": str(opts.config_path),

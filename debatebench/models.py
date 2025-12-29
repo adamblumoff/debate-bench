@@ -39,6 +39,44 @@ class _RateLimiter:
             time.sleep(min(wait_for, 1.0))
 
 
+class RateLimitState:
+    def __init__(self) -> None:
+        self._rate_limiter: _RateLimiter | None = None
+        self._rate_limit_max_rpm: int | None = None
+        self._backoff_lock = threading.Lock()
+        self._backoff_until = 0.0
+        self._backoff_reason = ""
+
+    def configure(self, max_rpm: int | None) -> None:
+        if max_rpm is None:
+            self._rate_limiter = None
+            self._rate_limit_max_rpm = None
+        else:
+            self._rate_limiter = _RateLimiter(max_rpm)
+            self._rate_limit_max_rpm = max_rpm
+
+    def acquire(self) -> None:
+        if self._rate_limiter is not None:
+            self._rate_limiter.acquire()
+
+    def note_backoff(self, seconds: float, reason: str) -> None:
+        if seconds <= 0:
+            return
+        with self._backoff_lock:
+            self._backoff_until = max(self._backoff_until, time.monotonic() + seconds)
+            self._backoff_reason = reason
+
+    def status(self) -> Dict[str, object]:
+        with self._backoff_lock:
+            remaining = max(0.0, self._backoff_until - time.monotonic())
+            reason = self._backoff_reason if remaining > 0 else ""
+        return {
+            "max_rpm": self._rate_limit_max_rpm,
+            "backoff_remaining": remaining,
+            "backoff_reason": reason,
+        }
+
+
 def _parse_retry_after(headers: Dict[str, str]) -> float | None:
     if not headers:
         return None
@@ -81,40 +119,6 @@ class OpenRouterAdapter(ModelAdapter):
 
     DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
-    _rate_limiter = None
-    _rate_limit_max_rpm: int | None = None
-    _backoff_lock = threading.Lock()
-    _backoff_until = 0.0
-    _backoff_reason = ""
-
-    @classmethod
-    def configure_rate_limiter(cls, max_rpm: int | None) -> None:
-        if max_rpm is None:
-            cls._rate_limiter = None
-            cls._rate_limit_max_rpm = None
-        else:
-            cls._rate_limiter = _RateLimiter(max_rpm)
-            cls._rate_limit_max_rpm = max_rpm
-
-    @classmethod
-    def note_backoff(cls, seconds: float, reason: str) -> None:
-        if seconds <= 0:
-            return
-        with cls._backoff_lock:
-            cls._backoff_until = max(cls._backoff_until, time.monotonic() + seconds)
-            cls._backoff_reason = reason
-
-    @classmethod
-    def get_rate_limit_status(cls) -> Dict[str, object]:
-        with cls._backoff_lock:
-            remaining = max(0.0, cls._backoff_until - time.monotonic())
-            reason = cls._backoff_reason if remaining > 0 else ""
-        return {
-            "max_rpm": cls._rate_limit_max_rpm,
-            "backoff_remaining": remaining,
-            "backoff_reason": reason,
-        }
-
     def __init__(
         self,
         config,
@@ -122,6 +126,7 @@ class OpenRouterAdapter(ModelAdapter):
         site_url: Optional[str],
         site_name: Optional[str],
         include_usage: bool = True,
+        rate_state: RateLimitState | None = None,
     ):
         super().__init__(config)
         if not api_key:
@@ -136,6 +141,7 @@ class OpenRouterAdapter(ModelAdapter):
         self.site_url = site_url
         self.site_name = site_name
         self.include_usage = include_usage
+        self._rate_state = rate_state or DEFAULT_RATE_STATE
 
     def _headers(self) -> Dict[str, str]:
         headers = {
@@ -222,8 +228,7 @@ class OpenRouterAdapter(ModelAdapter):
         retried_402 = False
         for attempt in range(1, self.retries + 1):
             try:
-                if self._rate_limiter is not None:
-                    self._rate_limiter.acquire()
+                self._rate_state.acquire()
                 resp = requests.post(
                     self.config.endpoint,
                     headers=self._headers(),
@@ -283,15 +288,15 @@ class OpenRouterAdapter(ModelAdapter):
                     if status == 429:
                         retry_after = _parse_retry_after(e.response.headers if e.response else {})
                         if retry_after is not None:
-                            self.note_backoff(retry_after, "429")
+                            self._rate_state.note_backoff(retry_after, "429")
                             time.sleep(retry_after)
                         else:
                             backoff = self.backoff * attempt
-                            self.note_backoff(backoff, "429")
+                            self._rate_state.note_backoff(backoff, "429")
                             time.sleep(backoff)
                     else:
                         backoff = self.backoff * attempt
-                        self.note_backoff(backoff, "retry")
+                        self._rate_state.note_backoff(backoff, "retry")
                         time.sleep(backoff)
                     continue
                 detail = f"HTTP {status}"
@@ -390,6 +395,7 @@ def build_debater_adapter(config: DebaterModelConfig, settings: Settings) -> Deb
         site_url=settings.openrouter_site_url,
         site_name=settings.openrouter_site_name,
         include_usage=settings.capture_usage_costs,
+        rate_state=DEFAULT_RATE_STATE,
     )
 
 
@@ -402,15 +408,16 @@ def build_judge_adapter(config: JudgeModelConfig, settings: Settings) -> JudgeAd
         site_url=settings.openrouter_site_url,
         site_name=settings.openrouter_site_name,
         include_usage=settings.capture_usage_costs,
+        rate_state=DEFAULT_RATE_STATE,
     )
 
 
 def configure_openrouter_rate_limit(max_rpm: int | None) -> None:
-    OpenRouterAdapter.configure_rate_limiter(max_rpm)
+    DEFAULT_RATE_STATE.configure(max_rpm)
 
 
 def get_openrouter_rate_limit_status() -> Dict[str, object]:
-    return OpenRouterAdapter.get_rate_limit_status()
+    return DEFAULT_RATE_STATE.status()
 
 
 def sample_judges(pool: List[JudgeModelConfig], n: int, seed: int | None = None) -> List[JudgeModelConfig]:
@@ -420,3 +427,6 @@ def sample_judges(pool: List[JudgeModelConfig], n: int, seed: int | None = None)
     if n > len(pool):
         raise ValueError(f"Requested {n} judges but pool has {len(pool)}")
     return rng.sample(pool, n)
+
+
+DEFAULT_RATE_STATE = RateLimitState()

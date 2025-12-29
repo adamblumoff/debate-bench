@@ -1,13 +1,11 @@
 """Execution loop for the `debatebench run` command."""
 from __future__ import annotations
 
-import json
 import os
 import signal
 import threading
 import queue
 import time
-from datetime import datetime, timezone
 from typing import List
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from rich.progress import (
@@ -22,107 +20,18 @@ from rich.table import Table
 from rich.console import Group
 from rich.live import Live
 
-from ...debate import EmptyResponseError, run_debate
-from ...judge import run_judge_panel
+from ...debate import EmptyResponseError
 from ...models import (
     build_debater_adapter,
     build_judge_adapter,
     configure_openrouter_rate_limit,
     get_openrouter_rate_limit_status,
 )
-from ...schema import DebateRecord
 from ...storage import append_debate_record
 from ..common import console
+from .executor_io import write_progress
+from .executor_task import run_debate_and_judge
 from .types import RunPlan, RunSetup
-
-
-def _run_debate_and_judge(
-    setup: RunSetup,
-    topic,
-    pro_model,
-    con_model,
-    debate_seed: int,
-    debater_adapters,
-    judge_adapters,
-    panel_configs,
-    remaining_candidates,
-    failed_judges_path,
-    log,
-    status_hook=None,
-    progress_hook=None,
-    judge_hook=None,
-):
-    main_cfg = setup.main_cfg
-    pro_adapter = debater_adapters[pro_model.id]
-    con_adapter = debater_adapters[con_model.id]
-
-    transcript = run_debate(
-        topic=topic,
-        pro_adapter=pro_adapter,
-        con_adapter=con_adapter,
-        config=main_cfg,
-        seed=setup.options.seed,
-        log=log,
-        progress_hook=progress_hook,
-    )
-    if status_hook:
-        status_hook(phase="judging")
-
-    panel_adapters = [judge_adapters[j.id] for j in panel_configs]
-    remaining_adapters = [judge_adapters[j.id] for j in remaining_candidates]
-
-    if log:
-        log(f"  Judging with panel: {', '.join(j.id for j in panel_configs)}")
-
-    usage_ordering = {cfg.id: 0 for cfg in panel_configs}
-    usage_ordering.update({cfg.id: 1 for cfg in remaining_candidates})
-
-    def sink_failed(payload):
-        if not failed_judges_path:
-            return
-        failed_judges_path.parent.mkdir(parents=True, exist_ok=True)
-        with failed_judges_path.open("a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        **payload,
-                        "debate_id": transcript.debate_id,
-                        "topic": topic.id,
-                        "pro": pro_model.id,
-                        "con": con_model.id,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                )
-            )
-            f.write("\n")
-
-    judge_results, aggregate = run_judge_panel(
-        candidate_adapters=panel_adapters + remaining_adapters,
-        transcript=transcript,
-        config=main_cfg,
-        expected=main_cfg.num_judges,
-        usage=usage_ordering,
-        seed=debate_seed,
-        log=log,
-        failed_judges_sink=sink_failed if failed_judges_path else None,
-        progress_hook=judge_hook,
-    )
-
-    panel_latency = sum(j.latency_ms for j in judge_results if j.latency_ms is not None)
-
-    record = DebateRecord(
-        transcript=transcript,
-        judges=judge_results,
-        aggregate=aggregate,
-        created_at=datetime.now(timezone.utc),
-        judges_expected=main_cfg.num_judges,
-        judges_actual=len(judge_results),
-        panel_complete=len(judge_results) == main_cfg.num_judges,
-        panel_latency_ms=panel_latency,
-        debate_seed=debate_seed,
-        elo=main_cfg.elo,
-    )
-    return record, aggregate
 
 
 def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
@@ -162,22 +71,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
     refresh_interval = 0.25
     last_refresh = time.monotonic()
 
-    def write_progress():
-        payload = {
-            "run_tag": setup.run_tag,
-            "debates_file": str(setup.debates_path),
-            "total_planned_remaining": total_runs,
-            "completed_new": completed_new,
-            "completed_prior": existing_completed,
-            "completed_total": existing_completed + completed_new,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "banned_models": sorted(banned_models),
-        }
-        progress_path.parent.mkdir(parents=True, exist_ok=True)
-        with progress_path.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
-
-    write_progress()
+    write_progress(
+        progress_path=progress_path,
+        run_tag=setup.run_tag,
+        debates_path=setup.debates_path,
+        total_planned_remaining=total_runs,
+        completed_new=completed_new,
+        completed_prior=existing_completed,
+        banned_models=banned_models,
+    )
     max_workers = min(64, (os.cpu_count() or 4) * 8)
     progress = Progress(
         SpinnerColumn(),
@@ -343,7 +245,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
         return Group(header, progress, table)
 
     def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook, judge_hook):
-        record, aggregate = _run_debate_and_judge(
+        record, aggregate = run_debate_and_judge(
             setup=setup,
             topic=task.topic,
             pro_model=task.pro_model,
@@ -442,7 +344,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                             append_debate_record(setup.debates_path, record)
                             completed_new += 1
                             progress.advance(progress_task, 1)
-                            write_progress()
+                            write_progress(
+                                progress_path=progress_path,
+                                run_tag=setup.run_tag,
+                                debates_path=setup.debates_path,
+                                total_planned_remaining=total_runs,
+                                completed_new=completed_new,
+                                completed_prior=existing_completed,
+                                banned_models=banned_models,
+                            )
                             update_progress(active_count=len(inflight))
                             _update_status(task.task_id, phase="done")
                             maybe_update(live, inflight)
@@ -460,7 +370,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                                     live.console.print(
                                         f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
                                     )
-                                write_progress()
+                                write_progress(
+                                    progress_path=progress_path,
+                                    run_tag=setup.run_tag,
+                                    debates_path=setup.debates_path,
+                                    total_planned_remaining=total_runs,
+                                    completed_new=completed_new,
+                                    completed_prior=existing_completed,
+                                    banned_models=banned_models,
+                                )
                             else:
                                 failed_debates.append(task)
                             maybe_update(live, inflight)
@@ -509,7 +427,15 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> None:
                 if retry_tasks:
                     submit_tasks(retry_tasks, retry_offset=17, live=live)
     finally:
-        write_progress()
+        write_progress(
+            progress_path=progress_path,
+            run_tag=setup.run_tag,
+            debates_path=setup.debates_path,
+            total_planned_remaining=total_runs,
+            completed_new=completed_new,
+            completed_prior=existing_completed,
+            banned_models=banned_models,
+        )
         signal.signal(signal.SIGINT, previous_handler)
 
 

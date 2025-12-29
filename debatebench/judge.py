@@ -66,6 +66,12 @@ def _extract_json_block(text: str) -> Optional[dict]:
         return json.loads(text)
     except Exception:
         pass
+    try:
+        payload = yaml.safe_load(text)
+        if isinstance(payload, dict):
+            return payload
+    except Exception:
+        pass
     match = re.search(r"\{.*\}", text, re.S)
     if match:
         snippet = match.group(0)
