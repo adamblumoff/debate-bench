@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 import signal
 import threading
-import queue
 import time
 from typing import List
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -29,7 +28,9 @@ from ...storage import append_debate_record
 from ..common import console
 from .executor_io import write_progress
 from .executor_task import run_debate_and_judge
-from .executor_ui import render_active, update_progress
+from .executor_status import StatusTracker
+from .progress import render_active, update_progress
+from .retry_policy import record_empty_response_failure, record_general_failure, should_skip_task
 from .types import RunPlan, RunSetup, ExecutionResult
 
 
@@ -63,10 +64,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
     run_index = 0
     total_rounds = len(main_cfg.rounds)
     total_steps = total_rounds + 1
-    status_lock = threading.Lock()
     stop_requested = threading.Event()
-    task_status: dict[str, dict] = {}
-    status_queue: queue.Queue[tuple] = queue.Queue()
+    status_tracker = StatusTracker(main_cfg=main_cfg, total_steps=total_steps)
     refresh_interval = 0.25
     last_refresh = time.monotonic()
 
@@ -92,24 +91,6 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
     )
     progress_task = progress.add_task("Debates", total=total_runs)
 
-    def _update_status(task_id: str, **updates) -> None:
-        with status_lock:
-            entry = task_status.setdefault(
-                task_id,
-                {
-                    "round": 0,
-                    "stage": "-",
-                    "phase": "queued",
-                    "error": "",
-                    "last_update": time.monotonic(),
-                    "judges_done": 0,
-                    "judges_expected": main_cfg.num_judges,
-                    "retrying": False,
-                },
-            )
-            entry.update(updates)
-            entry["last_update"] = time.monotonic()
-
     def maybe_update(live: Live | None, inflight: dict, force: bool = False) -> None:
         nonlocal last_refresh
         if not live:
@@ -119,8 +100,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
             live.update(
                 render_active(
                     inflight=inflight,
-                    task_status=task_status,
-                    status_lock=status_lock,
+                    task_status=status_tracker.task_status,
+                    status_lock=status_tracker.status_lock,
                     main_cfg=main_cfg,
                     max_workers=max_workers,
                     total_runs=total_runs,
@@ -135,35 +116,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
             last_refresh = now
 
     def drain_status(live: Live | None, inflight: dict) -> None:
-        updated = False
-        while True:
-            try:
-                event = status_queue.get_nowait()
-            except queue.Empty:
-                break
-            updated = True
-            kind, task_id, payload = event
-            if kind == "turn":
-                _update_status(task_id, round=payload["round"], stage=payload["stage"], phase="debating")
-            elif kind == "phase":
-                _update_status(
-                    task_id,
-                    phase=payload.get("phase", "queued"),
-                    round=payload.get("round", 0),
-                    stage=payload.get("stage", "-"),
-                )
-            elif kind == "error":
-                _update_status(task_id, phase="error", error=payload["message"])
-            elif kind == "judge":
-                _update_status(
-                    task_id,
-                    phase="judging",
-                    round=total_steps,
-                    stage="judging",
-                    judges_done=payload["done"],
-                    judges_expected=payload["expected"],
-                )
-        if updated:
+        if status_tracker.drain():
             maybe_update(live, inflight)
 
     def run_task(task, attempt_seed: int, log_fn, status_hook, progress_hook, judge_hook):
@@ -202,7 +155,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                             raise KeyboardInterrupt
                         task = queue_tasks.pop(0)
                         attempts += 1
-                        if task.pro_model.id in banned_models or task.con_model.id in banned_models:
+                        if should_skip_task(task, banned_models):
                             skipped_total += 1
                             progress.advance(progress_task, 1)
                             update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
@@ -213,7 +166,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                         attempt_seed = task.seed + retry_offset
                         update_progress(progress, progress_task, len(inflight) + 1, failed_total, skipped_total)
                         start_time = time.perf_counter()
-                        _update_status(
+                        status_tracker.update(
                             task.task_id,
                             phase="retrying" if retry_offset > 0 else "debating",
                             round=0,
@@ -225,30 +178,9 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                         )
 
                         task_id = task.task_id
-
-                        def progress_hook(round_idx: int, speaker: str, stage: str, *, task_id: str = task_id):
-                            status_queue.put(
-                                (
-                                    "turn",
-                                    task_id,
-                                    {"round": round_idx, "stage": stage, "speaker": speaker},
-                                )
-                            )
-
-                        def status_hook(**updates):
-                            if updates.get("phase") == "judging":
-                                updates.setdefault("round", total_steps)
-                                updates.setdefault("stage", "judging")
-                            status_queue.put(("phase", task_id, updates))
-
-                        def judge_hook(done: int, expected: int, judge_id: str):
-                            status_queue.put(
-                                (
-                                    "judge",
-                                    task_id,
-                                    {"done": done, "expected": expected, "judge_id": judge_id},
-                                )
-                            )
+                        progress_hook = status_tracker.make_progress_hook(task_id)
+                        status_hook = status_tracker.make_status_hook(task_id)
+                        judge_hook = status_tracker.make_judge_hook(task_id)
 
                         future = pool.submit(
                             run_task, task, attempt_seed, None, status_hook, progress_hook, judge_hook
@@ -276,43 +208,43 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                                 banned_models=banned_models,
                             )
                             update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
-                            _update_status(task.task_id, phase="done")
+                            status_tracker.update(task.task_id, phase="done")
                             maybe_update(live, inflight)
                         except EmptyResponseError as e:
                             failed_total += 1
                             update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
-                            status_queue.put(("error", task.task_id, {"message": str(e)}))
+                            status_tracker.status_queue.put(("error", task.task_id, {"message": str(e)}))
                             if live:
                                 live.console.print(
                                     f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                                 )
-                            if opts.skip_on_empty:
-                                banned_models.add(e.model_id)
-                                if live:
-                                    live.console.print(
-                                        f"[yellow]Skipping model {e.model_id} for remainder of run due to empty responses.[/yellow]"
-                                    )
-                                write_progress(
-                                    progress_path=progress_path,
-                                    run_tag=setup.run_tag,
-                                    debates_path=setup.debates_path,
-                                    total_planned_remaining=total_runs,
-                                    completed_new=completed_new,
-                                    completed_prior=existing_completed,
-                                    banned_models=banned_models,
-                                )
-                            else:
-                                failed_debates.append(task)
+                            record_empty_response_failure(
+                                error=e,
+                                task=task,
+                                opts=opts,
+                                banned_models=banned_models,
+                                failed_debates=failed_debates,
+                                progress_writer=write_progress,
+                                progress_payload={
+                                    "progress_path": progress_path,
+                                    "run_tag": setup.run_tag,
+                                    "debates_path": setup.debates_path,
+                                    "total_planned_remaining": total_runs,
+                                    "completed_new": completed_new,
+                                    "completed_prior": existing_completed,
+                                },
+                                live_console=live.console if live else None,
+                            )
                             maybe_update(live, inflight)
                         except Exception as e:
                             failed_total += 1
-                            status_queue.put(("error", task.task_id, {"message": str(e)}))
+                            status_tracker.status_queue.put(("error", task.task_id, {"message": str(e)}))
                             update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             if live:
                                 live.console.print(
                                     f"[red]Debate failed ({task.pro_model.id} vs {task.con_model.id} on {task.topic.id}): {e}"
                                 )
-                            failed_debates.append(task)
+                            record_general_failure(task, failed_debates)
                             maybe_update(live, inflight)
             except KeyboardInterrupt:
                 if live:
@@ -333,8 +265,8 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
         with Live(
             render_active(
                 inflight={},
-                task_status=task_status,
-                status_lock=status_lock,
+                task_status=status_tracker.task_status,
+                status_lock=status_tracker.status_lock,
                 main_cfg=main_cfg,
                 max_workers=max_workers,
                 total_runs=total_runs,

@@ -50,8 +50,8 @@ def test_openrouter_402_downshift(monkeypatch):
             json_data={"choices": [{"message": {"content": "hi"}}], "usage": {}},
         )
 
-    monkeypatch.setattr("debatebench.models.requests.post", fake_post)
-    monkeypatch.setattr("debatebench.models.time.sleep", lambda *_: None)
+    monkeypatch.setattr("debatebench.openrouter_client.requests.post", fake_post)
+    monkeypatch.setattr("debatebench.openrouter_client.time.sleep", lambda *_: None)
 
     adapter = _make_adapter()
     content, _meta = adapter.generate("prompt", [], max_tokens=100)
@@ -72,8 +72,8 @@ def test_openrouter_429_retry_after(monkeypatch):
             json_data={"choices": [{"message": {"content": "ok"}}], "usage": {}},
         )
 
-    monkeypatch.setattr("debatebench.models.requests.post", fake_post)
-    monkeypatch.setattr("debatebench.models.time.sleep", lambda *_: None)
+    monkeypatch.setattr("debatebench.openrouter_client.requests.post", fake_post)
+    monkeypatch.setattr("debatebench.openrouter_client.time.sleep", lambda *_: None)
 
     adapter = _make_adapter()
     content, _meta = adapter.generate("prompt", [], max_tokens=100)

@@ -48,7 +48,7 @@ def apply_incremental_selection(state: SelectionState, setup) -> SelectionState:
         state.base_cli_args = json.load(f)
 
     try:
-        state.main_cfg = cfg.MainConfig(**base_selection["main_config"])
+        state.main_cfg = cfg.parse_main_config_data(base_selection["main_config"])
     except Exception as e:  # pylint: disable=broad-except
         raise typer.BadParameter(f"Failed to load main config from {base_selection_file}: {e}") from e
 

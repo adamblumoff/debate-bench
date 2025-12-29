@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import yaml
+import pytest
 
 from debatebench import config as cfg
 
@@ -70,3 +71,33 @@ def test_load_main_config_legacy_schema(tmp_path):
     assert main_cfg.scoring.scale_min == 1
     assert main_cfg.scoring.scale_max == 7
     assert main_cfg.scoring.dimensions[0].id == "clarity"
+
+
+def test_load_main_config_rejects_unknown_keys(tmp_path):
+    payload = {
+        "benchmark": {"version": "v1"},
+        "debate": {"rounds": [{"role": "pro", "stage": "opening"}]},
+        "scoring": {"dimensions": {"clarity": {"min": 1, "max": 5}}},
+        "unexpected": True,
+    }
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError):
+        cfg.load_main_config(path)
+
+
+def test_load_models_rejects_unknown_fields(tmp_path):
+    payload = {
+        "models": [
+            {
+                "id": "m1",
+                "provider": "openrouter",
+                "model": "openai/gpt-test",
+                "unknown": "nope",
+            }
+        ]
+    }
+    path = tmp_path / "models.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError):
+        cfg.load_debater_models(path)

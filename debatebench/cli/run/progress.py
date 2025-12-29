@@ -1,4 +1,4 @@
-"""UI helpers for the `debatebench run` executor."""
+"""Progress rendering helpers for the `debatebench run` executor."""
 from __future__ import annotations
 
 import time

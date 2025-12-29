@@ -21,7 +21,7 @@ from .estimate import (
     load_timing_snapshots,
     load_token_stats,
 )
-from .schedule import build_pairs
+from ...schedule import build_pairs
 from .schedule_builder import build_schedule
 from .resume_filter import count_completed
 from .types import DebateTask, RunPlan, RunSetup, PlanResult

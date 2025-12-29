@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 
 import typer
 
-from .schedule import derive_debate_seed, make_pair_key, select_judges
+from ...schedule import derive_debate_seed, make_pair_key, select_judges
 from .types import DebateTask
 
 

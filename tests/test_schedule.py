@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from debatebench.cli.run.schedule import build_pairs, derive_debate_seed
+from debatebench.schedule import build_pairs, derive_debate_seed
 
 
 class DummyModel:

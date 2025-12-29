@@ -14,11 +14,12 @@ How DebateBench reads configuration files and how to author them safely. All pat
 ## `config.yaml` schema (nested style)
 ```yaml
 benchmark:
-  name: "DebateBench"
+  name: "DebateBench"   # optional label; currently ignored by runtime
   version: "v0.1"
 
 debate:
   language: "en"
+  temperature: 0.7      # optional default; currently ignored by runtime
   rounds:
     - role: pro
       stage: opening
@@ -54,9 +55,11 @@ scoring:
 elo:
   initial_rating: 400
   k_factor: 32
+  min_games_for_display: 5   # optional; currently ignored by runtime
 ```
 
 Notes:
+- Config parsing is strict; unknown keys are rejected. Optional fields noted above are accepted but currently ignored unless otherwise stated.
 - Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--stage-max-tokens` can overwrite opening/rebuttal/closing token limits for a run.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.
@@ -99,6 +102,7 @@ Rules:
 - `id` is the internal handle used in outputs; avoid slashes/spaces (the interactive picker auto-normalizes to dash).
 - Debate turn length is primarily controlled by per-round `max_tokens`/`token_limit` in `configs/config.yaml`. `token_limit` in `models.yaml` only matters if a round token limit ends up unset (or for future providers).
 - Additional OpenRouter request params can be placed in `parameters` (e.g., `timeout`, `retries`, `backoff`).
+- Optional `role` fields are accepted but currently ignored by runtime.
 
 ---
 
@@ -118,6 +122,7 @@ Rules:
 - Judge IDs must not collide with debater IDs.
 - If `--judges-from-selection` is used, these are ignored and the debater list is reused (active debaters are excluded from the sample for each debate).
 - When selecting judges from OpenRouter (`--openrouter-select`) or using `--quick-test`, `--openrouter-judge-max-tokens` assigns a token cap for judges. If you run with `--no-openrouter-select`, set `token_limit` / `parameters.max_tokens` in `configs/judges.yaml` instead.
+- Optional `role` fields are accepted but currently ignored by runtime.
 
 ---
 

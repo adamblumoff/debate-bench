@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from debatebench.judge import _extract_scores_from_text, run_single_judge
+from debatebench.judge import run_single_judge
+from debatebench.judge_parsing import extract_scores_from_text
 from debatebench.schema import (
     DimensionConfig,
     MainConfig,
@@ -67,7 +68,7 @@ def _make_transcript():
 
 
 def test_extract_scores_from_text():
-    parsed = _extract_scores_from_text(
+    parsed = extract_scores_from_text(
         "persuasion pro 8 con 7",
         ["persuasion"],
         1,
