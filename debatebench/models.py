@@ -273,7 +273,7 @@ class OpenRouterAdapter(ModelAdapter):
                     import re
 
                     allowed = None
-                    m = re.search(r"afford\\s+(\\d+)", body or "")
+                    m = re.search(r"afford\s+(\d+)", body or "")
                     if m:
                         try:
                             allowed = int(m.group(1))
