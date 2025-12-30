@@ -1,6 +1,6 @@
 # DebateBench Dashboard (Next.js)
 
-Interactive, read-only dashboard that reads a private debates JSONL from S3 (via signed URL), computes derived metrics server-side, and renders preset + ad‑hoc charts (Vega-Lite).
+Interactive, read-only dashboard that reads a private debates JSONL from S3 (via signed URL), computes derived metrics server-side, and renders preset + ad‑hoc charts (Vega-Lite). Metrics are judge-driven and preference-based; Elo and win rates are secondary relationships (aggregates), not ground-truth accuracy scores.
 
 ## Setup
 

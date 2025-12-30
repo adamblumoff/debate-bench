@@ -1,6 +1,7 @@
 # Results Schema (Debate JSONL)
 
 Each line in `debates_<tag>.jsonl` is a `DebateRecord`.
+These records reflect judge-driven, preference-based evaluations; they do not encode ground-truth accuracy.
 
 ## DebateRecord (top-level)
 - `transcript`: `Transcript` (topic, models, turns, versions)

@@ -1,6 +1,6 @@
 # Config Guide
 
-How DebateBench reads configuration files and how to author them safely. All paths are relative to the repo root unless otherwise noted.
+How DebateBench reads configuration files and how to author them safely. All paths are relative to the repo root unless otherwise noted. DebateBench is judge-driven and preference-based; scoring dimensions capture perceived qualities, not ground-truth accuracy.
 
 ## Files
 - `configs/config.yaml` — benchmark + debate + scoring + Elo settings.
@@ -64,7 +64,7 @@ Notes:
 - Round order is recorded per debate as `transcript.round_order` (e.g., `pro-first` or `con-first`). Use `--dual-round-order` to run both orders back-to-back.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.
-- Scoring dimensions: ids should be short, lowercase-friendly; min/max define the integer range judges must return. Winner is computed from mean scores (no winner field required).
+- Scoring dimensions: ids should be short, lowercase-friendly; min/max define the integer range judges must return. Winner is computed from mean scores (no winner field required). The default `factuality` dimension should be interpreted as perceived factuality/groundedness, not truth.
 - Judge prompt: keep JSON-only; rationale is discarded and may cause drops.
 - Legacy flat schema is still accepted (`benchmark_version`, `rounds`, `scoring`, etc.); it is normalized internally to the same shape.
 

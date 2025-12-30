@@ -3,6 +3,8 @@
 What the Next.js dashboard shows, how it uses DebateBench outputs, and the
 limits/privacy assumptions to keep in mind.
 
+The dashboard reports judge-driven, preference-based metrics; Elo and win rates are secondary relationships (aggregates), not ground-truth accuracy scores.
+
 ## What it shows
 - Aggregate model performance (Elo, win rates, dimension averages).
 - Judge agreement and side bias analysis.

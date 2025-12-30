@@ -1,6 +1,7 @@
 # DebateBench CLI Reference
 
 Authoritative reference for every `debatebench` command and option. Defaults reflect the current code (Python 3.9+, Typer).
+DebateBench is a judge-driven, preference-based evaluation harness; Elo and win rates are secondary relationships (aggregates) derived from judge outcomes, not ground-truth accuracy measures.
 
 ## Conventions
 - Defaults shown in parentheses.
