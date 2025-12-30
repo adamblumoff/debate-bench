@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { VisualizationSpec } from "vega-embed";
 import { DerivedData } from "@/lib/types";
 import { ChevronDown } from "lucide-react";
@@ -26,11 +26,9 @@ export function DimensionScoreSection({ derived, selectedModels }: Props) {
     derived.dimensions[0] ?? "",
   );
 
-  useEffect(() => {
-    if (!derived.dimensions.length) return;
-    if (!derived.dimensions.includes(dimension)) {
-      setDimension(derived.dimensions[0]);
-    }
+  const activeDimension = useMemo(() => {
+    if (derived.dimensions.includes(dimension)) return dimension;
+    return derived.dimensions[0] ?? "";
   }, [derived.dimensions, dimension]);
 
   const allowedModels = useMemo(() => {
@@ -39,9 +37,9 @@ export function DimensionScoreSection({ derived, selectedModels }: Props) {
   }, [selectedModels]);
 
   const heatValues = useMemo(() => {
-    if (!dimension) return [] as HeatRow[];
+    if (!activeDimension) return [] as HeatRow[];
     return derived.topicDimensionStats
-      .filter((row) => row.dimension === dimension)
+      .filter((row) => row.dimension === activeDimension)
       .filter((row) => !allowedModels || allowedModels.has(row.model_id))
       .map((row) => ({
         topic_id: row.topic_id,
@@ -49,7 +47,7 @@ export function DimensionScoreSection({ derived, selectedModels }: Props) {
         mean: row.mean,
         samples: row.samples,
       }));
-  }, [derived.topicDimensionStats, dimension, allowedModels]);
+  }, [derived.topicDimensionStats, activeDimension, allowedModels]);
 
   const heatSpec = useMemo((): VisualizationSpec | null => {
     if (!heatValues.length) return null;
@@ -102,7 +100,7 @@ export function DimensionScoreSection({ derived, selectedModels }: Props) {
                 <div className="relative">
                   <select
                     className="appearance-none rounded-md border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1 pr-8 text-xs font-semibold uppercase tracking-[0.2em] text-white focus:outline-none focus:ring-0 focus-visible:border-white"
-                    value={dimension}
+                    value={activeDimension}
                     onChange={(e) => {
                       const next = e.target.value;
                       setDimension(next);
