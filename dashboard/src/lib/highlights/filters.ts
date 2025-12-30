@@ -97,6 +97,66 @@ export function mergeDerivedByCategories(
     (a, b) => b.rating - a.rating,
   );
 
+  const dimensionAgg = new Map<
+    string,
+    { model_id: string; dimension: string; sum: number; samples: number }
+  >();
+  for (const p of parts) {
+    for (const row of p.modelDimensionStats) {
+      const key = `${row.model_id}|||${row.dimension}`;
+      const cur = dimensionAgg.get(key);
+      if (!cur) {
+        dimensionAgg.set(key, {
+          model_id: row.model_id,
+          dimension: row.dimension,
+          sum: row.mean * row.samples,
+          samples: row.samples,
+        });
+        continue;
+      }
+      cur.sum += row.mean * row.samples;
+      cur.samples += row.samples;
+    }
+  }
+  const modelDimensionStats = Array.from(dimensionAgg.values()).map((v) => ({
+    model_id: v.model_id,
+    dimension: v.dimension,
+    mean: v.samples ? v.sum / v.samples : 0,
+    samples: v.samples,
+    std: undefined,
+  }));
+  const topicDimensionAgg = new Map<
+    string,
+    { topic_id: string; model_id: string; dimension: string; sum: number; samples: number }
+  >();
+  for (const p of parts) {
+    for (const row of p.topicDimensionStats) {
+      const key = `${row.topic_id}|||${row.model_id}|||${row.dimension}`;
+      const cur = topicDimensionAgg.get(key);
+      if (!cur) {
+        topicDimensionAgg.set(key, {
+          topic_id: row.topic_id,
+          model_id: row.model_id,
+          dimension: row.dimension,
+          sum: row.mean * row.samples,
+          samples: row.samples,
+        });
+        continue;
+      }
+      cur.sum += row.mean * row.samples;
+      cur.samples += row.samples;
+    }
+  }
+  const topicDimensionStats = Array.from(topicDimensionAgg.values()).map(
+    (v) => ({
+      topic_id: v.topic_id,
+      model_id: v.model_id,
+      dimension: v.dimension,
+      mean: v.samples ? v.sum / v.samples : 0,
+      samples: v.samples,
+    }),
+  );
+
   // Merge head-to-head by summing samples and weighted win_rate.
   const h2hMap = new Map<
     string,
@@ -136,6 +196,8 @@ export function mergeDerivedByCategories(
     models,
     dimensions,
     modelStats,
+    modelDimensionStats,
+    topicDimensionStats,
     headToHead,
     topicWinrates,
     judgeAgreement,
@@ -151,6 +213,85 @@ export function filterDerivedByCategories(
 ): DerivedData {
   if (!selectedCategories.length) return derived;
   const allowed = new Set(selectedCategories);
+  const dimensionAgg = new Map<
+    string,
+    { model_id: string; dimension: string; sum: number; samples: number }
+  >();
+  const topicDimensionAgg = new Map<
+    string,
+    { topic_id: string; model_id: string; dimension: string; sum: number; samples: number }
+  >();
+  for (const row of derived.debateRows) {
+    if (!row.category || !allowed.has(row.category)) continue;
+    const proModel = row.pro_model_id as string;
+    const conModel = row.con_model_id as string;
+    for (const dim of derived.dimensions) {
+      const proVal = row[`mean_pro_${dim}`] as number | undefined;
+      const conVal = row[`mean_con_${dim}`] as number | undefined;
+      if (typeof proVal === "number") {
+        const key = `${proModel}|||${dim}`;
+        const entry = dimensionAgg.get(key) || {
+          model_id: proModel,
+          dimension: dim,
+          sum: 0,
+          samples: 0,
+        };
+        entry.sum += proVal;
+        entry.samples += 1;
+        dimensionAgg.set(key, entry);
+        const topicKey = `${row.topic_id}|||${proModel}|||${dim}`;
+        const topicEntry = topicDimensionAgg.get(topicKey) || {
+          topic_id: row.topic_id as string,
+          model_id: proModel,
+          dimension: dim,
+          sum: 0,
+          samples: 0,
+        };
+        topicEntry.sum += proVal;
+        topicEntry.samples += 1;
+        topicDimensionAgg.set(topicKey, topicEntry);
+      }
+      if (typeof conVal === "number") {
+        const key = `${conModel}|||${dim}`;
+        const entry = dimensionAgg.get(key) || {
+          model_id: conModel,
+          dimension: dim,
+          sum: 0,
+          samples: 0,
+        };
+        entry.sum += conVal;
+        entry.samples += 1;
+        dimensionAgg.set(key, entry);
+        const topicKey = `${row.topic_id}|||${conModel}|||${dim}`;
+        const topicEntry = topicDimensionAgg.get(topicKey) || {
+          topic_id: row.topic_id as string,
+          model_id: conModel,
+          dimension: dim,
+          sum: 0,
+          samples: 0,
+        };
+        topicEntry.sum += conVal;
+        topicEntry.samples += 1;
+        topicDimensionAgg.set(topicKey, topicEntry);
+      }
+    }
+  }
+  const modelDimensionStats = Array.from(dimensionAgg.values()).map((v) => ({
+    model_id: v.model_id,
+    dimension: v.dimension,
+    mean: v.samples ? v.sum / v.samples : 0,
+    samples: v.samples,
+    std: undefined,
+  }));
+  const topicDimensionStats = Array.from(topicDimensionAgg.values()).map(
+    (v) => ({
+      topic_id: v.topic_id,
+      model_id: v.model_id,
+      dimension: v.dimension,
+      mean: v.samples ? v.sum / v.samples : 0,
+      samples: v.samples,
+    }),
+  );
   return {
     ...derived,
     topicWinrates: derived.topicWinrates.filter(
@@ -163,6 +304,8 @@ export function filterDerivedByCategories(
     judgeRows: derived.judgeRows.filter(
       (r) => r.category && allowed.has(r.category),
     ),
+    modelDimensionStats,
+    topicDimensionStats,
   };
 }
 
@@ -176,6 +319,12 @@ export function filterDerivedByModels(
     ...derived,
     models: derived.models.filter((m) => allowed.has(m)),
     modelStats: derived.modelStats.filter((m) => allowed.has(m.model_id)),
+    modelDimensionStats: derived.modelDimensionStats.filter((row) =>
+      allowed.has(row.model_id),
+    ),
+    topicDimensionStats: derived.topicDimensionStats.filter((row) =>
+      allowed.has(row.model_id),
+    ),
     headToHead: derived.headToHead.filter(
       (c) => allowed.has(c.row) && allowed.has(c.col),
     ),

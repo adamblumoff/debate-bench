@@ -27,9 +27,93 @@ export function FilterBar({
   const [modelSearch, setModelSearch] = useState("");
   const [openMenu, setOpenMenu] = useState<"category" | "models" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  const [isFixed, setIsFixed] = useState(false);
+  const [fixedStyle, setFixedStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const baseTopRef = useRef<number | null>(null);
+  const baseDocTopRef = useRef<number | null>(null);
   const hasFilters = selectedCategories.length > 0 || selectedModels.length > 0;
 
   const closeMenus = useCallback(() => setOpenMenu(null), []);
+
+  useEffect(() => {
+    const measureBase = () => {
+      const el = rootRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      baseTopRef.current = rect.top;
+      baseDocTopRef.current = rect.top + window.scrollY;
+      setFixedStyle({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
+    };
+
+    const onScroll = () => {
+      const baseDocTop = baseDocTopRef.current;
+      const baseTop = baseTopRef.current;
+      const el = rootRef.current;
+      if (baseDocTop == null || baseTop == null || !el) return;
+      const shouldFix = window.scrollY > baseDocTop - baseTop;
+      if (shouldFix && !isFixed) {
+        const rect = el.getBoundingClientRect();
+        setFixedStyle({
+          top: baseTop,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        });
+        setIsFixed(true);
+      } else if (!shouldFix && isFixed) {
+        setIsFixed(false);
+        measureBase();
+      }
+    };
+
+    const onResize = () => {
+      if (!isFixed) {
+        measureBase();
+        onScroll();
+      }
+    };
+
+    measureBase();
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [isFixed]);
+
+  useEffect(() => {
+    if (!isFixed) return;
+    const updateFixed = () => {
+      const spacer = spacerRef.current;
+      if (!spacer) return;
+      const rect = spacer.getBoundingClientRect();
+      setFixedStyle((prev) =>
+        prev
+          ? {
+              ...prev,
+              left: rect.left,
+              width: rect.width,
+            }
+          : prev,
+      );
+    };
+    updateFixed();
+    window.addEventListener("resize", updateFixed);
+    return () => window.removeEventListener("resize", updateFixed);
+  }, [isFixed]);
 
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
@@ -129,7 +213,32 @@ export function FilterBar({
         : `${selectedModels.length} models selected`;
 
   return (
-    <div ref={rootRef} className="filter-bar sticky top-0 z-20 backdrop-blur">
+    <>
+      {isFixed && fixedStyle ? (
+        <div
+          ref={spacerRef}
+          style={{ height: fixedStyle.height }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <div
+        ref={rootRef}
+        className="filter-bar backdrop-blur"
+        style={
+          isFixed && fixedStyle
+            ? {
+                position: "fixed",
+                zIndex: 30,
+                top: `${fixedStyle.top}px`,
+                left: `${fixedStyle.left}px`,
+                width: `${fixedStyle.width}px`,
+              }
+            : {
+                position: "relative",
+                zIndex: 20,
+              }
+        }
+      >
       <div className="filter-row">
         <div className="flex flex-wrap items-start gap-3">
           <div className="category-block relative">
@@ -324,5 +433,6 @@ export function FilterBar({
         </div>
       </div>
     </div>
+    </>
   );
 }

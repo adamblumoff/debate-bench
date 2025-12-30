@@ -140,6 +140,22 @@ export interface JudgeBiasRow {
   stability?: "high" | "med" | "low";
 }
 
+export interface ModelDimensionStat {
+  model_id: string;
+  dimension: string;
+  mean: number;
+  samples: number;
+  std?: number;
+}
+
+export interface TopicDimensionStat {
+  topic_id: string;
+  model_id: string;
+  dimension: string;
+  mean: number;
+  samples: number;
+}
+
 export interface DebateRowForBuilder {
   pro_model_id: string;
   con_model_id: string;
@@ -167,6 +183,8 @@ export interface DerivedData {
   models: string[];
   dimensions: string[];
   modelStats: ModelStats[];
+  modelDimensionStats: ModelDimensionStat[];
+  topicDimensionStats: TopicDimensionStat[];
   headToHead: HeadToHeadCell[];
   topicWinrates: TopicWinrate[];
   judgeAgreement: JudgeAgreementRow[];

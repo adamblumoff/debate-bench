@@ -9,6 +9,7 @@ import {
   TopicWinrate,
   DebateRowForBuilder,
   Winner,
+  ModelDimensionStat,
 } from "../types";
 import { fitLogisticRidge, hashFold, sigmoid, SparseExample } from "./logistic";
 
@@ -42,6 +43,8 @@ export function buildDerived(
       models: [],
       dimensions: [],
       modelStats: [],
+      modelDimensionStats: [],
+      topicDimensionStats: [],
       headToHead: [],
       topicWinrates: [],
       judgeAgreement: [],
@@ -118,6 +121,11 @@ export function buildDerived(
   const headWin = new Map<string, number>();
   const headTot = new Map<string, number>();
   const topicStats = new Map<string, TopicWinrate>();
+  const dimensionAgg = new Map<
+    string,
+    { sum: number; sumSq: number; n: number }
+  >();
+  const topicDimensionAgg = new Map<string, { sum: number; n: number }>();
   const judgeAgreementPairs = new Map<
     string,
     { agree: number; total: number }
@@ -184,6 +192,34 @@ export function buildDerived(
   const ensureCost = (id: string) => {
     if (!costAgg.has(id)) costAgg.set(id, { cost: 0, samples: 0 });
     return costAgg.get(id)!;
+  };
+
+  const addDimension = (
+    modelId: string,
+    dimension: string,
+    value: number | undefined,
+  ) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return;
+    const key = `${modelId}|||${dimension}`;
+    const entry = dimensionAgg.get(key) || { sum: 0, sumSq: 0, n: 0 };
+    entry.sum += value;
+    entry.sumSq += value * value;
+    entry.n += 1;
+    dimensionAgg.set(key, entry);
+  };
+
+  const addTopicDimension = (
+    topicId: string,
+    modelId: string,
+    dimension: string,
+    value: number | undefined,
+  ) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return;
+    const key = `${topicId}|||${modelId}|||${dimension}`;
+    const entry = topicDimensionAgg.get(key) || { sum: 0, n: 0 };
+    entry.sum += value;
+    entry.n += 1;
+    topicDimensionAgg.set(key, entry);
   };
 
   const hkey = (a: string, b: string) => `${a}|||${b}`;
@@ -292,6 +328,17 @@ export function buildDerived(
       debateRows.push(row);
     }
 
+    // merged per-model dimension stats (pro + con)
+    // TODO: add per-side dimension splits (pro vs con) for dashboard comparisons.
+    for (const dim of dimensions) {
+      const proVal = d.aggregate.mean_pro[dim];
+      const conVal = d.aggregate.mean_con[dim];
+      addDimension(pro, dim, proVal);
+      addDimension(con, dim, conVal);
+      addTopicDimension(topic.id, pro, dim, proVal);
+      addTopicDimension(topic.id, con, dim, conVal);
+    }
+
     // judge rows and agreement
     const winnersByJudge: Record<string, Winner> = {};
     for (const j of d.judges) {
@@ -396,6 +443,35 @@ export function buildDerived(
 
   const modelStats = Array.from(statsMap.values()).sort(
     (a, b) => b.rating - a.rating,
+  );
+
+  const modelDimensionStats: ModelDimensionStat[] = Array.from(
+    dimensionAgg.entries(),
+  ).map(([key, entry]) => {
+    const [model_id, dimension] = key.split("|||");
+    const mean = entry.n ? entry.sum / entry.n : 0;
+    const variance = entry.n ? entry.sumSq / entry.n - mean * mean : 0;
+    const std = variance > 0 ? Math.sqrt(variance) : 0;
+    return {
+      model_id,
+      dimension,
+      mean,
+      samples: entry.n,
+      std,
+    };
+  });
+
+  const topicDimensionStats = Array.from(topicDimensionAgg.entries()).map(
+    ([key, entry]) => {
+      const [topic_id, model_id, dimension] = key.split("|||");
+      return {
+        topic_id,
+        model_id,
+        dimension,
+        mean: entry.n ? entry.sum / entry.n : 0,
+        samples: entry.n,
+      };
+    },
   );
 
   const headToHead: HeadToHeadCell[] = [];
@@ -640,6 +716,8 @@ export function buildDerived(
     models,
     dimensions,
     modelStats,
+    modelDimensionStats,
+    topicDimensionStats,
     headToHead,
     topicWinrates,
     judgeAgreement,

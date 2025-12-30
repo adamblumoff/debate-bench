@@ -21,6 +21,7 @@ import { PricingTable } from "@/components/dashboard/PricingTable";
 import { RunControls } from "@/components/dashboard/RunControls";
 import { KpiStrip } from "@/components/dashboard/KpiStrip";
 import { HighlightsSection } from "@/components/dashboard/HighlightsSection";
+import { DimensionScoreSection } from "@/components/dashboard/DimensionScoreSection";
 import {
   buildHighlightLists,
   buildHighlightSpecs,
@@ -468,6 +469,11 @@ function DashboardContent() {
                 </ChartCard>
               </div>
             </section>
+
+            <DimensionScoreSection
+              derived={filteredDerived}
+              selectedModels={selectedModels}
+            />
 
             <section id="judges" className="grid gap-4 md:grid-cols-12">
               <div className="md:col-span-6 min-w-0">
