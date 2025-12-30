@@ -8,6 +8,7 @@ limits/privacy assumptions to keep in mind.
 - Judge agreement and side bias analysis.
 - Token usage and cost summaries (observed costs preferred; pricing fallback).
 - Optional charts and comparisons (feature flags controlled via env).
+- A sticky filter bar that stays visible while scrolling (slightly translucent when pinned).
 
 ## Data sources
 The dashboard is read-only and derives everything server-side from:

@@ -34,6 +34,10 @@ body {
   overflow-x: hidden;
 }
 
+body {
+  overflow-x: visible;
+}
+
 #__next {
   min-height: 100vh;
   background: transparent;
@@ -277,11 +281,25 @@ h3,
 }
 
 .filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   border: 1px solid var(--border);
-  background: rgba(17, 26, 37, 0.9);
+  background: rgba(17, 26, 37, 1);
   border-radius: 14px;
   padding: 12px 14px 10px;
   box-shadow: var(--shadow);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.filter-bar.is-stuck {
+  background: rgba(17, 26, 37, 0.6);
+  border-color: rgba(27, 39, 53, 0.7);
+}
+
+.filter-bar.is-stuck:hover {
+  background: rgba(17, 26, 37, 1);
+  border-color: var(--border);
 }
 
 .filter-row {
