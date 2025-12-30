@@ -20,6 +20,7 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--sample-topics INT` — randomly sample this many topics (after interactive selection).
 - `--seed INT` — RNG seed (12345).
 - `--side-policy {balanced,random,fixed}` — side assignment policy.
+- `--dual-round-order / --no-dual-round-order` — run both pro-first and con-first round orders back-to-back and append to the same debates file. The current config order runs first, then the flipped order.
 
 **Selection**
 - `--openrouter-select / --no-openrouter-select` — interactive debater picker from OpenRouter (default on). If off, uses `configs/models.yaml`.
@@ -43,8 +44,8 @@ Run debates for selected topics and model pairs, then (by default) summarize, pl
 - `--retry-failed / --no-retry-failed` — retry failed debates once after the main loop. Default retry.
 
 **Execution control**
-- `--resume` — skip debates already present in the debates file (useful after interruption).
-- `--dry-run` — plan only: prints cost/time estimates, writes `results/run_<tag>/dryrun_schedule.json`, and exits before any debates.
+- `--resume` — skip debates already present in the debates file (useful after interruption). With `--dual-round-order`, resume skips per round order.
+- `--dry-run` — plan only: prints cost/time estimates, writes `results/run_<tag>/dryrun_schedule.json`, and exits before any debates. With `--dual-round-order`, writes `dryrun_schedule_pro-first.json` and `dryrun_schedule_con-first.json`.
 - `--estimate-time / --no-estimate-time` — show wall-clock estimate from timing snapshots (p50/p75/p90) when available; uses only runs with ≥120 debates, otherwise falls back to recent medians from large runs (default on). Estimates are rough and may be inaccurate.
 - `--postrate / --no-postrate` — after finishing debates, recompute ratings and show top 10. Default on.
 - `--postupload / --no-postupload` — after postrun, upload results to S3 (default on).
@@ -143,4 +144,4 @@ All results utilities are also available under `debatebench results <command>`:
 - Balanced judge sampling prioritizes least-used overall, then least-used for the topic and pair; random is uniform.
 - Progress and failures: live view shows active debates, per-debate rounds, judging progress, retries, and rate-limit/backoff status. `results/run_<tag>/progress.json` tracks counts and banned models; `results/run_<tag>/failed_judges.jsonl` appears when `--log-failed-judges` is set.
 - Timing snapshots: `results/run_<tag>/timing_snapshot.json` is written after each run and feeds `--estimate-time`.
-- Resume: `--resume` and incremental append both rely on the debates file; planning skips already-completed topic/pair/rep combos.
+- Resume: `--resume` and incremental append both rely on the debates file; planning skips already-completed topic/pair/rep combos (and round order when `--dual-round-order` is used).

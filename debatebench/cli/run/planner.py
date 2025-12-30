@@ -24,10 +24,20 @@ from .estimate import (
 from ...schedule import build_pairs
 from .schedule_builder import build_schedule
 from .resume_filter import count_completed
+from .round_order import infer_round_order_from_rounds
 from .types import DebateTask, RunPlan, RunSetup, PlanResult
 
 
-def _write_progress(progress_path: Path, run_tag: str, debates_path: Path, total_runs: int, existing_completed: int, completed_new: int, banned_models):
+def _write_progress(
+    progress_path: Path,
+    run_tag: str,
+    debates_path: Path,
+    total_runs: int,
+    existing_completed: int,
+    completed_new: int,
+    banned_models,
+    round_order: str | None = None,
+):
     payload = {
         "run_tag": run_tag,
         "debates_file": str(debates_path),
@@ -37,13 +47,14 @@ def _write_progress(progress_path: Path, run_tag: str, debates_path: Path, total
         "completed_total": existing_completed + completed_new,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "banned_models": sorted(banned_models),
+        "round_order": round_order,
     }
     progress_path.parent.mkdir(parents=True, exist_ok=True)
     with progress_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
 
-def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
+def build_plan(setup: RunSetup, debates_per_pair: int, schedule_label: str | None = None) -> PlanResult:
     """Construct schedule, resume state, and (optionally) perform dry-run preview."""
     opts = setup.options
     main_cfg = setup.main_cfg
@@ -77,9 +88,12 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
                 f"[cyan]Resume mode: found {len(existing)} completed debates in {setup.debates_path}; will skip already-finished matchups.[/cyan]"
             )
     existing_completed = sum(completed_counts.values())
+    round_order = infer_round_order_from_rounds(main_cfg.rounds)
+    if schedule_label:
+        console.print(f"[cyan]Round order:[/cyan] {schedule_label}")
 
     def remaining_for(topic, a, b):
-        done = completed_counts.get((topic.id, a.id, b.id), 0)
+        done = completed_counts.get((topic.id, a.id, b.id, round_order), 0)
         return max(0, debates_per_pair - done)
 
     total_runs = sum(
@@ -88,7 +102,16 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
     console.print(f"Scheduled {total_runs} debates (remaining).")
 
     progress_path = setup.run_dir / "progress.json"
-    _write_progress(progress_path, setup.run_tag, setup.debates_path, total_runs, existing_completed, 0, set())
+    _write_progress(
+        progress_path,
+        setup.run_tag,
+        setup.debates_path,
+        total_runs,
+        existing_completed,
+        0,
+        set(),
+        round_order=round_order,
+    )
 
     schedule_preview_for_estimate = None
     schedule_tasks_for_estimate: list[DebateTask] = []
@@ -171,6 +194,12 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
             pricing_override=pricing_map,
             token_stats=(deb_stats, judge_stats),
         )
+        full_runs = len(setup.topics_selected) * len(pairs) * debates_per_pair
+        scale = (total_runs / full_runs) if full_runs else 0.0
+        total_debater_cost *= scale
+        total_judge_cost *= scale
+        per_model_cost = {mid: cost * scale for mid, cost in per_model_cost.items()}
+        per_judge_cost = {jid: cost * scale for jid, cost in per_judge_cost.items()}
         console.print("[green]Dry run (no debates executed).[/green]")
         console.print(f"[cyan]Cost pricing source:[/cyan] {pricing_source_label} | {stats_label}")
         console.print(
@@ -209,17 +238,23 @@ def build_plan(setup: RunSetup, debates_per_pair: int) -> PlanResult:
             debates_per_pair=debates_per_pair,
             completed_counts=completed_counts,
             judge_usage=judge_usage,
-            include_completed=True,
+            include_completed=False,
         )
-        sched_path = setup.run_dir / "dryrun_schedule.json"
+        if schedule_label:
+            sched_path = setup.run_dir / f"dryrun_schedule_{schedule_label}.json"
+        else:
+            sched_path = setup.run_dir / "dryrun_schedule.json"
         with sched_path.open("w", encoding="utf-8") as f:
             json.dump(schedule_preview, f, indent=2)
         console.print(f"Saved full debate/judge schedule preview to {sched_path}")
-        console.print("First 10 debates:")
-        for i, entry in enumerate(schedule_preview[:10], start=1):
-            console.print(
-                f"  {i}. Topic {entry['topic']}: PRO={entry['pro']} vs CON={entry['con']} | judges={', '.join(entry['judges']) if entry['judges'] else 'n/a'}"
-            )
+        if not schedule_preview:
+            console.print("[yellow]No debates scheduled (all matchups already completed).[/yellow]")
+        else:
+            console.print("First 10 debates:")
+            for i, entry in enumerate(schedule_preview[:10], start=1):
+                console.print(
+                    f"  {i}. Topic {entry['topic']}: PRO={entry['pro']} vs CON={entry['con']} | judges={', '.join(entry['judges']) if entry['judges'] else 'n/a'}"
+                )
         console.print(
             f"Output would be written to: debates={setup.debates_path}, viz={setup.viz_dir}, plots={setup.plots_dir}"
         )

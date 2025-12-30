@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from ...debate import run_debate
 from ...judge import run_judge_panel
 from ...schema import DebateRecord
+from .round_order import infer_round_order_from_rounds
 
 
 def run_debate_and_judge(
@@ -30,12 +31,14 @@ def run_debate_and_judge(
     pro_adapter = debater_adapters[pro_model.id]
     con_adapter = debater_adapters[con_model.id]
 
+    round_order = infer_round_order_from_rounds(main_cfg.rounds)
     transcript = run_debate(
         topic=topic,
         pro_adapter=pro_adapter,
         con_adapter=con_adapter,
         config=main_cfg,
         seed=setup.options.seed,
+        round_order=round_order,
         log=log,
         progress_hook=progress_hook,
     )

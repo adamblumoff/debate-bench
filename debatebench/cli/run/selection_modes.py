@@ -12,6 +12,7 @@ from ... import config as cfg
 from ...schema import DebateRecord, DebaterModelConfig, JudgeModelConfig
 from ...storage import load_debate_records
 from ..common import console
+from .round_order import infer_round_order_from_transcript
 from .selection_state import SelectionState
 
 QUICK_TEST_CONFIG_PATH = Path("configs/quick-test-models.yaml")
@@ -24,7 +25,13 @@ def _infer_debates_per_pair(records: list[DebateRecord]):
     """
     counts = Counter()
     for rec in records:
-        key = (rec.transcript.topic.id, rec.transcript.pro_model_id, rec.transcript.con_model_id)
+        round_order = infer_round_order_from_transcript(rec.transcript)
+        key = (
+            rec.transcript.topic.id,
+            rec.transcript.pro_model_id,
+            rec.transcript.con_model_id,
+            round_order,
+        )
         counts[key] += 1
     if not counts:
         return None, {}
@@ -86,7 +93,9 @@ def apply_incremental_selection(state: SelectionState, setup) -> SelectionState:
         state.debates_per_pair = inferred_per_pair
     if anomalies:
         preview = list(anomalies.items())[:3]
-        details = ", ".join(f"{k[1]} vs {k[2]} on {k[0]} -> {v}" for k, v in preview)
+        details = ", ".join(
+            f"{k[1]} vs {k[2]} on {k[0]} ({k[3]}) -> {v}" for k, v in preview
+        )
         console.print(
             f"[yellow]Uneven prior debate counts detected ({len(anomalies)} anomalies). "
             f"Continuing with existing counts; sample: {details}[/yellow]"
@@ -118,6 +127,7 @@ def apply_incremental_selection(state: SelectionState, setup) -> SelectionState:
     opts.openrouter_judge_max_tokens = state.base_cli_args.get(
         "openrouter_judge_max_tokens", opts.openrouter_judge_max_tokens
     )
+    opts.dual_round_order = state.base_cli_args.get("dual_round_order", opts.dual_round_order)
 
     base_ui = state.base_cli_args.get("ui")
     if base_ui:

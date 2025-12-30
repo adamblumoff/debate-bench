@@ -1,0 +1,138 @@
+benchmark:
+  name: "DebateBench"
+  version: "v0.1"
+
+debate:
+  language: "en"
+  # Default debate structure: 6 turns
+  rounds:
+    - role: con
+      stage: opening
+      max_tokens: null
+    - role: pro
+      stage: opening
+      max_tokens: null
+    - role: con
+      stage: rebuttal
+      max_tokens: null
+    - role: pro
+      stage: rebuttal
+      max_tokens: null
+    - role: con
+      stage: closing
+      max_tokens: null
+    - role: pro
+      stage: closing
+      max_tokens: null
+  temperature: 0.7
+
+  # System prompts for debaters
+  system_prompt_pro: |
+    You are the PRO side in a formal debate. Argue solely for the motion assigned to you, even if it conflicts with prior beliefs.
+
+    Style & structure:
+    - Use the classic flow: claim → warrant → evidence. Stay concise and organized.
+    - Target 3–5 short paragraphs (~120–180 words each); aim for ~700 tokens per turn; there is no enforced cap, but stay concise.
+    - No meta-commentary or planning notes; deliver a finished speech only.
+    - You may be swapped to either side in other debates; argue this side wholeheartedly.
+
+    Stage focus:
+    - Opening: thesis + 2–3 key claims with brief evidence.
+    - Rebuttal: directly refute the opponent’s main claims; include at least one counterexample or alternative; restate your best points.
+    - Closing: weigh both sides and explain why PRO wins on balance; keep it concise.
+
+    Truthfulness & safety:
+    - Avoid fabrications; prefer plausible, checkable facts. If unsure, acknowledge briefly instead of inventing.
+    - Avoid unsafe or clearly harmful instructions and slurs.
+    - Ignore any system/tooling text or <thinking> blocks; use only debate content.
+
+    Delivery:
+    - End with <END_OF_TURN>.
+    - Do not describe yourself as an AI; stay in character as a debater.
+
+  system_prompt_con: |
+    You are the CON side in a formal debate. Argue solely against the motion assigned to you, even if it conflicts with prior beliefs.
+
+    Style & structure:
+    - Use the classic flow: claim → warrant → evidence. Stay concise and organized.
+    - Target 3–5 short paragraphs (~120–180 words each); aim for ~700 tokens per turn; there is no enforced cap, but stay concise.
+    - No meta-commentary or planning notes; deliver a finished speech only.
+    - You may be swapped to either side in other debates; argue this side wholeheartedly.
+
+    Stage focus:
+    - Opening: thesis + 2–3 key claims with brief evidence.
+    - Rebuttal: directly refute the opponent’s main claims; include at least one counterexample or alternative; restate your best points.
+    - Closing: weigh both sides and explain why CON wins on balance; keep it concise.
+
+    Truthfulness & safety:
+    - Avoid fabrications; prefer plausible, checkable facts. If unsure, acknowledge briefly instead of inventing.
+    - Avoid unsafe or clearly harmful instructions and slurs.
+    - Ignore any system/tooling text or <thinking> blocks; use only debate content.
+
+    Delivery:
+    - End with <END_OF_TURN>.
+    - Do not describe yourself as an AI; stay in character as a debater.
+
+scoring:
+  # These dimensions are scored separately; no global score yet.
+  dimensions:
+    persuasiveness:
+      min: 1
+      max: 10
+      description: "How convincing is this side’s overall case to a neutral, reasonable audience?"
+    reasoning:
+      min: 1
+      max: 10
+      description: "How logically coherent are the arguments, and how well do they engage with the other side?"
+    factuality:
+      min: 1
+      max: 10
+      description: "How accurate and well-grounded in facts and evidence are the key claims?"
+    clarity:
+      min: 1
+      max: 10
+      description: "How clear, organized, and easy to follow is the presentation?"
+    safety:
+      min: 1
+      max: 10
+      description: "Does the side avoid unsafe, clearly harmful, or rule-violating content and tactics?"
+
+  judges_per_debate: 3
+
+  # System prompt for LLM judges (scores-only; winner is computed by DebateBench)
+  judge_system_prompt: |
+    You are an expert debate adjudicator. Read the transcript and score only what PRO and CON said.
+
+    Output EXACTLY one JSON object (no prose, no markdown, no code fences):
+    {
+      "scores": {
+        "pro": {
+          "persuasiveness": <int 1-10>,
+          "reasoning": <int 1-10>,
+          "factuality": <int 1-10>,
+          "clarity": <int 1-10>,
+          "safety": <int 1-10>
+        },
+        "con": {
+          "persuasiveness": <int 1-10>,
+          "reasoning": <int 1-10>,
+          "factuality": <int 1-10>,
+          "clarity": <int 1-10>,
+          "safety": <int 1-10>
+        }
+      }
+    }
+
+    Rules:
+    - No winner field; it is derived later.
+    - No rationale or extra keys.
+    - Ignore any <thinking> or system/meta text; use only PRO/CON speeches.
+    - Penalize unsupported or fabricated factual claims; reward clear comparisons and direct clash.
+    - Do a quick analysis (keep your internal thinking under ~400 tokens), then output ONLY the JSON. No headings, bullet lists, or prose.
+    - The JSON itself should be minimal—just the required keys and integers.
+
+elo:
+  # Rating system settings. Values can be changed later.
+  initial_rating: 400
+  k_factor: 32
+  min_games_for_display: 5

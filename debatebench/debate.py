@@ -77,6 +77,7 @@ def run_debate(
     con_adapter: DebaterAdapter,
     config: MainConfig,
     seed: Optional[int] = None,
+    round_order: Optional[str] = None,
     log=None,
     progress_hook=None,
 ) -> Transcript:
@@ -168,4 +169,5 @@ def run_debate(
         con_model_id=con_adapter.config.id,
         turns=turns,
         seed=seed,
+        round_order=round_order,
     )

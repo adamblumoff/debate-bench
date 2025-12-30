@@ -23,6 +23,7 @@ def _make_options():
         debates_per_pair=1,
         seed=12345,
         side_policy="fixed",
+        dual_round_order=False,
         judge_policy="balanced",
         openrouter_select=False,
         openrouter_months=1,

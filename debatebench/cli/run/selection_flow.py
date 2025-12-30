@@ -43,7 +43,8 @@ def _print_selection_summary(state: SelectionState, opts: RunOptions) -> None:
         f"{len(state.judge_models)} judges, "
         f"debates_per_pair={state.debates_per_pair}, "
         f"side_policy={opts.side_policy}, "
-        f"judge_policy={opts.judge_policy}."
+        f"judge_policy={opts.judge_policy}, "
+        f"dual_round_order={opts.dual_round_order}."
     )
 
 
@@ -123,6 +124,7 @@ def perform_selection(setup: RunSetup) -> SelectionResult:
         "debates_per_pair": state.debates_per_pair,
         "seed": opts.seed,
         "side_policy": opts.side_policy,
+        "dual_round_order": opts.dual_round_order,
         "judge_policy": opts.judge_policy,
         "openrouter_select": opts.openrouter_select,
         "openrouter_months": opts.openrouter_months,

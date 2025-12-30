@@ -86,6 +86,11 @@ def run_command(
         help="Side assignment policy: balanced, random, or fixed.",
         case_sensitive=False,
     ),
+    dual_round_order: bool = typer.Option(
+        False,
+        "--dual-round-order/--no-dual-round-order",
+        help="Run both pro-first and con-first round orders back-to-back and append to the same debates file.",
+    ),
     judge_policy: str | None = typer.Option(
         "balanced",
         "--judge-policy",
@@ -221,6 +226,7 @@ def run_command(
         debates_per_pair=debates_per_pair,
         seed=seed if seed is not None else 12345,
         side_policy=side_policy,
+        dual_round_order=dual_round_order,
         judge_policy=judge_policy,
         openrouter_select=openrouter_select,
         openrouter_months=openrouter_months,
@@ -255,6 +261,43 @@ def run_command(
 
     setup = prepare_run(options)
     selection_result = perform_selection(setup)
+    if options.dual_round_order:
+        from .round_order import flip_round_speakers, infer_round_order_from_rounds
+
+        base_cfg = selection_result.setup.main_cfg
+        base_order = infer_round_order_from_rounds(base_cfg.rounds)
+        alt_order = "con-first" if base_order == "pro-first" else "pro-first"
+        alt_cfg = base_cfg.model_copy(update={"rounds": flip_round_speakers(base_cfg.rounds)})
+
+        round_variants = [
+            (base_order, base_cfg),
+            (alt_order, alt_cfg),
+        ]
+        for label, cfg in round_variants:
+            selection_result.setup.main_cfg = cfg
+            plan_result = build_plan(
+                selection_result.setup,
+                selection_result.debates_per_pair,
+                schedule_label=label,
+            )
+            if plan_result.dry_run_only or plan_result.plan is None:
+                continue
+            execution_result = execute_plan(selection_result.setup, plan_result.plan)
+            if execution_result.failed_total > 0:
+                console.print(
+                    f"[yellow]Run finished with {execution_result.failed_total} failed debates "
+                    f"(and {execution_result.skipped_total} skipped) for {label}.[/yellow]"
+                )
+            if execution_result.banned_models:
+                console.print(
+                    f"[yellow]Banned models during run ({label}): "
+                    f"{', '.join(execution_result.banned_models)}[/yellow]"
+                )
+        if options.dry_run:
+            return
+        run_postrun(selection_result.setup)
+        return
+
     plan_result = build_plan(selection_result.setup, selection_result.debates_per_pair)
     if plan_result.dry_run_only or plan_result.plan is None:
         return

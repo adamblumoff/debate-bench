@@ -16,6 +16,7 @@ def write_progress(
     completed_new: int,
     completed_prior: int,
     banned_models: Iterable[str],
+    round_order: str | None = None,
 ) -> None:
     payload = {
         "run_tag": run_tag,
@@ -26,6 +27,7 @@ def write_progress(
         "completed_total": completed_prior + completed_new,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "banned_models": sorted(banned_models),
+        "round_order": round_order,
     }
     progress_path.parent.mkdir(parents=True, exist_ok=True)
     with progress_path.open("w", encoding="utf-8") as f:

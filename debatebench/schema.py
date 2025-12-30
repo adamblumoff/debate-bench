@@ -98,6 +98,7 @@ class Transcript(BaseModel):
     con_model_id: str
     turns: List[Turn]
     seed: Optional[int] = None
+    round_order: Optional[str] = None
 
 
 class JudgeScores(BaseModel):

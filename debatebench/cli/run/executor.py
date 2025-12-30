@@ -31,6 +31,7 @@ from .executor_task import run_debate_and_judge
 from .executor_status import StatusTracker
 from .progress import render_active, update_progress
 from .retry_policy import record_empty_response_failure, record_general_failure, should_skip_task
+from .round_order import infer_round_order_from_rounds
 from .types import RunPlan, RunSetup, ExecutionResult
 
 
@@ -38,6 +39,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
     """Run debates, manage retries/progress, and append records."""
     opts = setup.options
     main_cfg = setup.main_cfg
+    round_order = infer_round_order_from_rounds(main_cfg.rounds)
 
     uses_free_models = any(
         (model.model or "").endswith(":free")
@@ -77,6 +79,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
         completed_new=completed_new,
         completed_prior=existing_completed,
         banned_models=banned_models,
+        round_order=round_order,
     )
     max_workers = min(64, (os.cpu_count() or 4) * 8)
     progress = Progress(
@@ -206,6 +209,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                                 completed_new=completed_new,
                                 completed_prior=existing_completed,
                                 banned_models=banned_models,
+                                round_order=round_order,
                             )
                             update_progress(progress, progress_task, len(inflight), failed_total, skipped_total)
                             status_tracker.update(task.task_id, phase="done")
@@ -232,6 +236,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
                                     "total_planned_remaining": total_runs,
                                     "completed_new": completed_new,
                                     "completed_prior": existing_completed,
+                                    "round_order": round_order,
                                 },
                                 live_console=live.console if live else None,
                             )
@@ -306,6 +311,7 @@ def execute_plan(setup: RunSetup, plan: RunPlan) -> ExecutionResult:
             completed_new=completed_new,
             completed_prior=existing_completed,
             banned_models=banned_models,
+            round_order=round_order,
         )
         signal.signal(signal.SIGINT, previous_handler)
 

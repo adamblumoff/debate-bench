@@ -7,6 +7,7 @@ from typing import Dict, Tuple
 import typer
 
 from ...schedule import derive_debate_seed, make_pair_key, select_judges
+from .round_order import infer_round_order_from_rounds
 from .types import DebateTask
 
 
@@ -15,7 +16,7 @@ def build_schedule(
     setup,
     pairs,
     debates_per_pair: int,
-    completed_counts: Dict[Tuple[str, str, str], int],
+    completed_counts: Dict[Tuple[str, str, str, str], int],
     judge_usage: Dict[str, int],
     include_completed: bool,
 ):
@@ -26,9 +27,12 @@ def build_schedule(
     pair_usage: dict[Tuple[str, str], int] = {}
     preview: list[Dict] = []
     tasks = []
+    round_order = infer_round_order_from_rounds(main_cfg.rounds)
     for topic in setup.topics_selected:
         for (model_a, model_b) in pairs:
-            already_done = completed_counts.get((topic.id, model_a.id, model_b.id), 0)
+            already_done = completed_counts.get(
+                (topic.id, model_a.id, model_b.id, round_order), 0
+            )
             for rep in range(debates_per_pair):
                 if not include_completed and rep < already_done:
                     continue
@@ -84,6 +88,7 @@ def build_schedule(
                         "con": con_model.id,
                         "judges": judges_chosen,
                         "rep": rep,
+                        "round_order": round_order,
                     }
                 )
                 task_id = f"{topic.id}|{pro_model.id}|{con_model.id}|{rep}"

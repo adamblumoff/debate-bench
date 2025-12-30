@@ -24,12 +24,13 @@ Quick fixes for common issues when running DebateBench.
 - **Free models feel slow**: If any model id ends with `:free`, the runner throttles to ~20 RPM to avoid OpenRouter rate-limit churn.
 
 ## Cost / time
-- **Costs look too high**: Use `--dry-run` to see per-model/per-judge estimates; lower `--debates-per-pair`, use fewer topics (`--sample-topics`), or cap tokens.
+- **Costs look too high**: Use `--dry-run` to see per-model/per-judge estimates; lower `--debates-per-pair`, use fewer topics (`--sample-topics`), or cap tokens. With `--resume`, dry-run estimates reflect only remaining debates.
 - **Time estimates missing**: `--estimate-time` uses timing snapshots (`results/run_<tag>/timing_snapshot.json`) from runs with ≥120 debates. If none exist, it falls back to recent medians from large runs or a heuristic; create a full-size run first.
 - **Estimates feel off**: Estimates are best-effort and can be inaccurate today; ensure you have at least one ≥120-debate run for both time and cost baselines.
 
 ## Resume / append
 - **Resume skipped everything**: Ensure `--run-tag` matches the debates file you expect, and that `--debates-per-pair` matches the original plan.
+- **Dual round order is half empty**: If you already ran one order, use `--dual-round-order --resume` to skip completed matchups by round order.
 - **Incremental append errors**: Confirm `results/run_<tag>/config_snapshot/cli_args.json` and `effective_selection.json` exist, and that the new model ID is present in `configs/models.yaml`.
 
 ## CLI UX

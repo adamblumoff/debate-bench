@@ -61,6 +61,7 @@ elo:
 Notes:
 - Config parsing is strict; unknown keys are rejected.
 - Rounds: list in speaking order. `role` is `pro`/`con`; `stage` is free text (used in prompts and CSVs). `max_tokens: null` is treated as 5,000 by the config parser. `--stage-max-tokens` can overwrite opening/rebuttal/closing token limits for a run.
+- Round order is recorded per debate as `transcript.round_order` (e.g., `pro-first` or `con-first`). Use `--dual-round-order` to run both orders back-to-back.
 - Languages: optional per-round `language` can be set; defaults to `debate.language`.
 - Prompts: the shipped system prompts already include turn guidance, safety reminders, and `<END_OF_TURN>` requirement.
 - Scoring dimensions: ids should be short, lowercase-friendly; min/max define the integer range judges must return. Winner is computed from mean scores (no winner field required).

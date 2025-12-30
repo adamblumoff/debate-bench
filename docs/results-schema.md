@@ -19,6 +19,7 @@ Each line in `debates_<tag>.jsonl` is a `DebateRecord`.
 - `pro_model_id`, `con_model_id`
 - `turns`: list of `Turn`
 - `seed` (optional)
+- `round_order` (optional, `pro-first` | `con-first` | `unknown`)
 
 ## Turn
 - `index`

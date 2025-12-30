@@ -28,6 +28,7 @@ class RunOptions:
     debates_per_pair: Optional[int]
     seed: Optional[int]
     side_policy: Optional[str]
+    dual_round_order: bool
     judge_policy: Optional[str]
     openrouter_select: bool
     openrouter_months: int
@@ -101,7 +102,7 @@ class RunPlan:
     pairs: List[Tuple[DebaterModelConfig, DebaterModelConfig]]
     debates_per_pair: int
     total_runs: int
-    completed_counts: Dict[Tuple[str, str, str], int]
+    completed_counts: Dict[Tuple[str, str, str, str], int]
     tasks: List["DebateTask"] = field(default_factory=list)
     existing_completed: int = 0
     progress_path: Path | None = None
