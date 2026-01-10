@@ -14,6 +14,7 @@ import { MAX_COMPARE } from "@/lib/compareLimits";
 import { buildChart } from "./actions";
 import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { useFieldGuards } from "./useFieldGuards";
+import { cn } from "@/lib/cn";
 import posthog from "posthog-js";
 
 type DatasetKey = "debates" | "judges" | "judge_bias";
@@ -215,7 +216,7 @@ export default function BuilderClient({
       <div className="card space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
+            <span className="text-[11px] uppercase text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
               Dataset
             </span>
             <select
@@ -240,7 +241,7 @@ export default function BuilderClient({
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
+            <span className="text-[11px] uppercase text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
               Chart type
             </span>
             <select
@@ -288,7 +289,7 @@ export default function BuilderClient({
 
         <div className="space-y-2">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
+            <span className="text-[11px] uppercase text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
               X field
             </span>
             <select
@@ -310,7 +311,7 @@ export default function BuilderClient({
 
           <label className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
+              <span className="text-[11px] uppercase text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
                 Y field
               </span>
               {chartType === "scatter" && (
@@ -338,7 +339,7 @@ export default function BuilderClient({
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
+            <span className="text-[11px] uppercase text-slate-400 bg-[var(--card-alt)] px-2 py-1 rounded">
               Color {chartType === "heatmap" ? "(required)" : "(optional)"}
             </span>
             <select
@@ -372,7 +373,7 @@ export default function BuilderClient({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs uppercase text-slate-400">
               Models ({selected.length}/6)
             </p>
             <span className="text-xs text-slate-400">
@@ -426,7 +427,7 @@ export default function BuilderClient({
                       }
                     }}
                   />
-                  <span className={checked ? "text-white" : ""}>{m}</span>
+                  <span className={cn(checked && "text-white")}>{m}</span>
                 </label>
               );
             })}
@@ -437,7 +438,7 @@ export default function BuilderClient({
       <div className="card min-h-[420px] flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs uppercase text-slate-400">
               Preview
             </p>
             <p className="text-slate-300 text-sm">

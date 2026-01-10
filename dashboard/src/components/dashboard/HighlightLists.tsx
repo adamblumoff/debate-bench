@@ -2,6 +2,7 @@
 
 import { toTokens } from "@/lib/format";
 import posthog from "posthog-js";
+import { cn } from "@/lib/cn";
 
 function formatModelId(id: string) {
   if (id.includes("/")) return id;
@@ -33,7 +34,7 @@ export function MiniBarList({
   const minHeight = desired ? desired * rowHeight : undefined;
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
-    <div className={`card flex-1 highlight-card ${className}`.trim()}>
+    <div className={cn("card flex-1 highlight-card", className)}>
       <header className="flex items-center justify-between mb-2">
         <p className="text-sm text-slate-300">{title}</p>
         <div className="h-1 w-10 rounded-full bg-[var(--accent)]" />
@@ -88,7 +89,7 @@ export function TokenBarList({
 }) {
   const max = Math.max(...items.map((i) => i.prompt + i.output), 1);
   return (
-    <div className={`card flex-1 highlight-card ${className}`.trim()}>
+    <div className={cn("card flex-1 highlight-card", className)}>
       <header className="flex items-center justify-between mb-2">
         <p className="text-sm text-slate-300">{title}</p>
         <div className="h-1 w-10 rounded-full bg-[var(--accent)]" />
@@ -151,7 +152,7 @@ export function HighlightsTabs({
       {(["performance", "efficiency", "cost"] as const).map((t) => (
         <button
           key={t}
-          className={active === t ? "active" : ""}
+          className={cn(active === t && "active")}
           onClick={() => {
             onChange(t);
             posthog.capture("highlights_tab_changed", {

@@ -35,6 +35,7 @@ import { VegaLiteChart } from "@/components/VegaLiteChart";
 import { LoadState } from "@/components/LoadState";
 import { ManifestResponse } from "@/lib/apiTypes";
 import { PricePerfMetric } from "@/lib/specs/highlights";
+import { cn } from "@/lib/cn";
 import posthog from "posthog-js";
 
 const fetcher = (url: string) =>
@@ -338,7 +339,7 @@ function DashboardContent() {
   const kpi = useMemo(() => buildKpis(filteredDerived), [filteredDerived]);
 
   return (
-    <main className="min-h-screen text-slate-50 bg-[var(--bg-base)]">
+    <main className="min-h-dvh text-slate-50 bg-[var(--bg-base)] text-pretty">
       <div className="container-page space-y-8 pb-28">
         <div className="flex flex-col gap-3">
           <Hero />
@@ -411,7 +412,7 @@ function DashboardContent() {
                   actions={
                     <div className="tab-switch">
                       <button
-                        className={pricePerfMetric === "elo" ? "active" : ""}
+                        className={cn(pricePerfMetric === "elo" && "active")}
                         onClick={() => {
                           setPricePerfMetric("elo");
                           posthog.capture("price_perf_metric_changed", {
@@ -423,9 +424,9 @@ function DashboardContent() {
                         Elo
                       </button>
                       <button
-                        className={
-                          pricePerfMetric === "win_rate" ? "active" : ""
-                        }
+                        className={cn(
+                          pricePerfMetric === "win_rate" && "active",
+                        )}
                         onClick={() => {
                           setPricePerfMetric("win_rate");
                           posthog.capture("price_perf_metric_changed", {

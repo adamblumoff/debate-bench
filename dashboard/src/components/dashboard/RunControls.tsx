@@ -4,6 +4,7 @@ import Link from "next/link";
 import { RunConfig } from "@/lib/server/runs";
 import { Download } from "lucide-react";
 import posthog from "posthog-js";
+import { cn } from "@/lib/cn";
 
 type Props = {
   runOptions: RunConfig[];
@@ -62,7 +63,7 @@ export function RunControls({
         <div className="run-left">
           <span
             id="run-selector-label"
-            className="text-[11px] uppercase tracking-[0.2em] text-slate-400"
+            className="text-[11px] uppercase text-slate-400"
           >
             Run
           </span>
@@ -132,7 +133,12 @@ export function RunControls({
           <a
             href={downloadHref}
             download
-            className={`btn-ghost subtle flex items-center gap-1 ${disableDownloadData ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--accent)]"}`}
+            className={cn(
+              "btn-ghost subtle flex items-center gap-1",
+              disableDownloadData
+                ? "opacity-60 cursor-not-allowed"
+                : "hover:border-[var(--accent)]",
+            )}
             onClick={(e) => {
               if (disableDownloadData) {
                 e.preventDefault();

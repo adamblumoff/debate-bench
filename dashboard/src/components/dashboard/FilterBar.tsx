@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
 import posthog from "posthog-js";
+import { cn } from "@/lib/cn";
 
 type Props = {
   categories: string[];
@@ -13,6 +15,111 @@ type Props = {
   onModels: (v: string[]) => void;
   onResetFilters?: () => void;
 };
+
+type FilterMenuProps = {
+  label: string;
+  summary: string;
+  items: string[];
+  selected: string[];
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  onToggle: (id: string) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+  emptyMessage: string;
+  align?: "start" | "center" | "end";
+  sideOffset?: number;
+};
+
+function FilterMenu({
+  label,
+  summary,
+  items,
+  selected,
+  searchValue,
+  onSearchChange,
+  onToggle,
+  onSelectAll,
+  onClear,
+  emptyMessage,
+  align = "start",
+  sideOffset = 8,
+}: FilterMenuProps) {
+  return (
+    <div className="category-block relative">
+      <p className="text-xs uppercase text-slate-400 category-label">{label}</p>
+      <Popover.Root>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="filter-summary bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100 cursor-pointer select-none min-w-[220px] flex items-center justify-between gap-2"
+            aria-label={`Open ${label.toLowerCase()} filter menu`}
+          >
+            <span className="truncate">{summary}</span>
+            <ChevronDown
+              className="h-4 w-4 text-slate-100 flex-shrink-0"
+              aria-hidden="true"
+            />
+          </button>
+        </Popover.Trigger>
+        <Popover.Content
+          align={align}
+          sideOffset={sideOffset}
+          className="z-40 mt-2 w-[220px] rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-lg outline-none"
+        >
+          <div className="flex flex-col gap-2">
+            <input
+              type="search"
+              placeholder={`Search ${label.toLowerCase()}`}
+              value={searchValue}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                onClick={onSelectAll}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
+                onClick={onClear}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 space-y-1">
+              {items.map((id) => {
+                const checked = selected.includes(id);
+                return (
+                  <label
+                    key={id}
+                    className="flex items-center gap-2 text-sm text-slate-200"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggle(id)}
+                    />
+                    <span className={cn(checked && "text-white")}>{id}</span>
+                  </label>
+                );
+              })}
+              {items.length === 0 && (
+                <p className="text-xs text-slate-500 px-1 py-2">
+                  {emptyMessage}
+                </p>
+              )}
+            </div>
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+    </div>
+  );
+}
 
 export function FilterBar({
   categories,
@@ -25,46 +132,9 @@ export function FilterBar({
 }: Props) {
   const [categorySearch, setCategorySearch] = useState("");
   const [modelSearch, setModelSearch] = useState("");
-  const [openMenu, setOpenMenu] = useState<"category" | "models" | null>(null);
   const [isStuck, setIsStuck] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const hasFilters = selectedCategories.length > 0 || selectedModels.length > 0;
-
-  const closeMenus = useCallback(() => setOpenMenu(null), []);
-
-  useEffect(() => {
-    const updateStuck = () => {
-      const el = rootRef.current;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top;
-      setIsStuck(top <= 0);
-    };
-    updateStuck();
-    window.addEventListener("scroll", updateStuck, { passive: true });
-    window.addEventListener("resize", updateStuck);
-    return () => {
-      window.removeEventListener("scroll", updateStuck);
-      window.removeEventListener("resize", updateStuck);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(e.target as Node)) {
-        closeMenus();
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeMenus();
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [closeMenus]);
 
   const filteredModels = useMemo(() => {
     if (!modelSearch.trim()) return models;
@@ -145,206 +215,72 @@ export function FilterBar({
         ? selectedModels[0]
         : `${selectedModels.length} models selected`;
 
+  useEffect(() => {
+    const updateStuck = () => {
+      const el = rootRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      setIsStuck(top <= 0);
+    };
+    updateStuck();
+    window.addEventListener("scroll", updateStuck, { passive: true });
+    window.addEventListener("resize", updateStuck);
+    return () => {
+      window.removeEventListener("scroll", updateStuck);
+      window.removeEventListener("resize", updateStuck);
+    };
+  }, []);
+
   return (
-    <>
-      <div
-        ref={rootRef}
-        className={`filter-bar backdrop-blur ${isStuck ? "is-stuck" : ""}`}
-      >
+    <div ref={rootRef} className={cn("filter-bar", isStuck && "is-stuck")}>
       <div className="filter-row">
         <div className="flex flex-wrap items-start gap-3">
-          <div className="category-block relative">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400 category-label">
-              Category
-            </p>
-            <details className="relative">
-              <summary className="filter-summary bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100 cursor-pointer select-none min-w-[220px] flex items-center justify-between gap-2">
-                <span className="truncate">{categorySummary}</span>
-                <ChevronDown
-                  className="h-4 w-4 text-slate-100 flex-shrink-0"
-                  aria-hidden="true"
-                />
-              </summary>
-              <button
-                type="button"
-                className="absolute inset-0"
-                aria-label="Toggle category menu"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setOpenMenu((v) => (v === "category" ? null : "category"));
-                }}
-              />
-              {openMenu === "category" && (
-                <div className="absolute right-0 mt-2 w-[220px] rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-lg z-40">
-                  <input
-                    type="search"
-                    placeholder="Search categories"
-                    value={categorySearch}
-                    onChange={(e) => setCategorySearch(e.target.value)}
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      type="button"
-                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                      onClick={() => onCategories(categories)}
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                      onClick={() => onCategories([])}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
-                    {filteredCategories.map((c) => {
-                      const checked = selectedCategories.includes(c);
-                      return (
-                        <label
-                          key={c}
-                          className="flex items-center gap-2 text-sm text-slate-200"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCategory(c)}
-                          />
-                          <span className={checked ? "text-white" : ""}>
-                            {c}
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {filteredCategories.length === 0 && (
-                      <p className="text-xs text-slate-500 px-1 py-2">
-                        No categories match this search.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </details>
-          </div>
+          <FilterMenu
+            label="Category"
+            summary={categorySummary}
+            items={filteredCategories}
+            selected={selectedCategories}
+            searchValue={categorySearch}
+            onSearchChange={setCategorySearch}
+            onToggle={toggleCategory}
+            onSelectAll={() => onCategories(categories)}
+            onClear={() => onCategories([])}
+            emptyMessage="No categories match this search."
+          />
 
-          <div className="category-block relative">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400 category-label">
-              Models
-            </p>
-            <details className="relative">
-              <summary className="filter-summary bg-[var(--card)] border border-[var(--border)] rounded-md px-2.5 py-2 text-sm text-slate-100 cursor-pointer select-none min-w-[220px] flex items-center justify-between gap-2">
-                <span className="truncate">{modelSummary}</span>
-                <ChevronDown
-                  className="h-4 w-4 text-slate-100 flex-shrink-0"
-                  aria-hidden="true"
-                />
-              </summary>
-              <button
-                type="button"
-                className="absolute inset-0"
-                aria-label="Toggle models menu"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setOpenMenu((v) => (v === "models" ? null : "models"));
-                }}
-              />
-              {openMenu === "models" && (
-                <div className="absolute right-0 mt-2 w-[220px] rounded-md border border-[var(--border)] bg-[var(--card)] p-3 shadow-lg z-40">
-                  <input
-                    type="search"
-                    placeholder="Search models"
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-surface)] p-2 text-sm"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      type="button"
-                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                      onClick={() => onModels(models)}
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs px-3 py-1.5 rounded-md border border-[var(--border)] text-slate-200"
-                      onClick={() => onModels([])}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="max-h-56 overflow-auto border border-[var(--border)] rounded-md p-2 mt-2 space-y-1">
-                    {filteredModels.map((m) => {
-                      const checked = selectedModels.includes(m);
-                      return (
-                        <label
-                          key={m}
-                          className="flex items-center gap-2 text-sm text-slate-200"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleModel(m)}
-                          />
-                          <span className={checked ? "text-white" : ""}>
-                            {m}
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {filteredModels.length === 0 && (
-                      <p className="text-xs text-slate-500 px-1 py-2">
-                        No models match this search.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </details>
-          </div>
+          <FilterMenu
+            label="Models"
+            summary={modelSummary}
+            items={filteredModels}
+            selected={selectedModels}
+            searchValue={modelSearch}
+            onSearchChange={setModelSearch}
+            onToggle={toggleModel}
+            onSelectAll={() => onModels(models)}
+            onClear={() => onModels([])}
+            emptyMessage="No models match this search."
+          />
         </div>
+
         <div className="filter-actions">
-          <p className="text-xs text-slate-400 filter-help">
-            Filters apply to all dashboard charts.
-          </p>
-          <button
-            className={`clear-pill ${!hasFilters ? "opacity-50 cursor-not-allowed" : ""}`}
-            onClick={handleReset}
-            disabled={!hasFilters}
-          >
-            Clear all
-          </button>
-        </div>
-      </div>
-      <div className="filter-row filter-foot">
-        <div className="pin-row">
-          {hasFilters ? (
-            <>
-              {selectedCategories.length > 0 && (
-                <span className="pill pill-soft">
-                  Categories:{" "}
-                  {selectedCategories.length <= 3
-                    ? selectedCategories.join(", ")
-                    : `${selectedCategories.length} selected`}
-                </span>
-              )}
-              {selectedModels.length > 0 && (
-                <span className="pill pill-soft">
-                  Models:{" "}
-                  {selectedModels.length <= 3
-                    ? selectedModels.join(", ")
-                    : `${selectedModels.length} selected`}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="pin-empty">No filters applied.</span>
+          {hasFilters && (
+            <button
+              type="button"
+              className="clear-pill"
+              onClick={handleReset}
+            >
+              Clear filters
+            </button>
           )}
+          <div className="run-toolbar">
+            <span className="run-chip">Filters</span>
+            <div className="run-meta-inline">
+              <span className="run-chip">{categorySummary}</span>
+              <span className="run-chip">{modelSummary}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    </>
   );
 }

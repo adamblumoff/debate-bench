@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import { cn } from "@/lib/cn";
 
 export function ChartCard({
   title,
@@ -16,10 +17,12 @@ export function ChartCard({
   className?: string;
 }) {
   return (
-    <section className={`card chart-card ${className}`.trim()}>
+    <section className={cn("card chart-card", className)}>
       <header className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <h2 className="text-base font-semibold text-white text-balance">
+            {title}
+          </h2>
           {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">

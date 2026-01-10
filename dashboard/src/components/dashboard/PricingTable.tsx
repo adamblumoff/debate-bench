@@ -14,10 +14,10 @@ export function PricingTable({
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase text-slate-400">
             Pricing
           </p>
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-semibold text-white text-balance">
             Cost per 1M tokens
           </h3>
           <p className="text-xs text-slate-500">
@@ -30,7 +30,7 @@ export function PricingTable({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm tabular-nums">
           <thead className="text-slate-400">
             <tr>
               <th className="py-2 pr-4 text-left">Model</th>

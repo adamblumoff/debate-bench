@@ -6,6 +6,7 @@ import { MIN_COMPARE, MAX_COMPARE } from "@/lib/compareLimits";
 import { DerivedData } from "@/lib/types";
 import { toPercent, toTokens } from "@/lib/format";
 import posthog from "posthog-js";
+import { cn } from "@/lib/cn";
 
 type Props = {
   models: string[];
@@ -40,7 +41,7 @@ export function CompareDrawer({
   // Track if drawer was previously open to avoid duplicate events
   const wasOpenRef = useRef(open);
 
-  const handleMouseEnter = () => {
+  const openDrawer = () => {
     if (!wasOpenRef.current) {
       posthog.capture("compare_drawer_opened", {
         models_count: models.length,
@@ -50,7 +51,7 @@ export function CompareDrawer({
     setOpen(true);
   };
 
-  const handleMouseLeave = () => {
+  const closeDrawer = () => {
     wasOpenRef.current = false;
     setOpen(false);
   };
@@ -61,13 +62,18 @@ export function CompareDrawer({
 
   return (
     <div
-      className={`compare-drawer-left ${open ? "open" : ""}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      className={cn("compare-drawer-left", open && "open")}
+      onMouseEnter={openDrawer}
+      onMouseLeave={closeDrawer}
     >
-      <div className="compare-tab">
+      <button
+        type="button"
+        className="compare-tab"
+        onClick={() => (open ? closeDrawer() : openDrawer())}
+        aria-label="Toggle compare drawer"
+      >
         Compare {rows.length ? `(${rows.length})` : ""}
-      </div>
+      </button>
       <div className="compare-body">
         <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
           <div className="min-w-0">
@@ -83,16 +89,17 @@ export function CompareDrawer({
                 onClick={(e) => {
                   if (!meetsMin) e.preventDefault();
                 }}
-                className={`text-[12.5px] uppercase tracking-[0.18em] font-semibold underline-offset-4 transition-colors ${
+                className={cn(
+                  "text-[12.5px] uppercase font-semibold underline-offset-4 transition-colors",
                   meetsMin
                     ? "text-cyan-100 hover:text-white hover:underline"
-                    : "text-slate-500 cursor-not-allowed"
-                }`}
+                    : "text-slate-500 cursor-not-allowed",
+                )}
               >
                 Compare
               </Link>
             ) : (
-              <span className="text-[12.5px] uppercase tracking-[0.18em] font-semibold text-slate-500">
+              <span className="text-[12.5px] uppercase font-semibold text-slate-500">
                 Custom charts off
               </span>
             )}
@@ -123,14 +130,15 @@ export function CompareDrawer({
                   <button
                     className="text-[10px] text-slate-400 hover:text-red-300 flex-shrink-0"
                     onClick={() => onRemove(r!.model_id)}
+                    aria-label={`Remove ${r!.model_id} from comparison`}
                   >
                     remove
                   </button>
                 </div>
-                <p className="text-[12px] text-slate-300">
+                <p className="text-[12px] text-slate-300 tabular-nums">
                   Elo {r!.rating.toFixed(0)} • Win {toPercent(r!.win_rate)}
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 tabular-nums">
                   Tokens {toTokens(r!.mean_prompt_tokens)} /{" "}
                   {toTokens(r!.mean_completion_tokens)}
                 </p>

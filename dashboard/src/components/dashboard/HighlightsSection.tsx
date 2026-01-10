@@ -68,10 +68,10 @@ export function HighlightsSection({
       <section id="highlights" className="space-y-3">
         <div className="card empty-card flex flex-col gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs uppercase text-slate-400">
               Highlights
             </p>
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="text-xl font-semibold text-white text-balance">
               No debates match these filters
             </h2>
             <p className="text-sm text-slate-400">
@@ -94,10 +94,10 @@ export function HighlightsSection({
     <section id="highlights" className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase text-slate-400">
             Highlights
           </p>
-          <h2 className="text-2xl font-semibold text-white">
+          <h2 className="text-2xl font-semibold text-white text-balance">
             {activeTab === "performance"
               ? "Performance at a glance"
               : activeTab === "efficiency"

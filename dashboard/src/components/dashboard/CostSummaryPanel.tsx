@@ -190,41 +190,41 @@ export function CostSummaryPanel({
       )}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card highlight-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase text-slate-400">
             Total spend
           </p>
           <div className="mt-2 flex items-baseline justify-between gap-3">
-            <div className="text-xl font-semibold text-white">
+            <div className="text-xl font-semibold text-white tabular-nums">
               {fmtUsd(totals.total_cost_usd)}
             </div>
             <div className="pill">{`All ${summary.debateCount}`}</div>
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-slate-500 mt-2 tabular-nums">
             Debaters {fmtUsd(totals.debater_cost_usd)} • Judges{" "}
             {fmtUsd(totals.judge_cost_usd)} ({fmtPct(judgeShare)})
           </p>
         </div>
         <div className="card highlight-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase text-slate-400">
             Per-debate cost
           </p>
-          <div className="mt-2 text-xl font-semibold text-white">
+          <div className="mt-2 text-xl font-semibold text-white tabular-nums">
             {fmtUsd(summary.per_debate.mean_cost_usd)}{" "}
             <span className="text-xs font-normal text-slate-400">mean</span>
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-slate-500 mt-2 tabular-nums">
             Median {fmtUsd(summary.per_debate.median_cost_usd)} • P90{" "}
             {fmtUsd(summary.per_debate.p90_cost_usd)}
           </p>
         </div>
         <div className="card highlight-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase text-slate-400">
             Stage spend
           </p>
           <div className="mt-2 text-xl font-semibold text-white">
             {topStages.length ? topStages[0].stage : "—"}
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-slate-500 mt-2 tabular-nums">
             {topStages.length
               ? topStages
                   .map((s) => `${s.stage} ${fmtUsd(s.cost_usd)}`)
@@ -254,7 +254,7 @@ export function CostSummaryPanel({
       <div className="card highlight-card">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs uppercase text-slate-400">
               Most expensive debates
             </p>
             <p className="text-xs text-slate-500">
@@ -266,7 +266,7 @@ export function CostSummaryPanel({
           </a>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm tabular-nums">
             <thead className="text-slate-400">
               <tr>
                 <th className="py-2 pr-4 text-left">Debate</th>

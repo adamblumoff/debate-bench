@@ -99,7 +99,7 @@ export function DimensionScoreSection({ derived, selectedModels }: Props) {
               <div className="flex justify-center">
                 <div className="relative">
                   <select
-                    className="appearance-none rounded-md border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1 pr-8 text-xs font-semibold uppercase tracking-[0.2em] text-white focus:outline-none focus:ring-0 focus-visible:border-white"
+                    className="appearance-none rounded-md border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-1 pr-8 text-xs font-semibold uppercase text-white focus:outline-none focus:ring-0 focus-visible:border-white"
                     value={activeDimension}
                     onChange={(e) => {
                       const next = e.target.value;
