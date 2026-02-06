@@ -1,0 +1,247 @@
+export type Winner = "pro" | "con" | "tie" | null;
+
+export interface Scores {
+  [dimension: string]: number;
+}
+
+export interface JudgeScore {
+  scores: Scores;
+}
+
+export interface JudgeDecision {
+  judge_id: string;
+  winner: Winner;
+  pro: JudgeScore;
+  con: JudgeScore;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  latency_ms?: number | null;
+  raw_response?: unknown;
+  cost?: number | null;
+  currency?: string | null;
+  cost_details?: unknown;
+}
+
+export interface Topic {
+  id: string;
+  motion?: string;
+  category?: string;
+}
+
+export interface Turn {
+  speaker: "pro" | "con";
+  stage?: string;
+  content?: string;
+  duration_ms?: number | null;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  cost?: number | null;
+  currency?: string | null;
+}
+
+export interface Transcript {
+  debate_id: string;
+  benchmark_version?: string;
+  rubric_version?: string;
+  topic: Topic;
+  pro_model_id: string;
+  con_model_id: string;
+  turns: Turn[];
+  seed?: number;
+}
+
+export interface DebateAggregate {
+  winner: Winner;
+  mean_pro: Scores;
+  mean_con: Scores;
+}
+
+export interface DebateRecord {
+  transcript: Transcript;
+  aggregate: DebateAggregate;
+  judges: JudgeDecision[];
+  created_at?: string;
+  judges_expected?: number;
+  judges_actual?: number;
+  panel_complete?: boolean;
+  panel_latency_ms?: number;
+  debate_seed?: number;
+  elo?: {
+    initial_rating: number;
+    k_factor: number;
+  };
+}
+
+export interface ModelStats {
+  model_id: string;
+  rating: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  games: number;
+  win_rate: number;
+  pro_games: number;
+  con_games: number;
+  pro_win_rate: number;
+  con_win_rate: number;
+  mean_prompt_tokens: number;
+  mean_completion_tokens: number;
+  mean_total_tokens: number;
+  mean_cost_usd?: number;
+  total_cost_usd?: number;
+  cost_samples?: number;
+}
+
+export interface HeadToHeadCell {
+  row: string;
+  col: string;
+  win_rate: number;
+  samples: number;
+}
+
+export interface TopicWinrate {
+  topic_id: string;
+  category?: string;
+  model_id: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  win_rate: number;
+  samples: number;
+}
+
+export interface JudgeAgreementRow {
+  judge_a: string;
+  judge_b: string;
+  agreement_rate: number;
+  samples: number;
+}
+
+export interface JudgeBiasRow {
+  judge_id: string;
+  category: string;
+  topic_id: string;
+  topic_motion?: string;
+  pro_wins: number;
+  con_wins: number;
+  ties: number;
+  samples: number;
+  pro_rate: number;
+  con_rate: number;
+  bias: number; // pro_rate - con_rate
+  adj_bias?: number; // bias adjusted for model strength
+  topic_avg_bias?: number; // mean raw bias for this topic
+  topic_avg_adj_bias?: number; // mean adjusted bias for this topic
+  adj_bias_mean?: number; // CV mean
+  adj_bias_std?: number; // CV std
+  adj_bias_ci_low?: number;
+  adj_bias_ci_high?: number;
+  stability?: "high" | "med" | "low";
+}
+
+export interface ModelDimensionStat {
+  model_id: string;
+  dimension: string;
+  mean: number;
+  samples: number;
+  std?: number;
+}
+
+export interface TopicDimensionStat {
+  topic_id: string;
+  model_id: string;
+  dimension: string;
+  mean: number;
+  samples: number;
+}
+
+export interface DebateRowForBuilder {
+  pro_model_id: string;
+  con_model_id: string;
+  winner: Winner;
+  topic_id: string;
+  category?: string;
+  [key: string]: string | number | Winner | undefined;
+}
+
+export interface JudgeRowForBuilder {
+  judge_id: string;
+  winner: Winner;
+  pro_model_id: string;
+  con_model_id: string;
+  topic_id: string;
+  category?: string;
+  side_score?: number;
+  pro_pick?: number;
+  con_pick?: number;
+  tie_pick?: number;
+  [key: string]: string | number | Winner | undefined;
+}
+
+export interface DerivedData {
+  models: string[];
+  dimensions: string[];
+  modelStats: ModelStats[];
+  modelDimensionStats: ModelDimensionStat[];
+  topicDimensionStats: TopicDimensionStat[];
+  headToHead: HeadToHeadCell[];
+  topicWinrates: TopicWinrate[];
+  judgeAgreement: JudgeAgreementRow[];
+  judgeBias: JudgeBiasRow[];
+  debateRows: DebateRowForBuilder[];
+  judgeRows: JudgeRowForBuilder[];
+}
+
+export interface CostDebateRow {
+  seq: number;
+  debate_id: string;
+  topic_id: string;
+  category?: string;
+  motion?: string;
+  pro_model_id: string;
+  con_model_id: string;
+  debater_cost_usd: number;
+  judge_cost_usd: number;
+  total_cost_usd: number;
+  debater_tokens: number;
+  judge_tokens: number;
+  created_at?: string;
+}
+
+export interface CostModelRow {
+  model_id: string;
+  debater_cost_usd: number;
+  judge_cost_usd: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  usd_per_million_tokens?: number;
+}
+
+export interface CostStageRow {
+  stage: string;
+  cost_usd: number;
+  tokens: number;
+}
+
+export interface CostSummary {
+  debateCount: number;
+  currency: "USD" | "mixed";
+  warnings?: {
+    estimated_judge_costs?: boolean;
+    missing_judge_costs?: boolean;
+  };
+  totals: {
+    debater_cost_usd: number;
+    judge_cost_usd: number;
+    total_cost_usd: number;
+  };
+  per_debate: {
+    mean_cost_usd: number;
+    median_cost_usd: number;
+    p90_cost_usd: number;
+  };
+  debates: CostDebateRow[];
+  models: CostModelRow[];
+  stages: CostStageRow[];
+}
