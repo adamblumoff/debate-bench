@@ -1,0 +1,233 @@
+.page {
+  min-height: 100dvh;
+  color: #2e2518;
+  background:
+    radial-gradient(1000px 460px at 88% -12%, rgba(66, 102, 181, 0.18), transparent 62%),
+    radial-gradient(900px 520px at 10% -14%, rgba(169, 120, 68, 0.2), transparent 56%),
+    linear-gradient(180deg, #f2ebda 0%, #ece1c8 56%, #e8ddc2 100%);
+}
+
+.shell {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 5.3rem 1.2rem 3.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.masthead {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem 1rem 1.15rem;
+  border: 1px solid rgba(122, 99, 70, 0.44);
+  border-radius: 8px;
+  background: rgba(247, 240, 227, 0.88);
+}
+
+.issue {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #71573a;
+}
+
+.masthead h1 {
+  font-size: clamp(2rem, 5vw, 3.7rem);
+  line-height: 0.95;
+}
+
+.deck {
+  max-width: 70ch;
+  color: #56442e;
+  line-height: 1.35;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.sidebar,
+.storyBlock,
+.chartPlate,
+.noteCard {
+  border: 1px solid rgba(122, 99, 70, 0.44);
+  background: rgba(247, 240, 227, 0.9);
+}
+
+.sidebar {
+  border-radius: 8px;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.8rem;
+  align-self: start;
+  position: sticky;
+  top: 1rem;
+}
+
+.sidebar section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sectionKicker {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6d5638;
+}
+
+.sidebar h2 {
+  font-size: 1rem;
+}
+
+.sidebar p {
+  color: #654e31;
+  line-height: 1.32;
+}
+
+.filterList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.filterList span {
+  border: 1px solid rgba(106, 84, 57, 0.5);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  padding: 0.22rem 0.5rem;
+  color: #553f25;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.portraitCard {
+  border-top: 2px solid #4463ab;
+  padding-top: 0.6rem;
+}
+
+.portraitCard strong {
+  font-size: 1.25rem;
+}
+
+.story {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.storyBlock {
+  border-radius: 8px;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.storyBlock header {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.storyBlock h3 {
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 0.7rem;
+}
+
+.threeCol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.chartPlate,
+.noteCard {
+  border-radius: 6px;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.chartPlate p,
+.noteCard p {
+  color: #614a2e;
+  line-height: 1.35;
+}
+
+.scatterMock,
+.heatMock,
+.barsMock,
+.tableMock {
+  min-height: 190px;
+  border: 1px solid rgba(117, 95, 67, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.scatterMock {
+  background:
+    radial-gradient(circle at 15% 68%, rgba(56, 97, 181, 0.55) 0 4px, transparent 5px),
+    radial-gradient(circle at 34% 52%, rgba(56, 97, 181, 0.5) 0 5px, transparent 6px),
+    radial-gradient(circle at 66% 35%, rgba(56, 97, 181, 0.56) 0 4px, transparent 5px),
+    radial-gradient(circle at 80% 58%, rgba(56, 97, 181, 0.46) 0 5px, transparent 6px),
+    linear-gradient(180deg, rgba(253, 248, 239, 0.95), rgba(248, 240, 229, 0.95));
+}
+
+.heatMock {
+  background:
+    linear-gradient(125deg, rgba(51, 87, 173, 0.25), rgba(174, 119, 57, 0.24)),
+    repeating-linear-gradient(0deg, rgba(53, 43, 30, 0.09) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(53, 43, 30, 0.09) 0 1px, transparent 1px 36px),
+    rgba(252, 247, 236, 0.9);
+}
+
+.barsMock {
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.56rem;
+  align-content: center;
+}
+
+.barsMock span {
+  display: block;
+  height: 15px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #4f6fba, #98aad8);
+}
+
+.tableMock {
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.48rem;
+  align-content: start;
+}
+
+.tableMock div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(111, 89, 60, 0.4);
+  padding-bottom: 0.35rem;
+  font-size: 0.78rem;
+  color: #4f3a21;
+}
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .twoCol,
+  .threeCol {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,192 @@
+.page {
+  min-height: 100dvh;
+  color: #f7f1e6;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 127, 31, 0.06) 0 2px, rgba(255, 127, 31, 0) 2px 12px),
+    linear-gradient(180deg, #070707 0%, #0c0c0c 100%);
+}
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 5.4rem 1rem 3rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.hero,
+.kpiRow article,
+.block {
+  border: 2px solid #f7f1e6;
+  background: #0f0f0f;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+}
+
+.hero {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.hero p,
+.hero span {
+  font-size: 0.73rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d8c6ab;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 6vw, 4.7rem);
+  line-height: 0.94;
+  letter-spacing: 0.04em;
+  color: #ff8d2f;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.kpiRow article {
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.kpiRow p,
+.kpiRow span {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #d7be9f;
+}
+
+.kpiRow strong {
+  font-size: 1.4rem;
+  letter-spacing: 0.03em;
+}
+
+.matrix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.block {
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.block header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.block h2 {
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+
+.block header span {
+  font-size: 0.67rem;
+  color: #c8b08f;
+  text-transform: uppercase;
+}
+
+.tagCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tagCloud span {
+  border: 2px solid #ff8d2f;
+  color: #ffbb88;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.74rem;
+  background: rgba(255, 127, 31, 0.1);
+}
+
+.scatter,
+.heat,
+.barStack,
+.table {
+  min-height: 180px;
+  border: 2px solid #f7f1e6;
+  background: #111111;
+}
+
+.scatter {
+  background:
+    radial-gradient(circle at 17% 72%, rgba(255, 141, 47, 0.7) 0 5px, transparent 6px),
+    radial-gradient(circle at 34% 53%, rgba(255, 141, 47, 0.65) 0 4px, transparent 5px),
+    radial-gradient(circle at 67% 36%, rgba(255, 141, 47, 0.65) 0 6px, transparent 7px),
+    radial-gradient(circle at 80% 58%, rgba(255, 141, 47, 0.75) 0 5px, transparent 6px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 32px),
+    #111;
+}
+
+.heat {
+  background:
+    linear-gradient(145deg, rgba(255, 141, 47, 0.38), rgba(255, 141, 47, 0.08)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.09) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0 1px, transparent 1px 38px),
+    #111;
+}
+
+.barStack {
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.55rem;
+  align-content: center;
+}
+
+.barStack span {
+  display: block;
+  height: 15px;
+  background: #ff8d2f;
+  border: 2px solid #ffd2a9;
+}
+
+.table {
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.table div {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.45rem;
+  border-bottom: 2px solid #4d3f31;
+  padding-bottom: 0.3rem;
+  font-size: 0.77rem;
+  text-transform: uppercase;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .matrix {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .kpiRow {
+    grid-template-columns: 1fr;
+  }
+}
